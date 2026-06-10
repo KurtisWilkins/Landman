@@ -1,5 +1,7 @@
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { Approvals } from "./routes/Approvals";
+import { FeedbackTriage } from "./routes/FeedbackTriage";
 import { Pipeline } from "./routes/Pipeline";
 import { Placeholder } from "./routes/Placeholder";
 
@@ -32,21 +34,8 @@ const router = createBrowserRouter([
           />
         ),
       },
-      {
-        path: "approvals",
-        element: (
-          <Placeholder
-            title="Approvals"
-            note="Gate-question suggest→approve queue arrives in the next slice."
-          />
-        ),
-      },
-      {
-        path: "feedback",
-        element: (
-          <Placeholder title="Feedback triage" note="Triage board arrives in the next slice." />
-        ),
-      },
+      { path: "approvals", element: <Approvals /> },
+      { path: "feedback", element: <FeedbackTriage /> },
     ],
   },
 ]);

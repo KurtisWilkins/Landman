@@ -88,6 +88,21 @@ async def get_suggestion(session: AsyncSession, suggestion_id: str) -> QuestionS
     return await session.get(QuestionSuggestion, suggestion_id)
 
 
+async def list_suggestions(
+    session: AsyncSession,
+    *,
+    status: SuggestionStatus | None = None,
+    phase: Phase | None = None,
+) -> Sequence[QuestionSuggestion]:
+    stmt = select(QuestionSuggestion)
+    if status is not None:
+        stmt = stmt.where(QuestionSuggestion.status == status)
+    if phase is not None:
+        stmt = stmt.where(QuestionSuggestion.phase == phase)
+    stmt = stmt.order_by(QuestionSuggestion.suggestion_id)
+    return (await session.execute(stmt)).scalars().all()
+
+
 async def set_suggestion_decision(
     session: AsyncSession,
     suggestion: QuestionSuggestion,

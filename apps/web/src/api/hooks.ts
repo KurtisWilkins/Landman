@@ -10,8 +10,13 @@ type DealSummary = Schemas["DealSummary"];
 type GateQuestion = Schemas["GateQuestion"];
 type FeedbackOut = Schemas["FeedbackOut"];
 type FeedbackCreate = Schemas["FeedbackCreate"];
+type FeedbackPatch = Schemas["FeedbackPatch"];
+type DispatchOut = Schemas["DispatchOut"];
+type DispatchRequest = Schemas["DispatchRequest"];
+type QuestionSuggestionOut = Schemas["QuestionSuggestionOut"];
 type Phase = components["schemas"]["Phase"];
 type FeedbackStatus = components["schemas"]["FeedbackStatus"];
+type SuggestionStatus = components["schemas"]["SuggestionStatus"];
 
 export function usePipeline(filters?: { phase?: Phase }) {
   const qs = filters?.phase ? `?phase=${filters.phase}` : "";
@@ -43,5 +48,49 @@ export function useSubmitFeedback() {
     mutationFn: (body: FeedbackCreate) =>
       apiFetch<FeedbackOut>("/feedback", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback"] }),
+  });
+}
+
+export function usePatchFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: FeedbackPatch }) =>
+      apiFetch<FeedbackOut>(`/feedback/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback"] }),
+  });
+}
+
+export function useDispatchFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: DispatchRequest }) =>
+      apiFetch<DispatchOut>(`/feedback/${id}/dispatch`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback"] }),
+  });
+}
+
+export function useQuestionSuggestions(status?: SuggestionStatus) {
+  const qs = status ? `?status=${status}` : "";
+  return useQuery({
+    queryKey: ["question-suggestions", status ?? "all"],
+    queryFn: () => apiFetch<QuestionSuggestionOut[]>(`/question-suggestions${qs}`),
+  });
+}
+
+export function useDecideSuggestion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: SuggestionStatus }) =>
+      apiFetch<QuestionSuggestionOut>(`/question-suggestions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["question-suggestions"] });
+      qc.invalidateQueries({ queryKey: ["gate-questions"] });
+    },
   });
 }
