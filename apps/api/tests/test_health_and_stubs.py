@@ -43,7 +43,9 @@ def test_rbac_forbids_insufficient_role(client: TestClient) -> None:
 
 
 def test_rbac_allows_admin_to_reach_stub(client: TestClient) -> None:
-    r = client.get("/feedback", headers=DEV_ADMIN)
+    # Document upload is still a stub; admin holds deal:write, so RBAC passes and the
+    # request reaches the not-yet-implemented body. (/feedback is implemented now.)
+    r = client.post("/deals/dl_x/documents", headers=DEV_ADMIN)
     assert r.status_code == 501  # passed RBAC, hit the not-yet-implemented body
 
 
