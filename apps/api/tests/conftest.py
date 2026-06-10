@@ -46,6 +46,24 @@ def migrated_db(db_url: str) -> str:
     cfg.get_settings.cache_clear()
     cfg.settings = cfg.get_settings()
 
+    # core.db binds its engine/session factory at import time from the (default) settings.
+    # Tests switch the URL afterwards, and import order determines whether code paths that
+    # use core.db (endpoints via get_session, the seed loader) saw the default or the test
+    # URL. Rebind here so they always target the test DB regardless of import order.
+    from rjacq.core import db as core_db
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
+
+    core_db.engine = create_async_engine(
+        cfg.settings.async_database_url, pool_pre_ping=True, future=True
+    )
+    core_db.SessionFactory = async_sessionmaker(
+        core_db.engine, expire_on_commit=False, class_=AsyncSession
+    )
+
     repo_root = pathlib.Path(__file__).resolve().parents[3]
     alembic_cfg = Config(str(repo_root / "alembic.ini"))
     alembic_cfg.set_main_option("script_location", str(repo_root / "migrations"))
