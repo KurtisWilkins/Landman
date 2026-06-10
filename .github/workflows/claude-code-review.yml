@@ -28,6 +28,11 @@ jobs:
 
       - name: Claude review
         uses: anthropics/claude-code-action@v1
+        # Advisory only: a long/over-limit review must never fail this check or block a
+        # merge (it does not replace human review — see the header). Step-level
+        # continue-on-error makes the job conclude success even if the action errors;
+        # job-level would leave the check itself red. Gating CI lives in ci.yml.
+        continue-on-error: true
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -43,4 +48,4 @@ jobs:
             Do not approve or merge.
           claude_args: |
             --model claude-sonnet-4-6
-            --max-turns 12
+            --max-turns 20
