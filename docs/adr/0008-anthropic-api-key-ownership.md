@@ -1,7 +1,7 @@
 # 0008. ANTHROPIC_API_KEY ownership + spend cap (C-29)
 
 Date: 2026-06-10
-Status: Proposed
+Status: Accepted (spend cap is a placeholder — confirm final amount)
 
 ## Context
 
@@ -10,13 +10,20 @@ GitHub Action and set a monthly spend cap. §5.12 stores the key in repo secrets
 
 ## Decision
 
-**Unresolved — pending CTO.** The workflows reference `secrets.ANTHROPIC_API_KEY`; the key
-is never committed and lives only in repository secrets. Ownership and the spend cap are
-recorded here once set; `.env.example` notes the same key is also set as a repo secret with
-`TODO(decision: §14 C-29)`.
+- **Key:** set as the `ANTHROPIC_API_KEY` repository secret (Settings → Secrets and
+  variables → Actions). Never committed; the workflows reference `secrets.ANTHROPIC_API_KEY`
+  only. A previously-exposed key was revoked and rotated.
+- **Owner:** Kurtis Wilkins (President of Operations) owns the key and its rotation.
+- **Monthly spend cap:** **$20/month — placeholder.** Set as a usage limit in the Anthropic
+  Console. `TODO(decision: §14 C-29)`: confirm the real cap before enabling write-enabled
+  `@claude` at scale or running the dispatch loop on real volume.
 
 ## Consequences
 
-- Until the secret is set, the Action cannot run; CI (lint+test) is unaffected.
-- Spend monitoring/cap and key rotation ownership must be assigned before enabling
-  write-enabled `@claude` at scale (relates to C-28, C-20).
+- The `@claude` Action and the automated PR-review workflow can now run; CI (lint+test)
+  remains independent of the key.
+- The $20 placeholder is low enough to fail safe (the Action stops rather than overspends)
+  but will throttle heavy use — revisit alongside C-28 (write-enabled posture) and C-20
+  (AI provider budget).
+- Key rotation ownership is assigned; rotate on any suspected exposure.
+
