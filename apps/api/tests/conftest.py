@@ -50,13 +50,12 @@ def migrated_db(db_url: str) -> str:
     # Tests switch the URL afterwards, and import order determines whether code paths that
     # use core.db (endpoints via get_session, the seed loader) saw the default or the test
     # URL. Rebind here so they always target the test DB regardless of import order.
+    from rjacq.core import db as core_db
     from sqlalchemy.ext.asyncio import (
         AsyncSession,
         async_sessionmaker,
         create_async_engine,
     )
-
-    from rjacq.core import db as core_db
 
     core_db.engine = create_async_engine(
         cfg.settings.async_database_url, pool_pre_ping=True, future=True
