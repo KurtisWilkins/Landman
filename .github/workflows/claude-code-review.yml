@@ -20,9 +20,6 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Advisory only: a long/over-limit review must never fail the check or block a merge
-    # (it does not replace human review — see the header). The gating CI lives in ci.yml.
-    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,6 +28,11 @@ jobs:
 
       - name: Claude review
         uses: anthropics/claude-code-action@v1
+        # Advisory only: a long/over-limit review must never fail this check or block a
+        # merge (it does not replace human review — see the header). Step-level
+        # continue-on-error makes the job conclude success even if the action errors;
+        # job-level would leave the check itself red. Gating CI lives in ci.yml.
+        continue-on-error: true
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
