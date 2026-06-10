@@ -1,0 +1,5 @@
+dist
+node_modules
+src/api/types.ts
+openapi.json
+pnpm-lock.yaml

@@ -1,0 +1,100 @@
+# Local development stack. Secrets/config come from .env (never committed).
+# Production hosting/provider is unresolved — TODO(decision: §14 C-17).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: rj
+      POSTGRES_PASSWORD: rj
+      POSTGRES_DB: rjacq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rj -d rjacq"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # S3-compatible object storage for local dev (source files, photos, screenshots).
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: rjacq
+      MINIO_ROOT_PASSWORD: rjacq-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://rj:rj@postgres:5432/rjacq
+      REDIS_URL: redis://redis:6379/0
+      WEB_BASE_URL: http://localhost:5173
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m rjacq.seeds.load &&
+             uvicorn rjacq.main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./migrations:/app/migrations
+      - ./alembic.ini:/app/alembic.ini
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://rj:rj@postgres:5432/rjacq
+      REDIS_URL: redis://redis:6379/0
+    command: arq rjacq.core.queue.WorkerSettings
+    volumes:
+      - ./apps/api:/app/apps/api
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_TARGET: http://api:8000
+    command: pnpm dev --host 0.0.0.0
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  miniodata:
