@@ -1,6 +1,7 @@
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { Approvals } from "./routes/Approvals";
+import { DealDetail } from "./routes/DealDetail";
 import { FeedbackTriage } from "./routes/FeedbackTriage";
 import { Pipeline } from "./routes/Pipeline";
 import { Placeholder } from "./routes/Placeholder";
@@ -16,15 +17,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <Pipeline /> },
-      {
-        path: "deals/:dealId",
-        element: (
-          <Placeholder
-            title="Deal detail"
-            note="Pro forma / Comps / Gates / GL-Docs tabs arrive in the next frontend slice."
-          />
-        ),
-      },
+      { path: "deals/:dealId", element: <DealDetail /> },
       {
         path: "mapping",
         element: (
