@@ -11,7 +11,7 @@ from ..core.rbac import Capability, require
 from ..gates import repository as repo
 from ..gates import service
 from ..gates.service import GateError
-from ..models.enums import Phase
+from ..models.enums import Phase, SuggestionStatus
 from ..schemas.gates import (
     GateQuestion,
     QuestionSuggestionCreate,
@@ -66,6 +66,22 @@ async def suggest_question(
     )
     await session.commit()
     return QuestionSuggestionOut.model_validate(suggestion)
+
+
+@router.get("/question-suggestions", response_model=list[QuestionSuggestionOut])
+async def list_question_suggestions(
+    status_filter: SuggestionStatus | None = Query(default=None, alias="status"),
+    phase: Phase | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.GATE_APPROVE)),
+) -> list[QuestionSuggestionOut]:
+    """Admin review queue: gate-question suggestions to approve/decline (§5.7).
+
+    Contract note: this GET completes the suggest→approve surface (§9 is representative);
+    it is additive — existing endpoints are unchanged.
+    """
+    suggestions = await service.list_suggestions(session, status=status_filter, phase=phase)
+    return [QuestionSuggestionOut.model_validate(s) for s in suggestions]
 
 
 @router.patch("/question-suggestions/{suggestion_id}", response_model=QuestionSuggestionOut)

@@ -161,3 +161,34 @@ async def test_cannot_decide_twice(session: AsyncSession) -> None:
             session, suggestion, status=SuggestionStatus.DECLINED, decided_by="kurtis"
         )
     assert ei.value.code == "already_decided"
+
+
+async def test_list_suggestions_filters_by_status(session: AsyncSession) -> None:
+    pending = await service.submit_suggestion(
+        session,
+        phase=Phase.CONTRACT,
+        type=SuggestionType.ADD,
+        text="A pending review-queue item.",
+        rationale=None,
+        suggested_by="analyst_q",
+    )
+    other = await service.submit_suggestion(
+        session,
+        phase=Phase.CONTRACT,
+        type=SuggestionType.ADD,
+        text="A decided item.",
+        rationale=None,
+        suggested_by="analyst_q",
+    )
+    await service.decide_suggestion(
+        session, other, status=SuggestionStatus.DECLINED, decided_by="kurtis"
+    )
+    await session.commit()
+
+    pending_only = await service.list_suggestions(
+        session, status=SuggestionStatus.PENDING, phase=None
+    )
+    ids = {s.suggestion_id for s in pending_only}
+    assert pending.suggestion_id in ids
+    assert other.suggestion_id not in ids
+    assert all(s.status == SuggestionStatus.PENDING for s in pending_only)

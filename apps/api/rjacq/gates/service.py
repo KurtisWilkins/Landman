@@ -174,3 +174,13 @@ async def decide_suggestion(
 
 async def list_questions(session: AsyncSession, phase: Phase | None) -> Sequence[GateQuestion]:
     return await repo.list_active_questions(session, phase)
+
+
+async def list_suggestions(
+    session: AsyncSession,
+    *,
+    status: SuggestionStatus | None,
+    phase: Phase | None,
+) -> Sequence[QuestionSuggestion]:
+    """The admin review queue — suggestions to approve/decline (§5.7)."""
+    return await repo.list_suggestions(session, status=status, phase=phase)
