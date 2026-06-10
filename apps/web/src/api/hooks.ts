@@ -1,0 +1,47 @@
+/**
+ * Typed server-state hooks (TanStack Query) against the generated §9 contract.
+ * Data-fetching lives here; components stay presentational (CLAUDE.md).
+ */
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { components } from "./types";
+import { apiFetch, type Schemas } from "./client";
+
+type DealSummary = Schemas["DealSummary"];
+type GateQuestion = Schemas["GateQuestion"];
+type FeedbackOut = Schemas["FeedbackOut"];
+type FeedbackCreate = Schemas["FeedbackCreate"];
+type Phase = components["schemas"]["Phase"];
+type FeedbackStatus = components["schemas"]["FeedbackStatus"];
+
+export function usePipeline(filters?: { phase?: Phase }) {
+  const qs = filters?.phase ? `?phase=${filters.phase}` : "";
+  return useQuery({
+    queryKey: ["deals", filters ?? {}],
+    queryFn: () => apiFetch<DealSummary[]>(`/deals${qs}`),
+  });
+}
+
+export function useGateQuestions(phase?: Phase) {
+  const qs = phase ? `?phase=${phase}` : "";
+  return useQuery({
+    queryKey: ["gate-questions", phase ?? "all"],
+    queryFn: () => apiFetch<GateQuestion[]>(`/gate-questions${qs}`),
+  });
+}
+
+export function useFeedbackQueue(filters?: { status?: FeedbackStatus }) {
+  const qs = filters?.status ? `?status=${filters.status}` : "";
+  return useQuery({
+    queryKey: ["feedback", filters ?? {}],
+    queryFn: () => apiFetch<FeedbackOut[]>(`/feedback${qs}`),
+  });
+}
+
+export function useSubmitFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: FeedbackCreate) =>
+      apiFetch<FeedbackOut>("/feedback", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback"] }),
+  });
+}

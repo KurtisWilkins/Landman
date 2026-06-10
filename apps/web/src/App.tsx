@@ -1,39 +1,56 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "./api/client";
-
-interface Health {
-  status: string;
-  version: string;
-  env: string;
-}
+import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { AppShell } from "./components/AppShell";
+import { Pipeline } from "./routes/Pipeline";
+import { Placeholder } from "./routes/Placeholder";
 
 /**
- * Phase-0 placeholder shell. It exists to prove the toolchain and the typed API client
- * wire up against the frozen contract. The responsive shell, screens, charts, gates, and
- * feedback widget are built by Stream D (design doc §6, §5.7–5.12) against `./api/types`.
+ * App routes. The responsive shell wraps every page (so the "?" widget is always present).
+ * Screens not yet built in this slice render a placeholder; they land in slice 3b against
+ * the same generated contract types.
  */
-export function App() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["health"],
-    queryFn: () => apiFetch<Health>("/health"),
-  });
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <AppShell />,
+    children: [
+      { index: true, element: <Pipeline /> },
+      {
+        path: "deals/:dealId",
+        element: (
+          <Placeholder
+            title="Deal detail"
+            note="Pro forma / Comps / Gates / GL-Docs tabs arrive in the next frontend slice."
+          />
+        ),
+      },
+      {
+        path: "mapping",
+        element: (
+          <Placeholder
+            title="GL Mapping queue"
+            note="Mapping review UI arrives in the next slice."
+          />
+        ),
+      },
+      {
+        path: "approvals",
+        element: (
+          <Placeholder
+            title="Approvals"
+            note="Gate-question suggest→approve queue arrives in the next slice."
+          />
+        ),
+      },
+      {
+        path: "feedback",
+        element: (
+          <Placeholder title="Feedback triage" note="Triage board arrives in the next slice." />
+        ),
+      },
+    ],
+  },
+]);
 
-  return (
-    <main className="min-h-screen bg-bone-paper text-forest-ink p-6">
-      <h1 className="text-2xl font-semibold">RJourney Acquisitions</h1>
-      <p className="mt-2 text-sm opacity-70">
-        Phase-0 scaffold. Screens are built by Stream D against the generated contract types.
-      </p>
-      <section className="mt-6 rounded border border-forest/20 p-4">
-        <h2 className="font-figure text-sm uppercase tracking-wide">API health</h2>
-        {isLoading && <p>Checking…</p>}
-        {error && <p className="text-red-700">API unreachable (expected until `make dev`).</p>}
-        {data && (
-          <p className="font-figure">
-            {data.status} · v{data.version} · {data.env}
-          </p>
-        )}
-      </section>
-    </main>
-  );
+export function App() {
+  return <RouterProvider router={router} />;
 }
