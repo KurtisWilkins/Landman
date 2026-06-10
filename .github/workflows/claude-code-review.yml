@@ -1,0 +1,46 @@
+name: Claude Code Review
+
+# Automated first-pass review posted on every PR. Automation mode is triggered by supplying
+# a `prompt` (no @claude mention required). This does NOT replace human review or enable merge.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request against CLAUDE.md and the design doc.
+            Focus on, in priority order:
+              1. Correctness of underwriting math (IRR, waterfall tiers, NOI bridge) and any
+                 financial calculation — flag float-for-money, off-by-one, or missing edge cases.
+              2. Schema conformance to design doc §8 (column names, nullability, provenance fields).
+              3. Any hard-coded [DECISION] value or business threshold that should be config.
+              4. Security: secrets/PII in logs, RBAC gaps, any write attempt to SHIELD, unvalidated input.
+              5. Missing tests for new logic or for the bug being fixed.
+            Post specific, line-level comments. Only flag findings you are confident about.
+            Do not approve or merge.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --max-turns 12
