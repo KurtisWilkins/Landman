@@ -20,6 +20,9 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Advisory only: a long/over-limit review must never fail the check or block a merge
+    # (it does not replace human review — see the header). The gating CI lives in ci.yml.
+    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,4 +46,4 @@ jobs:
             Do not approve or merge.
           claude_args: |
             --model claude-sonnet-4-6
-            --max-turns 12
+            --max-turns 20
