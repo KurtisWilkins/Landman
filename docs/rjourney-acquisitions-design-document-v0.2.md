@@ -140,7 +140,7 @@ the same. A deal can accept more documents at any phase.
 - **3-hurdle equity waterfall** with LP/GP promote splits per tier (`waterfall_tiers`).
 - **Hurdles:** default thresholds (config) with per-deal override; each renders pass/fail.
 - Recalculates live when an assumption changes; flags which inputs were overridden from the SHIELD baseline. **[DECISION]** real default hurdle values and promote splits.
-- **Population rings (market sizing).** Estimated population within **25 / 50 / 100 / 150 miles** of the property, part of the Initial UW specs. Auto-pulled from a demographics provider when a property is entered, and overridable by the underwriter (baseline + override + author + note retained, like assumptions). Stored in `population_rings` (§8.4). Provider + key is an unresolved decision (**ADR-0009**); with no provider, rings are entered manually — never fabricated.
+- **Population rings (market sizing).** Estimated population within **25 / 50 / 100 / 150 miles** of the property, part of the Initial UW specs. Auto-pulled from a demographics provider when a property is entered, and overridable by the underwriter (baseline + override + author + note retained, like assumptions). Stored in `population_rings` (§8.4). The wired provider is **US Census ACS** (county-grain, **ADR-0009**): each ring sums ACS 5-year population for counties whose centroid falls within the radius, configured via `POPULATION_PROVIDER=census` + a free Census key. With no provider, rings are entered manually — never fabricated; a ring capturing no county centroid is left unestimated rather than zeroed.
 
 ### 5.6 Comp intelligence
 - On a deal's address, discover RV parks / campgrounds within a **50-mile radius**.

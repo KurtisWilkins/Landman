@@ -5,6 +5,8 @@ are kept side by side (provenance); an override is never clobbered by a refresh.
 
 from __future__ import annotations
 
+import asyncio
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import get_logger
@@ -36,7 +38,9 @@ async def refresh_rings(
     if lat is None or lng is None or provider is None:
         log.info("population.refresh_skipped", deal_id=deal_id, has_provider=provider is not None)
         return 0
-    estimates = {e.radius_mi: e for e in provider.estimate_rings(lat, lng, RING_RADII_MILES)}
+    # A real provider does network I/O; run it off the event loop so requests don't block.
+    ring_estimates = await asyncio.to_thread(provider.estimate_rings, lat, lng, RING_RADII_MILES)
+    estimates = {e.radius_mi: e for e in ring_estimates}
     updated = 0
     for radius in RING_RADII_MILES:
         est = estimates.get(radius)
