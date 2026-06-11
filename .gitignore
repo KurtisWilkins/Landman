@@ -24,3 +24,6 @@ apps/web/dist/
 .idea/
 .vscode/
 *.swp
+
+# Deployment secrets (provisioning)
+scripts/deploy.env
