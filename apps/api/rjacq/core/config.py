@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # key is an unresolved decision; the provider is None until configured (no guessed data).
     population_provider: str | None = None  # e.g. "census" | "esri"
     population_provider_api_key: str | None = None
+    # ACS 5-year vintage (data year, not a business decision); the Census provider pulls
+    # county population for this year. Bump as new ACS releases land.
+    census_acs_year: int = 2022
 
     # ── Email intake ───────────────────────  TODO(decision: §14 C-18)
     ms_graph_tenant_id: str | None = None
