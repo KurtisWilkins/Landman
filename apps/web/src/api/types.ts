@@ -123,7 +123,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Document
-         * @description Upload a source document → queue parse (§5.2).
+         * @description Upload a source document → parse + normalized load (§5.2).
          */
         post: operations["upload_document_deals__deal_id__documents_post"];
         delete?: never;
@@ -512,6 +512,11 @@ export interface components {
             note?: string | null;
             /** Override Value */
             override_value: number | string;
+        };
+        /** Body_upload_document_deals__deal_id__documents_post */
+        Body_upload_document_deals__deal_id__documents_post: {
+            /** File */
+            file: string;
         };
         /** Booking */
         Booking: {
@@ -1956,7 +1961,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_document_deals__deal_id__documents_post"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {
@@ -1965,7 +1974,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: string;
+                        [key: string]: string | number;
                     };
                 };
             };
