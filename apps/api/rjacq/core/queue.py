@@ -10,6 +10,7 @@ from typing import Any
 
 from arq.connections import RedisSettings
 
+from ..shield.jobs import sync_shield_baselines
 from .config import settings
 from .logging import configure_logging, correlation_id_var, get_logger
 
@@ -37,9 +38,13 @@ async def on_job_start(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    """Arq worker entrypoint: ``arq rjacq.core.queue.WorkerSettings``."""
+    """Arq worker entrypoint: ``arq rjacq.core.queue.WorkerSettings``.
 
-    functions = [healthcheck]
+    Domain jobs are registered here (the worker is the composition root). The SHIELD sync
+    no-ops until C-14/C-15 are configured (see shield.jobs).
+    """
+
+    functions = [healthcheck, sync_shield_baselines]
     on_startup = on_startup
     on_job_start = on_job_start
     redis_settings = redis_settings()
