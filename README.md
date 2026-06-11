@@ -57,6 +57,13 @@ make e2e        # Playwright end-to-end
 make migration m="add feedback tables"
 ```
 
+## Deployment
+
+Production runs on **Azure Container Apps** with managed Postgres/Redis/object storage and an
+automated, zero-downtime GitHub Actions pipeline (`.github/workflows/deploy.yml`). Full
+provisioning, the fast update flow, and the data-safety / migration discipline are in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ## Feedback → fix loop
 
 The app's floating **"?"** widget files feature/bug/question items into a triage queue. A
