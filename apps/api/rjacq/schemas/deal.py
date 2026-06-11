@@ -12,6 +12,7 @@ from .common import ApiModel
 from .comps import CompOut
 from .financials import FinancialsDoc
 from .gates import GateDoc
+from .market import PopulationRingsDoc
 from .operations import OperationsDoc
 from .property import PropertyDoc
 from .underwriting import UnderwritingDoc
@@ -89,6 +90,7 @@ class DealDocument(BaseModel):
     property: PropertyDoc | None = None
     operations: OperationsDoc | None = None
     underwriting: UnderwritingDoc | None = None
+    market: PopulationRingsDoc | None = None  # population rings (25/50/100/150 mi)
     comps: list[CompOut] = Field(default_factory=list)
     gate: GateDoc | None = None
 

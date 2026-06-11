@@ -39,7 +39,8 @@ export interface paths {
         put?: never;
         /**
          * Create Deal
-         * @description Manual deal create.
+         * @description Manual deal create. When an address/geocode is present, population rings
+         *     (25/50/100/150 mi) are auto-pulled for the Initial UW market view (§5.5).
          */
         post: operations["create_deal_deals_post"];
         delete?: never;
@@ -190,6 +191,50 @@ export interface paths {
          * @description Advance/kill a deal — gated; never auto-advances (human-in-the-loop).
          */
         patch: operations["advance_phase_deals__deal_id__phase_patch"];
+        trace?: never;
+    };
+    "/deals/{deal_id}/population-rings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Population Rings
+         * @description Population rings (25/50/100/150 mi) for the deal's market view (§5.5).
+         */
+        get: operations["get_population_rings_deals__deal_id__population_rings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Override Population Ring
+         * @description Override one ring's population (records author + note; baseline retained).
+         */
+        patch: operations["override_population_ring_deals__deal_id__population_rings_patch"];
+        trace?: never;
+    };
+    "/deals/{deal_id}/population-rings/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Population Rings
+         * @description Re-pull baseline ring populations from the provider (overrides preserved).
+         */
+        post: operations["refresh_population_rings_deals__deal_id__population_rings_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/deals/{deal_id}/proforma": {
@@ -671,6 +716,7 @@ export interface components {
             deal_id: string;
             financials?: components["schemas"]["FinancialsDoc"] | null;
             gate?: components["schemas"]["GateDoc"] | null;
+            market?: components["schemas"]["PopulationRingsDoc"] | null;
             metadata: components["schemas"]["DealMetadata"];
             operations?: components["schemas"]["OperationsDoc"] | null;
             /** Photos */
@@ -1150,6 +1196,48 @@ export interface components {
          * @enum {string}
          */
         PhotoSource: "website" | "google" | "seller" | "manual";
+        /** PopulationRingOut */
+        PopulationRingOut: {
+            /** As Of */
+            as_of?: string | null;
+            /** Baseline Population */
+            baseline_population?: number | null;
+            /**
+             * Is Override
+             * @default false
+             */
+            is_override: boolean;
+            /** Note */
+            note?: string | null;
+            /** Overridden By */
+            overridden_by?: string | null;
+            /** Population */
+            population?: number | null;
+            /** Radius Mi */
+            radius_mi: number;
+            /** Source */
+            source?: string | null;
+        };
+        /**
+         * PopulationRingOverride
+         * @description PATCH /deals/{id}/population-rings — override one ring (records author + note).
+         */
+        PopulationRingOverride: {
+            /** Note */
+            note?: string | null;
+            /** Population */
+            population: number;
+            /** Radius Mi */
+            radius_mi: number;
+        };
+        /** PopulationRingsDoc */
+        PopulationRingsDoc: {
+            /**
+             * Rings
+             * @default []
+             */
+            rings: components["schemas"]["PopulationRingOut"][];
+        };
         /** ProformaExit */
         ProformaExit: {
             /** Exit Cap */
@@ -2245,6 +2333,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DealDocument"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_population_rings_deals__deal_id__population_rings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PopulationRingsDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    override_population_ring_deals__deal_id__population_rings_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PopulationRingOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PopulationRingsDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    refresh_population_rings_deals__deal_id__population_rings_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PopulationRingsDoc"];
                 };
             };
             /** @description Bad Request */

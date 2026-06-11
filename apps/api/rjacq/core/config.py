@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     # Scrapers stay OFF until a per-source ToS/legal review resolves D-22.
     scrapers_enabled: bool = False  # TODO(decision: §14 D-22)
 
+    # ── Population / demographics ──────────  TODO(decision: ADR-0009 / §14 D-35)
+    # Auto-pull estimated ring populations (25/50/100/150 mi) on property entry. Provider +
+    # key is an unresolved decision; the provider is None until configured (no guessed data).
+    population_provider: str | None = None  # e.g. "census" | "esri"
+    population_provider_api_key: str | None = None
+
     # ── Email intake ───────────────────────  TODO(decision: §14 C-18)
     ms_graph_tenant_id: str | None = None
     ms_graph_client_id: str | None = None

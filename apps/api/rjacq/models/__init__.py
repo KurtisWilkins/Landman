@@ -15,6 +15,7 @@ from .feedback import (
 )
 from .financials import FinancialLine, FinancialPeriod
 from .gates import DealGateItem, QuestionSuggestion
+from .market import PopulationRing
 from .property import Amenity, Booking, Unit, WeeklySummary
 from .reference import GateQuestion, GLAccount, GLMappingLearned
 from .underwriting import (
@@ -46,6 +47,7 @@ __all__ = [
     "Comp",
     "DealGateItem",
     "QuestionSuggestion",
+    "PopulationRing",
     "FeedbackItem",
     "FeedbackAttachment",
     "FeedbackComment",
