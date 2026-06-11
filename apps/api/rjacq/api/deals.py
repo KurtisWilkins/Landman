@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import Principal, get_current_principal
 from ..core.db import get_session
 from ..core.rbac import Capability, require
+from ..ingestion import service as ingestion
+from ..ingestion.extractor import build_pdf_extractor
+from ..ingestion.service import IngestError
 from ..models.enums import DealStatus, Phase
 from ..schemas.deal import DealCreate, DealDocument, DealSummary, PhaseAdvanceRequest
 from ..schemas.underwriting import AssumptionOverride, ProformaResults
 from ..underwriting import service as underwriting
 from ..underwriting.service import UnderwritingError
 from ._stub import not_implemented
+
+# Reject oversized uploads (seller files are untrusted; CLAUDE.md security rules).
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 router = APIRouter(tags=["deals"])
 
@@ -59,10 +65,41 @@ async def advance_phase(
 @router.post("/deals/{deal_id}/documents", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     deal_id: str,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
-) -> dict[str, str]:
-    """Upload a source document → queue parse (§5.2)."""
-    not_implemented("POST /deals/{id}/documents", phase="Phase 1 (ingestion)")
+) -> dict[str, str | int]:
+    """Upload a source document → parse + normalized load (§5.2)."""
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={
+                "error": {"code": "file_too_large", "message": "Upload exceeds the size limit."}
+            },
+        )
+    try:
+        result = await ingestion.ingest_document(
+            session,
+            deal_id,
+            filename=file.filename or "upload",
+            content_type=file.content_type or "",
+            data=data,
+            pdf_extractor=build_pdf_extractor(),
+        )
+    except IngestError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": exc.code, "message": exc.message}},
+        ) from exc
+    await session.commit()
+    return {
+        "status": "loaded",
+        "sheet_type": result.sheet_type,
+        "financial_lines_loaded": result.financial_lines_loaded,
+        "units_loaded": result.units_loaded,
+    }
 
 
 @router.get("/deals/{deal_id}/proforma", response_model=ProformaResults)
