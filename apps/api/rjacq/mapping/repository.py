@@ -1,0 +1,89 @@
+"""Repository for the mapping engine (DB access only)."""
+
+from __future__ import annotations
+
+import uuid
+from collections.abc import Sequence
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..models.financials import FinancialLine
+from ..models.reference import GLAccount, GLMappingLearned
+
+
+def _new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+
+
+async def shortlist_accounts(
+    session: AsyncSession, query_vec: list[float], k: int = 5
+) -> list[tuple[GLAccount, float]]:
+    """Top-k gl_accounts by cosine similarity to ``query_vec`` (pgvector)."""
+    distance = GLAccount.embedding.cosine_distance(query_vec)
+    stmt = (
+        select(GLAccount, distance.label("distance"))
+        .where(GLAccount.embedding.isnot(None), GLAccount.active.is_(True))
+        .order_by(distance)
+        .limit(k)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [(acc, 1.0 - float(dist)) for acc, dist in rows]  # similarity = 1 − cosine distance
+
+
+async def get_account(session: AsyncSession, account_code: str) -> GLAccount | None:
+    return await session.get(GLAccount, account_code)
+
+
+async def find_learned(
+    session: AsyncSession, *, seller_phrase: str, source_seller: str | None
+) -> GLMappingLearned | None:
+    """Exact learned mapping for a seller's phrasing (§5.3.5)."""
+    stmt = select(GLMappingLearned).where(GLMappingLearned.seller_phrase == seller_phrase)
+    if source_seller is not None:
+        stmt = stmt.where(GLMappingLearned.source_seller == source_seller)
+    return (await session.execute(stmt)).scalars().first()
+
+
+async def upsert_learned(
+    session: AsyncSession,
+    *,
+    seller_phrase: str,
+    source_seller: str | None,
+    account_code: str,
+    confirmed_by: str | None,
+) -> GLMappingLearned:
+    existing = await find_learned(session, seller_phrase=seller_phrase, source_seller=source_seller)
+    if existing is not None:
+        existing.account_code = account_code
+        existing.confirmed_by = confirmed_by
+        existing.confirmed_at = datetime.now(UTC)
+        existing.hit_count = (existing.hit_count or 0) + 1
+        await session.flush()
+        return existing
+    learned = GLMappingLearned(
+        mapping_id=_new_id("gm"),
+        seller_phrase=seller_phrase,
+        source_seller=source_seller,
+        account_code=account_code,
+        confirmed_by=confirmed_by,
+        confirmed_at=datetime.now(UTC),
+        hit_count=1,
+    )
+    session.add(learned)
+    await session.flush()
+    return learned
+
+
+async def get_line(session: AsyncSession, line_id: str) -> FinancialLine | None:
+    return await session.get(FinancialLine, line_id)
+
+
+async def list_lines(session: AsyncSession, deal_id: str) -> Sequence[FinancialLine]:
+    stmt = (
+        select(FinancialLine)
+        .where(FinancialLine.deal_id == deal_id)
+        .order_by(FinancialLine.line_id)
+    )
+    return (await session.execute(stmt)).scalars().all()

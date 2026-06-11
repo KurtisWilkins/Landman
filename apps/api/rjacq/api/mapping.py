@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import Principal, get_current_principal
+from ..core.db import get_session
 from ..core.rbac import Capability, require
+from ..mapping import service
+from ..mapping.providers import build_embedder
+from ..mapping.service import MappingError
 from ..schemas.financials import MappingConfirm, MappingReview
-from ._stub import not_implemented
 
 router = APIRouter(tags=["mapping"])
 
@@ -15,17 +19,36 @@ router = APIRouter(tags=["mapping"])
 @router.get("/deals/{deal_id}/mapping", response_model=MappingReview)
 async def get_mapping_queue(
     deal_id: str,
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> MappingReview:
     """Mapping queue for human review (proposals + candidate shortlist)."""
-    not_implemented("GET /deals/{id}/mapping", phase="Phase 1 (mapping)")
+    return await service.build_review(session, deal_id, embedder=build_embedder())
 
 
 @router.post("/deals/{deal_id}/mapping/confirm", response_model=MappingReview)
 async def confirm_mapping(
     deal_id: str,
-    _body: MappingConfirm,
-    _principal: Principal = Depends(require(Capability.MAPPING_CONFIRM)),
+    body: MappingConfirm,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.MAPPING_CONFIRM)),
 ) -> MappingReview:
     """Human accepts a mapping → writes a learned mapping for reuse (§5.3.5)."""
-    not_implemented("POST /deals/{id}/mapping/confirm", phase="Phase 1 (mapping)")
+    try:
+        await service.confirm(
+            session,
+            line_id=body.line_id,
+            account_code=body.account_code,
+            account_level=body.account_level.value,
+            noi_placement=body.noi_placement.value,
+            learn=body.learn,
+            confirmed_by=principal.user_id,
+        )
+    except MappingError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": exc.code, "message": exc.message}},
+        ) from exc
+    await session.commit()
+    return await service.build_review(session, deal_id, embedder=build_embedder())
