@@ -1,7 +1,7 @@
 # 0003. Identity provider + external auth method (C-16)
 
 Date: 2026-06-10
-Status: Proposed
+Status: Accepted (resolved 2026-06-11)
 
 ## Context
 
@@ -11,7 +11,12 @@ RBAC enforced server-side.
 
 ## Decision
 
-**Unresolved — pending CTO.** Phase 0 builds the auth *skeleton* without committing to
+**Resolved 2026-06-11.** Internal SSO is **Microsoft Entra ID (OIDC)**; external PE partners
+authenticate via **email magic-link** (no partner passwords to manage). Wire OIDC
+discovery/JWKS verification and the magic-link flow onto the existing auth skeleton;
+`OIDC_*` and `EXTERNAL_AUTH_SECRET` come from the secret store. RBAC stays server-side.
+
+_Original Phase-0 analysis:_ Phase 0 builds the auth *skeleton* without committing to
 provider specifics: a `Principal` model, an RBAC capability matrix for the four §2 roles,
 and a `decode_token` seam that refuses to mint a trusted identity in production until
 configured. OIDC issuer/JWKS and the external method are env placeholders

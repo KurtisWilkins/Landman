@@ -1,7 +1,7 @@
 # 0004. Cloud provider / region and deal-data constraints (C-17)
 
 Date: 2026-06-10
-Status: Proposed
+Status: Accepted (resolved 2026-06-11; region TBD at deploy)
 
 ## Context
 
@@ -11,7 +11,12 @@ S3-compatible either way.
 
 ## Decision
 
-**Unresolved — pending CTO.** Phase 0 targets a provider-agnostic local stack
+**Resolved 2026-06-11: Azure** (aligns with Entra ID identity; single-vendor identity +
+hosting). Region is selected at deploy time per data-residency policy. Object storage stays
+S3-compatible (the storage client uses an endpoint setting), so Azure Blob via an
+S3-compatible gateway — or AWS S3 / R2 / MinIO — all work unchanged.
+
+_Original Phase-0 analysis:_ Phase 0 targets a provider-agnostic local stack
 (docker-compose: Postgres+pgvector, Redis, MinIO) and an S3-compatible storage client that
 works against AWS S3, Cloudflare R2, or MinIO via an endpoint setting. No
 provider-specific service is baked in. Hosting choice is recorded here once made.

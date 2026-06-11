@@ -1,7 +1,7 @@
 # 0006. GL chart authority and completeness (B-13)
 
 Date: 2026-06-10
-Status: Proposed
+Status: Accepted (resolved 2026-06-11)
 
 ## Context
 
@@ -11,7 +11,12 @@ excerpt; the mapping engine (§5.3) targets the lowest justifiable level against
 
 ## Decision
 
-**Unresolved — pending CFO (Kurt Ross).** Phase 0 seeds `gl_accounts` from the §8.5
+**Resolved 2026-06-11.** **Kurt Ross (CFO) owns** the GL chart and its changes. Keep the
+§8.5 **excerpt** seeded for now; load the full `RJourneyP_LGLStructure.xlsx` via
+`gl_chart_config_path` once the CFO confirms it is the current, complete chart. Re-seeding is
+additive (upsert by `account_code`), so the swap is non-destructive. No accounts are invented.
+
+_Original Phase-0 analysis:_ Phase 0 seeds `gl_accounts` from the §8.5
 **excerpt** only (20 rows, hierarchy + `default_noi_placement` so 700000→below and
 800000→non-operating). The full chart loads from `GL_CHART_CONFIG_PATH` once the file is
 confirmed; the seed loader has a merge hook with `TODO(decision: §14 B-13)`. No accounts
