@@ -1,7 +1,7 @@
 # 0005. AI + embeddings provider and key ownership (C-20)
 
 Date: 2026-06-10
-Status: Proposed
+Status: Accepted (resolved 2026-06-11)
 
 ## Context
 
@@ -12,7 +12,14 @@ comp/narrative) and Voyage embeddings (GL mapping shortlist via pgvector). CLAUD
 
 ## Decision
 
-**Unresolved (provider defaults proposed) — pending CTO.** Phase 0 reserves the pgvector
+**Resolved 2026-06-11: Anthropic Claude + Voyage.** Claude handles extraction, GL
+classification, comp sentiment/amenity summaries, and first-pass narrative
+(`claude-sonnet-4-6` default; opus only for genuinely complex reasoning). **Voyage**
+provides the embeddings for the GL-mapping shortlist (pgvector). `ANTHROPIC_API_KEY` is set
+(ADR-0008); the pgvector `embedding` dimension follows the selected Voyage model — confirm
+the model before embedding `gl_accounts`, since changing it later requires re-embedding.
+
+_Original Phase-0 analysis:_ Phase 0 reserves the pgvector
 `embedding` column (dim configurable) and reads `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`,
 and `VOYAGE_API_KEY` from config with `TODO(decision: §14 C-20)`. No AI/embedding call is
 made in Phase 0; the embedding dimension is finalized when the model is confirmed.

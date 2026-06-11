@@ -1,7 +1,7 @@
 # 0007. GitHub repo, branch protection, and @claude posture (C-28)
 
 Date: 2026-06-10
-Status: Proposed
+Status: Accepted (resolved 2026-06-11)
 
 ## Context
 
@@ -11,7 +11,13 @@ auto-merge, and least-privilege workflow permissions.
 
 ## Decision
 
-**Review-first posture adopted now; org/repo + protection rules pending.** Phase 0 ships
+**Resolved 2026-06-11: review-first, kept.** Repo is **`KurtisWilkins/Landman`**. `@claude`
+opens PRs for human review with **no auto-merge**; branch protection on `main` requires human
+approval + green CI (`ci.yml` lint+test). Workflow permissions stay least-privilege
+(`contents`/`pull-requests`/`issues`/`id-token`). **Write-enabled expansion is deferred**
+until path filters and trigger rules are defined.
+
+_Original Phase-0 analysis:_ Phase 0 ships
 `.github/workflows/claude.yml` (responds only to explicit `@claude` mentions) and
 `claude-code-review.yml` (automated first-pass review, no merge), both scoped to
 `contents`/`pull-requests`/`issues`/`id-token`. CI (`ci.yml`) runs lint+test. Branch
