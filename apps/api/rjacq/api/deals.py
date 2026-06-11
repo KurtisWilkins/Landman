@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,8 +13,20 @@ from ..core.rbac import Capability, require
 from ..ingestion import service as ingestion
 from ..ingestion.extractor import build_pdf_extractor
 from ..ingestion.service import IngestError
+from ..models.deals import Deal
 from ..models.enums import DealStatus, Phase
-from ..schemas.deal import DealCreate, DealDocument, DealSummary, PhaseAdvanceRequest
+from ..population import service as population
+from ..population.provider import build_population_provider
+from ..population.service import PopulationError
+from ..schemas.deal import (
+    Address,
+    DealCreate,
+    DealDocument,
+    DealMetadata,
+    DealSummary,
+    PhaseAdvanceRequest,
+)
+from ..schemas.market import PopulationRingOverride, PopulationRingsDoc
 from ..schemas.underwriting import AssumptionOverride, ProformaResults
 from ..underwriting import service as underwriting
 from ..underwriting.service import UnderwritingError
@@ -36,11 +50,120 @@ async def list_deals(
 
 @router.post("/deals", response_model=DealDocument, status_code=status.HTTP_201_CREATED)
 async def create_deal(
-    _body: DealCreate,
+    body: DealCreate,
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
 ) -> DealDocument:
-    """Manual deal create."""
-    not_implemented("POST /deals", phase="Phase 4 (pipeline)")
+    """Manual deal create. When an address/geocode is present, population rings
+    (25/50/100/150 mi) are auto-pulled for the Initial UW market view (§5.5)."""
+    addr = body.address or Address()
+    deal = Deal(
+        deal_id=f"dl_{uuid.uuid4().hex[:12]}",
+        name=body.name,
+        property_type=body.property_type,
+        address_line1=addr.line1,
+        city=addr.city,
+        state=addr.state,
+        zip=addr.zip,
+        lat=addr.lat,
+        lng=addr.lng,
+        site_count=body.site_count,
+        ask_price=body.ask_price,
+        seller_name=body.seller_name,
+        current_phase=Phase.INITIAL_UW,
+        status=DealStatus.ACTIVE,
+        thesis=body.thesis,
+        notes=body.notes,
+    )
+    session.add(deal)
+    await session.flush()
+    # Auto-pull estimated ring populations on property entry (no-op until the provider is set).
+    await population.refresh_rings(
+        session, deal.deal_id, lat=addr.lat, lng=addr.lng, provider=build_population_provider()
+    )
+    rings = await population.get_rings(session, deal.deal_id)
+    await session.commit()
+    return DealDocument(
+        deal_id=deal.deal_id,
+        metadata=DealMetadata(
+            name=deal.name,
+            property_type=deal.property_type,
+            address=body.address,
+            site_count=deal.site_count,
+            ask_price=deal.ask_price,
+            seller_name=deal.seller_name,
+            current_phase=deal.current_phase,
+            status=deal.status,
+            thesis=deal.thesis,
+            notes=deal.notes,
+        ),
+        market=rings,
+    )
+
+
+async def _require_deal(session: AsyncSession, deal_id: str) -> Deal:
+    deal = await session.get(Deal, deal_id)
+    if deal is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "not_found", "message": "Deal not found."}},
+        )
+    return deal
+
+
+@router.get("/deals/{deal_id}/population-rings", response_model=PopulationRingsDoc)
+async def get_population_rings(
+    deal_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> PopulationRingsDoc:
+    """Population rings (25/50/100/150 mi) for the deal's market view (§5.5)."""
+    return await population.get_rings(session, deal_id)
+
+
+@router.post("/deals/{deal_id}/population-rings/refresh", response_model=PopulationRingsDoc)
+async def refresh_population_rings(
+    deal_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
+) -> PopulationRingsDoc:
+    """Re-pull baseline ring populations from the provider (overrides preserved)."""
+    deal = await _require_deal(session, deal_id)
+    deal_lat = float(deal.lat) if deal.lat is not None else None
+    deal_lng = float(deal.lng) if deal.lng is not None else None
+    await population.refresh_rings(
+        session, deal_id, lat=deal_lat, lng=deal_lng, provider=build_population_provider()
+    )
+    await session.commit()
+    return await population.get_rings(session, deal_id)
+
+
+@router.patch("/deals/{deal_id}/population-rings", response_model=PopulationRingsDoc)
+async def override_population_ring(
+    deal_id: str,
+    body: PopulationRingOverride,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ASSUMPTION_OVERRIDE)),
+) -> PopulationRingsDoc:
+    """Override one ring's population (records author + note; baseline retained)."""
+    await _require_deal(session, deal_id)
+    try:
+        await population.override_ring(
+            session,
+            deal_id,
+            radius_mi=body.radius_mi,
+            population=body.population,
+            note=body.note,
+            author=principal.user_id,
+        )
+    except PopulationError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": {"code": exc.code, "message": exc.message}},
+        ) from exc
+    await session.commit()
+    return await population.get_rings(session, deal_id)
 
 
 @router.get("/deals/{deal_id}", response_model=DealDocument)

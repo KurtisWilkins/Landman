@@ -140,6 +140,7 @@ the same. A deal can accept more documents at any phase.
 - **3-hurdle equity waterfall** with LP/GP promote splits per tier (`waterfall_tiers`).
 - **Hurdles:** default thresholds (config) with per-deal override; each renders pass/fail.
 - Recalculates live when an assumption changes; flags which inputs were overridden from the SHIELD baseline. **[DECISION]** real default hurdle values and promote splits.
+- **Population rings (market sizing).** Estimated population within **25 / 50 / 100 / 150 miles** of the property, part of the Initial UW specs. Auto-pulled from a demographics provider when a property is entered, and overridable by the underwriter (baseline + override + author + note retained, like assumptions). Stored in `population_rings` (§8.4). Provider + key is an unresolved decision (**ADR-0009**); with no provider, rings are entered manually — never fabricated.
 
 ### 5.6 Comp intelligence
 - On a deal's address, discover RV parks / campgrounds within a **50-mile radius**.
@@ -454,6 +455,11 @@ proforma_results( result_id PK, deal_id FK→deals, yr int, revenue numeric, ope
 proforma_summary( deal_id PK FK→deals, levered_irr numeric, equity_multiple numeric,
   equity_basis numeric, exit_year int, exit_cap numeric, exit_gross_value numeric,
   exit_net_proceeds numeric )
+
+-- ── Market (population rings) ────────────────────────
+population_rings( ring_id PK, deal_id FK→deals, radius_mi int (25|50|100|150),
+  baseline_population int NULL, override_population int NULL, is_override bool,
+  overridden_by, note, source, as_of date NULL, created_at, updated_at )
 
 -- ── Comps ───────────────────────────────────────────
 comps( comp_id PK, deal_id FK→deals, name, lat, lng, distance_mi numeric, avg_rate numeric,
