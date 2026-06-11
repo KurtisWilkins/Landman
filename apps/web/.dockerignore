@@ -1,0 +1,6 @@
+# Web build context (apps/web). Exclude host installs/build output so the image builds clean.
+node_modules
+dist
+.env
+.env.*
+*.log

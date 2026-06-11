@@ -1,0 +1,15 @@
+# Keep the API build context (repo root) small and fast — never ship local state or secrets.
+.git
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+node_modules
+apps/web/dist
+apps/web/node_modules
+.env
+.env.*
+!.env.example
+*.log

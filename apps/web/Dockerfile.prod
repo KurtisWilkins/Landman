@@ -1,0 +1,20 @@
+# Production web image: build the SPA, then serve it from nginx and reverse-proxy /api to
+# the API Container App (same-origin → no CORS, auth cookies just work). The dev image stays
+# apps/web/Dockerfile (used by docker-compose); this one is built by the deploy pipeline.
+FROM node:20-slim AS build
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+# Default API base is /api (proxied by nginx below). Override only for a split-origin setup.
+ARG VITE_API_BASE=/api
+ENV VITE_API_BASE=$VITE_API_BASE
+RUN pnpm build
+
+FROM nginx:1.27-alpine AS serve
+# The official nginx image renders /etc/nginx/templates/*.template with envsubst at startup,
+# so ${API_URL} is injected from the container environment (the API's internal FQDN).
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 8080

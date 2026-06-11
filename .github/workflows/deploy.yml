@@ -1,0 +1,143 @@
+name: Deploy
+
+# Fast, safe production pushes to Azure Container Apps.
+#
+#   build images → run DB migrations (gated) → roll API + worker + web revisions
+#
+# Triggers on merges to main (branch protection means CI already passed on the PR) and on
+# manual dispatch. The `production` environment can require a human approver (recommended) —
+# see docs/DEPLOYMENT.md. Data lives in managed Postgres, so rolling app revisions never
+# touch it; migrations are the only DB step and run BEFORE the new revision goes live, so
+# they must stay backward-compatible with the currently-running one (expand-contract).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**"
+      - "migrations/**"
+      - "alembic.ini"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: "Skip the migration step (code-only release)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # never interrupt an in-flight deploy/migration
+
+permissions:
+  id-token: write # Azure OIDC login (no stored cloud credentials)
+  contents: read
+
+env:
+  # Set these as repository Variables (Settings → Secrets and variables → Actions → Variables).
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }} # e.g. rjacqprod.azurecr.io
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }} # e.g. rjacq-prod
+  API_APP: ${{ vars.API_CONTAINER_APP }} # e.g. rjacq-api
+  WORKER_APP: ${{ vars.WORKER_CONTAINER_APP }} # e.g. rjacq-worker
+  WEB_APP: ${{ vars.WEB_CONTAINER_APP }} # e.g. rjacq-web
+  MIGRATE_JOB: ${{ vars.MIGRATE_JOB }} # e.g. rjacq-migrate (Container Apps Job)
+
+jobs:
+  deploy:
+    name: Build, migrate, and roll
+    runs-on: ubuntu-latest
+    environment: production # add required reviewers here for a manual approval gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag = commit SHA
+        id: tag
+        run: echo "sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build + push both images, tagged with the commit SHA. Registry-cached layers keep
+      # rebuilds fast so updates ship quickly.
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/rjacq-api:${{ steps.tag.outputs.sha }}
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-api:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-api:buildcache,mode=max
+
+      - name: Build & push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/web
+          file: apps/web/Dockerfile.prod
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/rjacq-web:${{ steps.tag.outputs.sha }}
+          cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-web:buildcache
+          cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-web:buildcache,mode=max
+
+      # Migrations run as a one-off Container Apps Job on the NEW API image, and must finish
+      # green before any app revision is rolled. The job shares the API's DATABASE_URL secret.
+      - name: Run database migrations
+        if: ${{ !inputs.skip_migrations }}
+        run: |
+          az containerapp job update \
+            --name "$MIGRATE_JOB" --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/rjacq-api:${{ steps.tag.outputs.sha }}"
+          echo "Starting migration job…"
+          exec_name=$(az containerapp job start \
+            --name "$MIGRATE_JOB" --resource-group "$RESOURCE_GROUP" \
+            --query name -o tsv)
+          echo "Execution: $exec_name"
+          # Poll to completion; fail the deploy if the migration fails (apps are NOT rolled).
+          for _ in $(seq 1 60); do
+            stat=$(az containerapp job execution show \
+              --name "$MIGRATE_JOB" --resource-group "$RESOURCE_GROUP" \
+              --job-execution-name "$exec_name" --query properties.status -o tsv)
+            echo "  status=$stat"
+            case "$stat" in
+              Succeeded) exit 0 ;;
+              Failed|Degraded) echo "::error::Migration job failed"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Migration job timed out"; exit 1
+
+      # Single-revision mode → Container Apps creates a new revision and shifts traffic once
+      # health probes pass, then drains the old one. Zero-downtime with min replicas ≥ 2.
+      - name: Roll API
+        run: |
+          az containerapp update --name "$API_APP" --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/rjacq-api:${{ steps.tag.outputs.sha }}"
+
+      - name: Roll worker
+        run: |
+          az containerapp update --name "$WORKER_APP" --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/rjacq-api:${{ steps.tag.outputs.sha }}"
+
+      - name: Roll web
+        run: |
+          az containerapp update --name "$WEB_APP" --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/rjacq-web:${{ steps.tag.outputs.sha }}"
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "### Deployed \`${{ steps.tag.outputs.sha }}\` to production"
+            echo "- API / worker: \`rjacq-api:${{ steps.tag.outputs.sha }}\`"
+            echo "- Web: \`rjacq-web:${{ steps.tag.outputs.sha }}\`"
+            echo "- Migrations: ${{ inputs.skip_migrations && 'skipped' || 'applied' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
