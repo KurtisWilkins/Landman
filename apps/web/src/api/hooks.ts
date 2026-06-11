@@ -7,6 +7,10 @@ import type { components } from "./types";
 import { apiFetch, type Schemas } from "./client";
 
 type DealSummary = Schemas["DealSummary"];
+type DealDocument = Schemas["DealDocument"];
+type ProformaResults = Schemas["ProformaResults"];
+type CompSet = Schemas["CompSet"];
+type MappingReview = Schemas["MappingReview"];
 type GateQuestion = Schemas["GateQuestion"];
 type FeedbackOut = Schemas["FeedbackOut"];
 type FeedbackCreate = Schemas["FeedbackCreate"];
@@ -23,6 +27,34 @@ export function usePipeline(filters?: { phase?: Phase }) {
   return useQuery({
     queryKey: ["deals", filters ?? {}],
     queryFn: () => apiFetch<DealSummary[]>(`/deals${qs}`),
+  });
+}
+
+export function useDeal(dealId: string) {
+  return useQuery({
+    queryKey: ["deal", dealId],
+    queryFn: () => apiFetch<DealDocument>(`/deals/${dealId}`),
+  });
+}
+
+export function useProforma(dealId: string) {
+  return useQuery({
+    queryKey: ["deal", dealId, "proforma"],
+    queryFn: () => apiFetch<ProformaResults>(`/deals/${dealId}/proforma`),
+  });
+}
+
+export function useComps(dealId: string) {
+  return useQuery({
+    queryKey: ["deal", dealId, "comps"],
+    queryFn: () => apiFetch<CompSet>(`/deals/${dealId}/comps`),
+  });
+}
+
+export function useMapping(dealId: string) {
+  return useQuery({
+    queryKey: ["deal", dealId, "mapping"],
+    queryFn: () => apiFetch<MappingReview>(`/deals/${dealId}/mapping`),
   });
 }
 

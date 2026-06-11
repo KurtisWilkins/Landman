@@ -2,6 +2,7 @@
  * Pipeline dashboard (design doc §5.8, §6): phase buckets with deal counts and rolled-up
  * acquisition dollars, then deal lists with blocker chips. Mobile-first.
  */
+import { Link } from "react-router-dom";
 import { usePipeline } from "../api/hooks";
 import type { components } from "../api/types";
 import type { Schemas } from "../api/client";
@@ -69,23 +70,28 @@ export function Pipeline() {
           ) : (
             <ul className="mt-6 divide-y divide-forest/10">
               {deals.map((d) => (
-                <li key={d.deal_id} className="flex items-center justify-between py-3">
-                  <div>
-                    <div className="font-medium">{d.name}</div>
-                    <div className="text-xs opacity-70">
-                      {[d.city, d.state].filter(Boolean).join(", ")} · {d.property_type}
+                <li key={d.deal_id}>
+                  <Link
+                    to={`/deals/${d.deal_id}`}
+                    className="flex items-center justify-between py-3 hover:bg-bone focus:outline-none focus:ring-2 focus:ring-brass-accent"
+                  >
+                    <div>
+                      <div className="font-medium">{d.name}</div>
+                      <div className="text-xs opacity-70">
+                        {[d.city, d.state].filter(Boolean).join(", ")} · {d.property_type}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {d.blocking_gate_count > 0 && (
-                      <span className="rounded-full bg-brass-accent/20 px-2 py-0.5 text-xs text-forest-ink">
-                        {d.blocking_gate_count} blocking
+                    <div className="flex items-center gap-2">
+                      {d.blocking_gate_count > 0 && (
+                        <span className="rounded-full bg-brass-accent/20 px-2 py-0.5 text-xs text-forest-ink">
+                          {d.blocking_gate_count} blocking
+                        </span>
+                      )}
+                      <span className="font-figure text-sm">
+                        {usd.format(Number(d.ask_price ?? 0))}
                       </span>
-                    )}
-                    <span className="font-figure text-sm">
-                      {usd.format(Number(d.ask_price ?? 0))}
-                    </span>
-                  </div>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
