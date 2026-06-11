@@ -19,4 +19,7 @@ COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini
 
 EXPOSE 8000
-CMD ["uvicorn", "rjacq.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Behind nginx + Container Apps ingress: trust forwarded headers so request URLs/scheme are
+# correct (HTTPS redirects, correlation IDs). Scaling is by replica, so one worker per replica.
+CMD ["uvicorn", "rjacq.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]
