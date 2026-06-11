@@ -11,6 +11,7 @@ type DealDocument = Schemas["DealDocument"];
 type ProformaResults = Schemas["ProformaResults"];
 type CompSet = Schemas["CompSet"];
 type MappingReview = Schemas["MappingReview"];
+type PopulationRingsDoc = Schemas["PopulationRingsDoc"];
 type GateQuestion = Schemas["GateQuestion"];
 type FeedbackOut = Schemas["FeedbackOut"];
 type FeedbackCreate = Schemas["FeedbackCreate"];
@@ -55,6 +56,13 @@ export function useMapping(dealId: string) {
   return useQuery({
     queryKey: ["deal", dealId, "mapping"],
     queryFn: () => apiFetch<MappingReview>(`/deals/${dealId}/mapping`),
+  });
+}
+
+export function usePopulationRings(dealId: string) {
+  return useQuery({
+    queryKey: ["deal", dealId, "population-rings"],
+    queryFn: () => apiFetch<PopulationRingsDoc>(`/deals/${dealId}/population-rings`),
   });
 }
 
