@@ -43,18 +43,24 @@ Why this shape:
 - **Container Apps revisions** give automatic rolling, zero-downtime releases with health gating.
 - **Worker** shares the API image; it just runs a different command (`arq …`).
 
-> **Object storage note.** The storage client is **S3-API** (boto3 + `S3_ENDPOINT`). Azure
-> Blob is *not* S3-native. On an otherwise-Azure stack, use an S3-native store —
-> **Cloudflare R2** or **AWS S3** (both work unchanged via the endpoint setting) — or front
-> Azure Blob with an S3 gateway (e.g. MinIO gateway). Pick one before go-live; R2 is the
-> lowest-friction.
+> **Object storage (ADR-0010).** The storage client is **S3-API** (boto3 + `S3_ENDPOINT`) and
+> hands the browser presigned URLs. Azure Blob is *not* S3-native, so production runs
+> **Azure Blob fronted by an `s3proxy` gateway** (single-vendor on Azure). Note MinIO's Azure
+> gateway was removed in 2022 — `s3proxy` is the maintained equivalent. (Swapping to S3-native
+> **Cloudflare R2 / AWS S3** later is just `S3_ENDPOINT` + creds, no code change.)
 
 ---
 
 ## 2. One-time provisioning
 
-Prereqs: `az` CLI logged in to the target subscription, and the `containerapp` extension
-(`az extension add -n containerapp`). Set shared variables once:
+> **Fastest path — one command.** `make deploy-provision` runs `scripts/provision-azure.sh`,
+> which performs everything in this section (RG, ACR, Postgres+pgvector, Redis, storage + s3proxy
+> gateway, Container Apps env, the three apps + migration job, first migrate + seed). Copy
+> `scripts/deploy.env.example → scripts/deploy.env` (gitignored) and fill in the secrets first.
+> The steps below document what the script does and how to run them by hand.
+
+Prereqs: `az` CLI logged in to the target subscription, plus the `containerapp` and
+`rdbms-connect` extensions. Set shared variables once:
 
 ```bash
 RG=rjacq-prod
@@ -89,12 +95,34 @@ az postgres flexible-server parameter set -g $RG -s $PGSERVER \
 `--backup-retention 21` gives 21 days of automated backups **and point-in-time restore** —
 this is the primary safety net for underwritten-deal data.
 
-### 2.2 Redis (job queue) and object storage
+### 2.2 Redis (job queue) and object storage (Azure Blob + s3proxy, ADR-0010)
 
 ```bash
 az redis create -n rjacq-redis -g $RG -l $LOC --sku Standard --vm-size c1
-# Object storage: provision an S3-native bucket (Cloudflare R2 / AWS S3) — see the note in §1.
+
+# Object storage: Azure Blob + an s3proxy S3 gateway.
+STORAGEACCT=rjacqprodfiles      # 3-24 lowercase alphanumerics, globally unique
+az storage account create -n $STORAGEACCT -g $RG -l $LOC --sku Standard_LRS --kind StorageV2
+BLOB_KEY=$(az storage account keys list -n $STORAGEACCT -g $RG --query '[0].value' -o tsv)
+az storage container create --name rjacq-files --account-name $STORAGEACCT \
+  --account-key "$BLOB_KEY" --auth-mode key
+
+# s3proxy gateway — PUBLIC ingress (the browser uses presigned URLs directly; the presigned
+# signature authorizes each request, the Blob key stays on the gateway). S3PROXY_IDENTITY /
+# S3PROXY_CREDENTIAL are the S3 keys the app signs with — you choose them.
+az containerapp create -n rjacq-s3proxy -g $RG --environment $ENVNAME \
+  --image andrewgaul/s3proxy:sha-ba0d4eb --ingress external --target-port 80 \
+  --secrets blob-key="$BLOB_KEY" s3-cred="$S3PROXY_CREDENTIAL" \
+  --env-vars S3PROXY_AUTHORIZATION=aws-v2-or-v4 S3PROXY_IDENTITY=$S3PROXY_IDENTITY \
+    S3PROXY_CREDENTIAL=secretref:s3-cred JCLOUDS_PROVIDER=azureblob \
+    JCLOUDS_IDENTITY=$STORAGEACCT JCLOUDS_CREDENTIAL=secretref:blob-key \
+    JCLOUDS_ENDPOINT=https://$STORAGEACCT.blob.core.windows.net
 ```
+
+Then add a **CORS** rule on the gateway allowing the web origin so browser presigned PUT/GET
+succeed. The API's `S3_ENDPOINT` is the gateway's public FQDN; `S3_ACCESS_KEY_ID` /
+`S3_SECRET_ACCESS_KEY` are `S3PROXY_IDENTITY` / `S3PROXY_CREDENTIAL`. The boto3 client switches
+to path-style addressing automatically whenever `S3_ENDPOINT` is set (`core/storage.py`).
 
 ### 2.3 Secrets and config
 
@@ -108,7 +136,7 @@ reads these env vars (`apps/api/rjacq/core/config.py`):
 | `SECRET_KEY` | session signing — strong random value |
 | `APP_ENV` | `production` (flips logging to INFO, `is_production`) |
 | `APP_BASE_URL` / `WEB_BASE_URL` | public web URL (drives CORS + OIDC redirect) |
-| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | object storage |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | object storage — `S3_ENDPOINT` = s3proxy public FQDN, keys = the s3proxy identity/credential (ADR-0010) |
 | `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY` | AI + embeddings (ADR-0005/0008) |
 | `OIDC_*` / `EXTERNAL_AUTH_SECRET` | Entra ID OIDC + magic-link (ADR-0003) |
 | `SHIELD_*` | **read-only** SHIELD creds (ADR-0002) — never a writable login |
@@ -243,8 +271,10 @@ az role assignment create --assignee $APP_ID --role AcrPush \
 - Variables: `ACR_LOGIN_SERVER` (`rjacqprod.azurecr.io`), `AZURE_RESOURCE_GROUP` (`rjacq-prod`),
   `API_CONTAINER_APP` (`rjacq-api`), `WORKER_CONTAINER_APP` (`rjacq-worker`),
   `WEB_CONTAINER_APP` (`rjacq-web`), `MIGRATE_JOB` (`rjacq-migrate`).
-- **Environment `production`**: add **required reviewers** for a one-click approval gate
-  (recommended). Leave it open for fully-automatic deploys on merge.
+- **Environment `production`**: **current posture is auto-deploy on merge** — leave the
+  environment with **no required reviewers**, so a merge to `main` rolls straight to production
+  (CI + branch protection are the guards). To add a manual approval gate later, add a required
+  reviewer to the `production` environment — no workflow change needed.
 
 ### 3.2 Day-to-day: shipping an update
 

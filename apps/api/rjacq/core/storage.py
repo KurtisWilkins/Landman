@@ -10,6 +10,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, cast
 
 import boto3
+from botocore.config import Config
 
 from .config import settings
 
@@ -19,13 +20,21 @@ if TYPE_CHECKING:
 
 @lru_cache
 def get_s3_client() -> S3Client:
-    """Return a configured boto3 S3 client. Works with AWS, R2, or MinIO via endpoint."""
+    """Return a configured boto3 S3 client. Works with AWS, R2, MinIO, or an s3proxy gateway
+    over Azure Blob (ADR-0010) via the endpoint setting.
+
+    Against any non-AWS endpoint we force **path-style** addressing (``endpoint/bucket/key``);
+    virtual-host style (``bucket.endpoint``) doesn't resolve for gateways and breaks presigned
+    URLs. AWS/R2 are happy with path style too, so it's only switched on when an endpoint is set.
+    """
+    config = Config(s3={"addressing_style": "path"}) if settings.s3_endpoint else None
     return boto3.client(
         "s3",
         endpoint_url=settings.s3_endpoint or None,
         region_name=settings.s3_region,
         aws_access_key_id=settings.s3_access_key_id,
         aws_secret_access_key=settings.s3_secret_access_key,
+        config=config,
     )
 
 

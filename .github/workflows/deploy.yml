@@ -5,8 +5,8 @@ name: Deploy
 #   build images → run DB migrations (gated) → roll API + worker + web revisions
 #
 # Triggers on merges to main (branch protection means CI already passed on the PR) and on
-# manual dispatch. The `production` environment can require a human approver (recommended) —
-# see docs/DEPLOYMENT.md. Data lives in managed Postgres, so rolling app revisions never
+# manual dispatch. Posture is auto-deploy on merge: the `production` environment has no required
+# reviewers (add one to gate later, no workflow change). Data lives in managed Postgres, so rolling app revisions never
 # touch it; migrations are the only DB step and run BEFORE the new revision goes live, so
 # they must stay backward-compatible with the currently-running one (expand-contract).
 
@@ -46,7 +46,7 @@ jobs:
   deploy:
     name: Build, migrate, and roll
     runs-on: ubuntu-latest
-    environment: production # add required reviewers here for a manual approval gate
+    environment: production # auto-deploy posture: no required reviewers (add to gate later)
     steps:
       - uses: actions/checkout@v4
 
