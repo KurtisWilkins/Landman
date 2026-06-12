@@ -76,7 +76,7 @@ az postgres flexible-server execute \
 pg_host="$(az postgres flexible-server show -n "$PGSERVER" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
 # URL-encode the password: a strong password may contain @ : / ? # % & = + or a space, any of
 # which would otherwise corrupt the DSN (e.g. '#' truncates it). quote(safe="") encodes them all.
-pg_pass_enc="$(python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PGPASSWORD"], safe=""))')"
+pg_pass_enc="$(PGPASSWORD="$PGPASSWORD" python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PGPASSWORD"], safe=""))')"
 DATABASE_URL="postgresql+psycopg://${PGADMIN}:${pg_pass_enc}@${pg_host}:5432/${PGDB}?sslmode=require"
 
 # ── 3. Redis (internal Container App; classic Azure Cache for Redis is retiring) ──────────────
