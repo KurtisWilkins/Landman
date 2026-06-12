@@ -21,6 +21,13 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    # Forward the identity Container Apps Easy Auth injected on this (authenticated) request to
+    # the API, plus a shared secret proving the call came through this proxy — the API trusts the
+    # identity only with it, so the internal API can't be handed a spoofed user from inside the
+    # environment (ADR-0011). PROXY_AUTH_SECRET is injected by envsubst at container start.
+    proxy_set_header X-Ms-Client-Principal-Name $http_x_ms_client_principal_name;
+    proxy_set_header X-Ms-Client-Principal-Id $http_x_ms_client_principal_id;
+    proxy_set_header X-Proxy-Auth "${PROXY_AUTH_SECRET}";
   }
 
   # Never cache the HTML shell so a new deploy is picked up immediately; cache hashed assets

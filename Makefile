@@ -10,7 +10,7 @@ OPENAPI    := $(WEB_DIR)/openapi.json
 
 .DEFAULT_GOAL := help
 .PHONY: help bootstrap dev down migrate migration seed openapi gen-types \
-        test test-api test-web lint lint-api lint-web format e2e clean deploy-provision
+        test test-api test-web lint lint-api lint-web format e2e clean deploy-provision deploy-auth
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -73,6 +73,9 @@ e2e: ## Playwright end-to-end tests
 
 deploy-provision: ## Provision Azure prod infra (Container Apps) — see docs/DEPLOYMENT.md
 	./scripts/provision-azure.sh
+
+deploy-auth: ## Enable Microsoft (Entra) sign-in on the web app (Easy Auth) — run once
+	./scripts/enable-easy-auth.sh
 
 clean: ## Remove build artifacts and caches
 	rm -rf $(VENV) $(WEB_DIR)/node_modules $(WEB_DIR)/dist

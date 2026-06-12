@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     oidc_redirect_uri: str = "http://localhost:8000/auth/callback"
     external_auth_secret: str | None = None  # magic-link vs password — C-16
 
+    # ── Auth: Container Apps Easy Auth (C-16 internal path, ADR-0011) ──
+    # Internal users sign in with Microsoft/Entra; Azure Container Apps' built-in auth verifies
+    # the token and injects the identity (X-MS-CLIENT-PRINCIPAL-NAME). The app trusts that
+    # identity only when it arrives via the authenticating web proxy, proven by a shared secret
+    # (the internal API has no public ingress but is reachable inside the environment). Roles are
+    # assigned from an explicit allowlist; an authenticated user not on a list is denied (no
+    # default role). The external-PE-partner method remains unresolved under C-16.
+    admin_emails: str = ""  # comma-separated allowlist → ADMIN
+    analyst_emails: str = ""  # comma-separated allowlist → ANALYST
+    proxy_auth_secret: str | None = None  # shared secret the web proxy sends to the API
+
     # ── Object storage (S3-compatible) ─────────────────────────────────
     s3_endpoint: str | None = None
     s3_region: str = "us-east-1"
@@ -110,6 +121,14 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def admin_email_set(self) -> frozenset[str]:
+        return frozenset(e.strip().lower() for e in self.admin_emails.split(",") if e.strip())
+
+    @property
+    def analyst_email_set(self) -> frozenset[str]:
+        return frozenset(e.strip().lower() for e in self.analyst_emails.split(",") if e.strip())
 
     # SQLAlchemy async URL derived from the configured DSN.
     @property

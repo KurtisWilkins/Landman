@@ -228,12 +228,33 @@ az containerapp job create -n rjacq-seed -g $RG --environment $ENVNAME \
 az containerapp job start -n rjacq-seed -g $RG
 ```
 
-### 2.6 Custom domain, TLS, and Entra
+### 2.6 Sign-in (Microsoft / Entra via Easy Auth), custom domain, TLS
 
-- Bind your domain + managed certificate to the **web** app
-  (`az containerapp hostname add` / `... bind`).
-- Register the app in **Entra ID** (ADR-0003); set the OIDC redirect URI to
-  `https://<your-domain>/api/auth/callback` (nginx proxies `/api` → API `/auth/callback`).
+Authentication is **Azure Container Apps Easy Auth** — Azure verifies the Microsoft login and
+injects the user's identity; the app authorizes it against an allowlist (ADR-0011, design-doc
+C-16 internal path). To enable it:
+
+1. Set the allowlist + proxy secret in `scripts/deploy.env` and re-run provisioning so the apps
+   carry them:
+   ```bash
+   ADMIN_EMAILS=you@rjourney.com,rory@rjourney.com   # → ADMIN; anyone not listed is denied
+   ANALYST_EMAILS=                                    # optional → ANALYST
+   PROXY_AUTH_SECRET=$(openssl rand -hex 32)          # shared web↔API secret
+   make deploy-provision
+   ```
+2. Turn on Microsoft sign-in (registers a single-tenant Entra app + configures Easy Auth):
+   ```bash
+   ./scripts/enable-easy-auth.sh
+   ```
+   Visiting the web URL now prompts a Microsoft login; sign out at `https://<web>/.auth/logout`.
+   A signed-in user not on an allowlist gets `403` from the API.
+
+The bearer-token path in `core/auth.py` stays a **local-dev shim** and refuses to mint an
+identity in production. The **external PE-partner** sign-in method is still open under C-16.
+
+- **Custom domain:** bind your domain + managed certificate to the **web** app
+  (`az containerapp hostname add` / `... bind`), then re-run `enable-easy-auth.sh` so the redirect
+  URI tracks the new hostname, and set `WEB_ORIGIN` and re-run provisioning.
 - Confirm SHIELD creds are the **read-only** login (ADR-0002) — the app must never write there.
 
 ---

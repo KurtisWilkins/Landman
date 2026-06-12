@@ -611,7 +611,7 @@ Grouped by owner. **Phase-0 blockers** (answer before build starts): A-defaults 
 ### C. CTO (James Snook) & IT (Sean Michael) — integrations & infra
 - **C-14.** SHIELD read-only connection details, network reachability, relevant tables/views. *(Phase-0)*
 - **C-15.** Which SHIELD baseline metrics to pull and at what grain.
-- **C-16.** Confirm Entra ID for internal SSO + external method (magic-link vs. password). *(Phase-0)*
+- **C-16.** Internal SSO **resolved**: Microsoft/Entra via Container Apps Easy Auth + email allowlist (ADR-0011). External PE-partner method (magic-link vs. password) **still open**. *(Phase-0)*
 - **C-17.** Cloud provider/region; any environment constraint on deal data. *(Phase-0)*
 - **C-18.** Deal intake email address and read mechanism (Graph vs. inbound-parse).
 - **C-19.** RMS ticketing: confirm placeholder now; obtain eventual API contract.

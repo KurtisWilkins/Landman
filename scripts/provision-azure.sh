@@ -32,6 +32,9 @@ repo_root="$(cd "$here/.." && pwd)"
 : "${S3PROXY_CREDENTIAL:?set S3PROXY_CREDENTIAL (the S3 secret key the app will use)}"
 : "${SECRET_KEY:?set SECRET_KEY (app session signing, strong random)}"
 : "${WEB_ORIGIN:=}"                   # public web URL once known (CORS / OIDC). Optional first pass.
+: "${ADMIN_EMAILS:=}"                 # comma-separated allowlist → ADMIN role (you, Rory) — C-16
+: "${ANALYST_EMAILS:=}"               # comma-separated allowlist → ANALYST role
+: "${PROXY_AUTH_SECRET:=}"            # shared web↔API secret (strong random); defense-in-depth
 : "${IMAGE_TAG:=bootstrap}"
 : "${SKIP_IMAGE_BUILD:=0}"
 : "${PLACEHOLDER_IMAGE:=mcr.microsoft.com/k8se/quickstart:latest}"
@@ -163,13 +166,19 @@ S3_ENDPOINT="https://${s3_fqdn}"
 # ── 8. API (internal), worker (no ingress), web (public) ─────────────────────────────────────
 say "API / worker / web container apps"
 common_secrets=(database-url="$DATABASE_URL" redis-url="$REDIS_URL" secret-key="$SECRET_KEY" s3-secret="$S3PROXY_CREDENTIAL")
+[[ -n "$PROXY_AUTH_SECRET" ]] && common_secrets+=(proxy-secret="$PROXY_AUTH_SECRET")
 common_env=(DATABASE_URL=secretref:database-url REDIS_URL=secretref:redis-url APP_ENV=production)
 s3_env=("S3_ENDPOINT=$S3_ENDPOINT" "S3_BUCKET=$BLOBCONTAINER" "S3_ACCESS_KEY_ID=$S3PROXY_IDENTITY" S3_SECRET_ACCESS_KEY=secretref:s3-secret)
+# Easy Auth identity → roles (C-16, ADR-0011). Emails are plain env; the proxy secret is a secret.
+auth_env=("ADMIN_EMAILS=$ADMIN_EMAILS" "ANALYST_EMAILS=$ANALYST_EMAILS")
+[[ -n "$PROXY_AUTH_SECRET" ]] && auth_env+=(PROXY_AUTH_SECRET=secretref:proxy-secret)
+web_proxy_env=(); [[ -n "$PROXY_AUTH_SECRET" ]] && web_proxy_env=(PROXY_AUTH_SECRET=secretref:proxy-secret)
+web_secret_args=(); [[ -n "$PROXY_AUTH_SECRET" ]] && web_secret_args=(--secrets proxy-secret="$PROXY_AUTH_SECRET")
 
 az containerapp create -n rjacq-api -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
   --image "$api_img" --ingress internal --target-port 8000 --min-replicas 2 --max-replicas 6 \
   --secrets "${common_secrets[@]}" \
-  --env-vars "${common_env[@]}" SECRET_KEY=secretref:secret-key "${s3_env[@]}" ${WEB_ORIGIN:+WEB_BASE_URL=$WEB_ORIGIN APP_BASE_URL=$WEB_ORIGIN} \
+  --env-vars "${common_env[@]}" SECRET_KEY=secretref:secret-key "${s3_env[@]}" "${auth_env[@]}" ${WEB_ORIGIN:+WEB_BASE_URL=$WEB_ORIGIN APP_BASE_URL=$WEB_ORIGIN} \
   -o none 2>/dev/null || echo "  (rjacq-api exists — update its image via the deploy pipeline)"
 
 az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
@@ -182,7 +191,7 @@ az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${regi
 api_fqdn="$(az containerapp show -n rjacq-api -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 az containerapp create -n rjacq-web -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
   --image "$web_img" --ingress external --target-port 8080 --min-replicas 2 --max-replicas 4 \
-  --env-vars "API_URL=https://${api_fqdn}" \
+  "${web_secret_args[@]}" --env-vars "API_URL=https://${api_fqdn}" "${web_proxy_env[@]}" \
   -o none 2>/dev/null || echo "  (rjacq-web exists — update via the pipeline)"
 
 # Reconcile secrets on the (possibly pre-existing) apps so a re-run repairs a stale DATABASE_URL
@@ -191,6 +200,18 @@ for app in rjacq-api rjacq-worker; do
   az containerapp secret set -n "$app" -g "$RG" \
     --secrets "${common_secrets[@]}" -o none
 done
+# Apply auth identity (allowlist + proxy secret) to the existing api/web and roll the freshly
+# built image — `create` no-ops on an existing app, so a first enablement needs these updates.
+if [[ "$SKIP_IMAGE_BUILD" != "1" ]]; then
+  [[ -n "$PROXY_AUTH_SECRET" ]] && az containerapp secret set -n rjacq-web -g "$RG" \
+    --secrets proxy-secret="$PROXY_AUTH_SECRET" -o none
+  az containerapp update -n rjacq-api -g "$RG" --image "$api_img" --set-env-vars "${auth_env[@]}" -o none
+  if [[ ${#web_proxy_env[@]} -gt 0 ]]; then
+    az containerapp update -n rjacq-web -g "$RG" --image "$web_img" --set-env-vars "${web_proxy_env[@]}" -o none
+  else
+    az containerapp update -n rjacq-web -g "$RG" --image "$web_img" -o none
+  fi
+fi
 
 # ── 9. Migration + seed jobs (the deploy pipeline updates their image + runs migrate each release)
 say "Migration + seed jobs"
