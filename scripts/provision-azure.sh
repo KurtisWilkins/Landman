@@ -113,8 +113,12 @@ if [[ "$SKIP_IMAGE_BUILD" == "1" ]]; then
   api_img="$PLACEHOLDER_IMAGE"; web_img="$PLACEHOLDER_IMAGE"
 else
   say "Building first images in ACR (tag: $IMAGE_TAG) — server-side, no local Docker"
-  ( cd "$repo_root" && az acr build --registry "$ACR" -f apps/api/Dockerfile -t "rjacq-api:$IMAGE_TAG" . )
-  ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" -f Dockerfile.prod -t "rjacq-web:$IMAGE_TAG" . )
+  # Skip an image that's already in the registry, so a re-run resumes without re-pulling base
+  # images from Docker Hub (anonymous pulls can hit rate limits across repeated builds).
+  az acr repository show -n "$ACR" --image "rjacq-api:$IMAGE_TAG" -o none 2>/dev/null \
+    || ( cd "$repo_root" && az acr build --registry "$ACR" -f apps/api/Dockerfile -t "rjacq-api:$IMAGE_TAG" . )
+  az acr repository show -n "$ACR" --image "rjacq-web:$IMAGE_TAG" -o none 2>/dev/null \
+    || ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" -f Dockerfile.prod -t "rjacq-web:$IMAGE_TAG" . )
 fi
 # Let the apps pull from ACR via the env's managed identity (assigned below for real images).
 registry_args=(); [[ "$SKIP_IMAGE_BUILD" == "1" ]] || registry_args=(--registry-server "$acr_login" --registry-identity system)
