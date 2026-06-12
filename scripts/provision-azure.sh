@@ -8,8 +8,8 @@
 #   cp scripts/deploy.env.example scripts/deploy.env && $EDITOR scripts/deploy.env
 #   make deploy-provision           # or: ./scripts/provision-azure.sh
 #
-# Requires: az CLI logged in (az login), the containerapp + rdbms-connect extensions, and
-# (unless SKIP_IMAGE_BUILD=1) docker to build the first images.
+# Requires: az CLI logged in (az login or Azure Cloud Shell). Images build server-side via
+# `az acr build` — no local Docker needed, so this runs straight from Cloud Shell.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -99,16 +99,14 @@ if ! az containerapp env show -n "$ENVNAME" -g "$RG" -o none 2>/dev/null; then
   az containerapp env create -n "$ENVNAME" -g "$RG" -l "$LOC" -o none
 fi
 
-# ── 6. First images (or placeholder; the deploy pipeline rolls real images thereafter) ───────
+# ── 6. First images, built server-side in ACR (no local Docker; placeholder if skipped) ──────
 if [[ "$SKIP_IMAGE_BUILD" == "1" ]]; then
   say "Skipping image build — apps come up on the placeholder; run the deploy pipeline to roll real images"
   api_img="$PLACEHOLDER_IMAGE"; web_img="$PLACEHOLDER_IMAGE"
 else
-  say "Building + pushing first images (tag: $IMAGE_TAG)"
-  az acr login -n "$ACR"
-  docker build -f "$repo_root/apps/api/Dockerfile" -t "$api_img" "$repo_root"
-  docker build -f "$repo_root/apps/web/Dockerfile.prod" -t "$web_img" "$repo_root/apps/web"
-  docker push "$api_img"; docker push "$web_img"
+  say "Building first images in ACR (tag: $IMAGE_TAG) — server-side, no local Docker"
+  ( cd "$repo_root" && az acr build --registry "$ACR" -f apps/api/Dockerfile -t "rjacq-api:$IMAGE_TAG" . )
+  ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" -f Dockerfile.prod -t "rjacq-web:$IMAGE_TAG" . )
 fi
 # Let the apps pull from ACR via the env's managed identity (assigned below for real images).
 registry_args=(); [[ "$SKIP_IMAGE_BUILD" == "1" ]] || registry_args=(--registry-server "$acr_login" --registry-identity system)
