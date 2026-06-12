@@ -134,7 +134,15 @@ registry_args=(); [[ "$SKIP_IMAGE_BUILD" == "1" ]] || registry_args=(--registry-
 
 # ── 7. s3proxy gateway (public ingress — presigned URLs are used straight from the browser) ──
 say "s3proxy gateway over Azure Blob"
-if ! az containerapp show -n rjacq-s3proxy -g "$RG" -o none 2>/dev/null; then
+# Self-heal a Failed app: an early run created this with a now-fixed bad image tag, and a plain
+# "exists?" guard would skip it forever, leaving it stuck on the failed revision. Recreate it.
+s3_state="$(az containerapp show -n rjacq-s3proxy -g "$RG" --query properties.provisioningState -o tsv 2>/dev/null || true)"
+if [[ "$s3_state" == "Failed" ]]; then
+  echo "  rjacq-s3proxy is in a Failed state — deleting to recreate cleanly"
+  az containerapp delete -n rjacq-s3proxy -g "$RG" --yes -o none
+  s3_state=""
+fi
+if [[ -z "$s3_state" ]]; then
   az containerapp create -n rjacq-s3proxy -g "$RG" --environment "$ENVNAME" \
     --image andrewgaul/s3proxy:latest --ingress external --target-port 80 \
     --min-replicas 1 --max-replicas 2 \
@@ -143,6 +151,7 @@ if ! az containerapp show -n rjacq-s3proxy -g "$RG" -o none 2>/dev/null; then
       S3PROXY_AUTHORIZATION=aws-v2-or-v4 \
       "S3PROXY_IDENTITY=$S3PROXY_IDENTITY" \
       S3PROXY_CREDENTIAL=secretref:s3-cred \
+      "S3PROXY_ENDPOINT=http://0.0.0.0:80" \
       JCLOUDS_PROVIDER=azureblob \
       "JCLOUDS_IDENTITY=$STORAGEACCT" \
       JCLOUDS_CREDENTIAL=secretref:blob-key \
