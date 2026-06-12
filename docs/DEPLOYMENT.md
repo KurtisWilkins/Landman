@@ -140,7 +140,7 @@ reads these env vars (`apps/api/rjacq/core/config.py`):
 
 | Env var | Notes |
 |---|---|
-| `DATABASE_URL` | `postgresql+psycopg://rjadmin:<pwd>@rjacq-pg.postgres.database.azure.com:5432/rjacq?sslmode=require` — **`sslmode=require` is mandatory** |
+| `DATABASE_URL` | `postgresql+psycopg://rjadmin:<pwd>@rjacq-pg.postgres.database.azure.com:5432/rjacq?sslmode=require` — **`sslmode=require` is mandatory**; **URL-encode `<pwd>`** (`@ : / ? # % & = +` and space must be percent-escaped, or the DSN breaks). `provision-azure.sh` does this automatically. |
 | `REDIS_URL` | from the Redis instance (use the SSL port / `rediss://`) |
 | `SECRET_KEY` | session signing — strong random value |
 | `APP_ENV` | `production` (flips logging to INFO, `is_production`) |

@@ -74,7 +74,10 @@ az postgres flexible-server execute \
   || echo "  (!) Could not auto-create the vector extension — run CREATE EXTENSION vector; manually."
 
 pg_host="$(az postgres flexible-server show -n "$PGSERVER" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
-DATABASE_URL="postgresql+psycopg://${PGADMIN}:${PGPASSWORD}@${pg_host}:5432/${PGDB}?sslmode=require"
+# URL-encode the password: a strong password may contain @ : / ? # % & = + or a space, any of
+# which would otherwise corrupt the DSN (e.g. '#' truncates it). quote(safe="") encodes them all.
+pg_pass_enc="$(python3 -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["PGPASSWORD"], safe=""))')"
+DATABASE_URL="postgresql+psycopg://${PGADMIN}:${pg_pass_enc}@${pg_host}:5432/${PGDB}?sslmode=require"
 
 # ── 3. Redis (internal Container App; classic Azure Cache for Redis is retiring) ──────────────
 # The Arq job queue holds no durable business data (all deal data is in Postgres), so a small
@@ -167,25 +170,57 @@ az containerapp create -n rjacq-web -g "$RG" --environment "$ENVNAME" "${registr
   --env-vars "API_URL=https://${api_fqdn}" \
   -o none 2>/dev/null || echo "  (rjacq-web exists — update via the pipeline)"
 
-# ── 9. Migration job (the deploy pipeline updates its image + runs it each release) ──────────
-say "Migration job"
-az containerapp job create -n rjacq-migrate -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
-  --command alembic upgrade head \
-  --secrets database-url="$DATABASE_URL" \
-  --env-vars DATABASE_URL=secretref:database-url \
-  -o none 2>/dev/null || echo "  (rjacq-migrate exists)"
+# Reconcile secrets on the (possibly pre-existing) apps so a re-run repairs a stale DATABASE_URL
+# or REDIS_URL — `create` no-ops when the app exists and would not pick up a corrected value.
+for app in rjacq-api rjacq-worker; do
+  az containerapp secret set -n "$app" -g "$RG" \
+    --secrets "${common_secrets[@]}" -o none
+done
+
+# ── 9. Migration + seed jobs (the deploy pipeline updates their image + runs migrate each release)
+say "Migration + seed jobs"
+# create_job NAME -- CMD...  : create-or-no-op, then always reconcile the database-url secret so a
+# re-run repairs a stale DSN (create alone no-ops on an existing job and keeps the old secret).
+create_job() {
+  local name="$1"; shift; [[ "$1" == "--" ]] && shift
+  az containerapp job create -n "$name" -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
+    --secrets database-url="$DATABASE_URL" \
+    --env-vars DATABASE_URL=secretref:database-url \
+    --command "$@" \
+    -o none 2>/dev/null || echo "  ($name exists — reconciling secret)"
+  az containerapp job secret set -n "$name" -g "$RG" --secrets database-url="$DATABASE_URL" -o none
+}
+
+# run_job NAME : start an execution, wait for it to finish, fail loudly (with logs) if it doesn't
+# Succeed. Polling beats `--wait`, which is flaky for jobs and hides the failing replica's logs.
+run_job() {
+  local name="$1" exec_name status i
+  exec_name="$(az containerapp job start -n "$name" -g "$RG" --query name -o tsv)"
+  echo "  started $name execution: $exec_name"
+  for ((i=0; i<60; i++)); do
+    status="$(az containerapp job execution show -n "$name" -g "$RG" --job-execution-name "$exec_name" \
+      --query properties.status -o tsv 2>/dev/null || true)"
+    case "$status" in
+      Succeeded) echo "  ✓ $name $exec_name Succeeded"; return 0 ;;
+      Failed)    echo "  ✗ $name $exec_name FAILED — recent logs:"
+                 az containerapp job logs show -n "$name" -g "$RG" --execution "$exec_name" --tail 50 2>/dev/null || true
+                 return 1 ;;
+    esac
+    sleep 10
+  done
+  echo "  ! $name $exec_name still '$status' after 10 min — check: az containerapp job execution show -n $name -g $RG --job-execution-name $exec_name"
+  return 1
+}
+
+create_job rjacq-migrate -- alembic upgrade head
+create_job rjacq-seed    -- python -m rjacq.seeds.load
 
 # ── 10. First migrate + one-time seed (only when running real images) ────────────────────────
 if [[ "$SKIP_IMAGE_BUILD" != "1" ]]; then
   say "Applying migrations + seeding reference data"
-  az containerapp job start -n rjacq-migrate -g "$RG" -o none
-  az containerapp job create -n rjacq-seed -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 0 \
-    --command python -m rjacq.seeds.load \
-    --secrets database-url="$DATABASE_URL" \
-    --env-vars DATABASE_URL=secretref:database-url -o none 2>/dev/null || true
-  az containerapp job start -n rjacq-seed -g "$RG" -o none
+  run_job rjacq-migrate
+  run_job rjacq-seed
 fi
 
 web_fqdn="$(az containerapp show -n rjacq-web -g "$RG" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)"
