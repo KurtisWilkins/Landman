@@ -64,7 +64,9 @@ if ! az postgres flexible-server show -n "$PGSERVER" -g "$RG" -o none 2>/dev/nul
     --backup-retention 21 \
     --public-access 0.0.0.0 -o none   # Container Apps egress reaches it; tighten to a VNet later
 fi
-az postgres flexible-server db create -g "$RG" -s "$PGSERVER" -d "$PGDB" -o none 2>/dev/null || true
+if ! az postgres flexible-server db show -g "$RG" -s "$PGSERVER" -d "$PGDB" -o none 2>/dev/null; then
+  az postgres flexible-server db create -g "$RG" -s "$PGSERVER" -d "$PGDB" -o none
+fi
 az postgres flexible-server parameter set -g "$RG" -s "$PGSERVER" \
   --name azure.extensions --value vector -o none
 # Enable the extension in the database (needs rdbms-connect; safe to re-run).
@@ -211,7 +213,7 @@ run_job() {
                  sleep 40
                  local ws; ws="$(az monitor log-analytics workspace list -g "$RG" --query '[0].customerId' -o tsv 2>/dev/null)"
                  az monitor log-analytics query -w "$ws" --analytics-query \
-                   "ContainerAppConsoleLogs_CL | where ContainerName_s == '$name' | project TimeGenerated, Log_s | order by TimeGenerated asc | take 200" \
+                   "ContainerAppConsoleLogs_CL | where ContainerGroupName_s == '$exec_name' | project TimeGenerated, Log_s | order by TimeGenerated asc | take 200" \
                    --query "[].Log_s" -o tsv 2>/dev/null \
                    || echo "  (no console logs yet — re-query in a minute; ingestion lags)"
                  return 1 ;;
