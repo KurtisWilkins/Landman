@@ -1,10 +1,11 @@
 # Production web image: build the SPA, then serve it from nginx and reverse-proxy /api to
 # the API Container App (same-origin → no CORS, auth cookies just work). The dev image stays
 # apps/web/Dockerfile (used by docker-compose); this one is built by the deploy pipeline.
-# Node 22: current corepack ships pnpm 11, which requires Node >= 22.13.
 FROM node:22-slim AS build
 WORKDIR /app
-RUN corepack enable
+# Pin pnpm 10 (matches CI). pnpm 11 hard-fails the build on unapproved dependency build
+# scripts (esbuild); 10 only warns, and esbuild's binary ships via its optional platform deps.
+RUN npm install -g pnpm@10.33.0
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
