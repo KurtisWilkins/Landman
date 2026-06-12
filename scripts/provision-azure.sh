@@ -61,7 +61,7 @@ if ! az postgres flexible-server show -n "$PGSERVER" -g "$RG" -o none 2>/dev/nul
     -n "$PGSERVER" -g "$RG" -l "$LOC" --version 16 \
     --tier GeneralPurpose --sku-name Standard_D2ds_v5 --storage-size 64 \
     --admin-user "$PGADMIN" --admin-password "$PGPASSWORD" \
-    --backup-retention 21 --high-availability ZoneRedundant \
+    --backup-retention 21 \
     --public-access 0.0.0.0 -o none   # Container Apps egress reaches it; tighten to a VNet later
 fi
 az postgres flexible-server db create -g "$RG" -s "$PGSERVER" -d "$PGDB" -o none 2>/dev/null || true
@@ -76,14 +76,22 @@ az postgres flexible-server execute \
 pg_host="$(az postgres flexible-server show -n "$PGSERVER" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
 DATABASE_URL="postgresql+psycopg://${PGADMIN}:${PGPASSWORD}@${pg_host}:5432/${PGDB}?sslmode=require"
 
-# ── 3. Redis ────────────────────────────────────────────────────────────────────────────────
-say "Azure Cache for Redis ($REDISNAME)"
-if ! az redis show -n "$REDISNAME" -g "$RG" -o none 2>/dev/null; then
-  az redis create -n "$REDISNAME" -g "$RG" -l "$LOC" --sku Standard --vm-size c1 -o none
+# ── 3. Redis (internal Container App; classic Azure Cache for Redis is retiring) ──────────────
+# The Arq job queue holds no durable business data (all deal data is in Postgres), so a small
+# always-on Redis container is sufficient and cheap. Swap REDIS_URL to a managed Redis later
+# with no app change. Ensure the Container Apps env exists first (the §5 step is then a no-op).
+say "Redis ($REDISNAME, internal Container App)"
+az containerapp env show -n "$ENVNAME" -g "$RG" -o none 2>/dev/null \
+  || az containerapp env create -n "$ENVNAME" -g "$RG" -l "$LOC" -o none
+if ! az containerapp show -n "$REDISNAME" -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n "$REDISNAME" -g "$RG" --environment "$ENVNAME" \
+    --image redis:7-alpine --ingress internal --transport tcp \
+    --target-port 6379 --exposed-port 6379 \
+    --min-replicas 1 --max-replicas 1 --cpu 0.5 --memory 1.0Gi -o none
 fi
-redis_host="$(az redis show -n "$REDISNAME" -g "$RG" --query hostName -o tsv)"
-redis_key="$(az redis list-keys -n "$REDISNAME" -g "$RG" --query primaryKey -o tsv)"
-REDIS_URL="rediss://:${redis_key}@${redis_host}:6380/0"
+redis_fqdn="$(az containerapp show -n "$REDISNAME" -g "$RG" \
+  --query properties.configuration.ingress.fqdn -o tsv)"
+REDIS_URL="redis://${redis_fqdn}:6379/0"
 
 # ── 4. Object storage: Azure Blob + s3proxy gateway (ADR-0010) ───────────────────────────────
 say "Storage account + blob container ($STORAGEACCT/$BLOBCONTAINER)"
