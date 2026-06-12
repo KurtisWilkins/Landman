@@ -179,17 +179,21 @@ done
 
 # ── 9. Migration + seed jobs (the deploy pipeline updates their image + runs migrate each release)
 say "Migration + seed jobs"
-# create_job NAME -- CMD...  : create-or-no-op, then always reconcile the database-url secret so a
-# re-run repairs a stale DSN (create alone no-ops on an existing job and keeps the old secret).
+# create_job NAME -- CMD...  : if the job exists, just reconcile its database-url secret (so a
+# re-run repairs a stale DSN); otherwise create it. Splitting on existence keeps real create
+# errors visible instead of masking them as a bogus "already exists".
 create_job() {
   local name="$1"; shift; [[ "$1" == "--" ]] && shift
-  az containerapp job create -n "$name" -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
-    --secrets database-url="$DATABASE_URL" \
-    --env-vars DATABASE_URL=secretref:database-url \
-    --command "$@" \
-    -o none 2>/dev/null || echo "  ($name exists — reconciling secret)"
-  az containerapp job secret set -n "$name" -g "$RG" --secrets database-url="$DATABASE_URL" -o none
+  if az containerapp job show -n "$name" -g "$RG" -o none 2>/dev/null; then
+    echo "  $name exists — reconciling database-url secret"
+    az containerapp job secret set -n "$name" -g "$RG" --secrets database-url="$DATABASE_URL" -o none
+  else
+    az containerapp job create -n "$name" -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+      --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
+      --secrets database-url="$DATABASE_URL" \
+      --env-vars DATABASE_URL=secretref:database-url \
+      --command "$@" -o none
+  fi
 }
 
 # run_job NAME : start an execution, wait for it to finish, fail loudly (with logs) if it doesn't
@@ -214,7 +218,7 @@ run_job() {
 }
 
 create_job rjacq-migrate -- alembic upgrade head
-create_job rjacq-seed    -- python -m rjacq.seeds.load
+create_job rjacq-seed    -- rjacq-seed   # console entry point (no -m: Azure --command rejects dashes)
 
 # ── 10. First migrate + one-time seed (only when running real images) ────────────────────────
 if [[ "$SKIP_IMAGE_BUILD" != "1" ]]; then

@@ -25,6 +25,11 @@ dependencies = [
     "python-multipart>=0.0.9",
 ]
 
+[project.scripts]
+# Dash-free console entry points so container/job `--command` needs no `-m` token (Azure
+# Container Apps' --command rejects leading-dash args). `make seed` still works via -m too.
+rjacq-seed = "rjacq.seeds.load:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2",

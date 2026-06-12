@@ -223,7 +223,7 @@ az containerapp job start -n rjacq-migrate -g $RG          # apply schema
 # Seed reference data ONCE (GL chart §8.5 + gate questions; idempotent upsert-by-PK):
 az containerapp job create -n rjacq-seed -g $RG --environment $ENVNAME \
   --image $ACR.azurecr.io/rjacq-api:$SHA --trigger-type Manual --replica-timeout 600 \
-  --command "python" "-m" "rjacq.seeds.load" \
+  --command rjacq-seed \   # console entry point — a `-m` token is rejected by az --command
   --secrets database-url=... --env-vars DATABASE_URL=secretref:database-url
 az containerapp job start -n rjacq-seed -g $RG
 ```
