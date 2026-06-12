@@ -58,6 +58,15 @@ Why this shape:
 > gateway, Container Apps env, the three apps + migration job, first migrate + seed). Copy
 > `scripts/deploy.env.example → scripts/deploy.env` (gitignored) and fill in the secrets first.
 > The steps below document what the script does and how to run them by hand.
+>
+> **No local tooling needed — run it from [Azure Cloud Shell](https://shell.azure.com)** (the
+> `>_` icon in the portal, Bash). Cloud Shell is pre-authenticated; images build server-side via
+> `az acr build`, so Docker isn't required. From Cloud Shell:
+> ```bash
+> git clone https://github.com/KurtisWilkins/Landman.git && cd Landman
+> cp scripts/deploy.env.example scripts/deploy.env && code scripts/deploy.env   # fill it in
+> make deploy-provision
+> ```
 
 Prereqs: `az` CLI logged in to the target subscription, plus the `containerapp` and
 `rdbms-connect` extensions. Set shared variables once:
@@ -148,15 +157,12 @@ Never commit any of these; keep `.env.example` current when a new var is added.
 
 ### 2.4 Container Apps + migration job
 
-Build and push the first images (the pipeline does this automatically thereafter):
+Build the first images **server-side in ACR** (no local Docker — works in Azure Cloud Shell):
 
 ```bash
 SHA=$(git rev-parse --short=12 HEAD)
-az acr login -n $ACR
-docker build -f apps/api/Dockerfile -t $ACR.azurecr.io/rjacq-api:$SHA .
-docker build -f apps/web/Dockerfile.prod -t $ACR.azurecr.io/rjacq-web:$SHA apps/web
-docker push $ACR.azurecr.io/rjacq-api:$SHA
-docker push $ACR.azurecr.io/rjacq-web:$SHA
+az acr build --registry $ACR -f apps/api/Dockerfile     -t rjacq-api:$SHA .
+( cd apps/web && az acr build --registry $ACR -f Dockerfile.prod -t rjacq-web:$SHA . )
 ```
 
 Create the apps. The **API is internal**; the **web is the only public ingress**:
