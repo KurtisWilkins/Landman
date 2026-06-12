@@ -207,8 +207,13 @@ run_job() {
       --query properties.status -o tsv 2>/dev/null || true)"
     case "$status" in
       Succeeded) echo "  ✓ $name $exec_name Succeeded"; return 0 ;;
-      Failed)    echo "  ✗ $name $exec_name FAILED — recent logs:"
-                 az containerapp job logs show -n "$name" -g "$RG" --execution "$exec_name" --tail 50 2>/dev/null || true
+      Failed)    echo "  ✗ $name $exec_name FAILED — pulling logs from Log Analytics (waiting ~40s for ingestion)…"
+                 sleep 40
+                 local ws; ws="$(az monitor log-analytics workspace list -g "$RG" --query '[0].customerId' -o tsv 2>/dev/null)"
+                 az monitor log-analytics query -w "$ws" --analytics-query \
+                   "ContainerAppConsoleLogs_CL | where ContainerName_s == '$name' | project TimeGenerated, Log_s | order by TimeGenerated asc | take 200" \
+                   --query "[].Log_s" -o tsv 2>/dev/null \
+                   || echo "  (no console logs yet — re-query in a minute; ingestion lags)"
                  return 1 ;;
     esac
     sleep 10
