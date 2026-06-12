@@ -127,7 +127,7 @@ registry_args=(); [[ "$SKIP_IMAGE_BUILD" == "1" ]] || registry_args=(--registry-
 say "s3proxy gateway over Azure Blob"
 if ! az containerapp show -n rjacq-s3proxy -g "$RG" -o none 2>/dev/null; then
   az containerapp create -n rjacq-s3proxy -g "$RG" --environment "$ENVNAME" \
-    --image andrewgaul/s3proxy:sha-ba0d4eb --ingress external --target-port 80 \
+    --image andrewgaul/s3proxy:latest --ingress external --target-port 80 \
     --min-replicas 1 --max-replicas 2 \
     --secrets blob-key="$blob_key" s3-cred="$S3PROXY_CREDENTIAL" \
     --env-vars \

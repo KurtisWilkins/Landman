@@ -120,7 +120,7 @@ az storage container create --name rjacq-files --account-name $STORAGEACCT \
 # signature authorizes each request, the Blob key stays on the gateway). S3PROXY_IDENTITY /
 # S3PROXY_CREDENTIAL are the S3 keys the app signs with — you choose them.
 az containerapp create -n rjacq-s3proxy -g $RG --environment $ENVNAME \
-  --image andrewgaul/s3proxy:sha-ba0d4eb --ingress external --target-port 80 \
+  --image andrewgaul/s3proxy:latest --ingress external --target-port 80 \
   --secrets blob-key="$BLOB_KEY" s3-cred="$S3PROXY_CREDENTIAL" \
   --env-vars S3PROXY_AUTHORIZATION=aws-v2-or-v4 S3PROXY_IDENTITY=$S3PROXY_IDENTITY \
     S3PROXY_CREDENTIAL=secretref:s3-cred JCLOUDS_PROVIDER=azureblob \
