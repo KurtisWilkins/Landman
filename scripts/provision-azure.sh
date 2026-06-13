@@ -42,6 +42,22 @@ web_img="${acr_login}/rjacq-web:${IMAGE_TAG}"
 
 say() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 
+# Poll a Container Apps job execution to completion (mirrors the deploy.yml gate).
+wait_job() { # wait_job <job-name> <execution-name>
+  local job="$1" exec_name="$2" stat
+  for _ in $(seq 1 60); do
+    stat="$(az containerapp job execution show -n "$job" -g "$RG" \
+      --job-execution-name "$exec_name" --query properties.status -o tsv)"
+    echo "  $job: $stat"
+    case "$stat" in
+      Succeeded) return 0 ;;
+      Failed|Degraded) echo "  (!) $job execution $exec_name failed — check its logs"; return 1 ;;
+    esac
+    sleep 10
+  done
+  echo "  (!) $job timed out after 10 minutes"; return 1
+}
+
 # ── 0. Preflight ───────────────────────────────────────────────────────────────────────────
 say "Preflight"
 command -v az >/dev/null || { echo "az CLI not found"; exit 1; }
@@ -144,44 +160,69 @@ common_secrets=(database-url="$DATABASE_URL" redis-url="$REDIS_URL" secret-key="
 common_env=(DATABASE_URL=secretref:database-url REDIS_URL=secretref:redis-url APP_ENV=production)
 s3_env=("S3_ENDPOINT=$S3_ENDPOINT" "S3_BUCKET=$BLOBCONTAINER" "S3_ACCESS_KEY_ID=$S3PROXY_IDENTITY" S3_SECRET_ACCESS_KEY=secretref:s3-secret)
 
-az containerapp create -n rjacq-api -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --ingress internal --target-port 8000 --min-replicas 2 --max-replicas 6 \
-  --secrets "${common_secrets[@]}" \
-  --env-vars "${common_env[@]}" SECRET_KEY=secretref:secret-key "${s3_env[@]}" ${WEB_ORIGIN:+WEB_BASE_URL=$WEB_ORIGIN APP_BASE_URL=$WEB_ORIGIN} \
-  -o none 2>/dev/null || echo "  (rjacq-api exists — update its image via the deploy pipeline)"
+if ! az containerapp show -n rjacq-api -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n rjacq-api -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --ingress internal --target-port 8000 --min-replicas 2 --max-replicas 6 \
+    --secrets "${common_secrets[@]}" \
+    --env-vars "${common_env[@]}" SECRET_KEY=secretref:secret-key "${s3_env[@]}" ${WEB_ORIGIN:+WEB_BASE_URL=$WEB_ORIGIN APP_BASE_URL=$WEB_ORIGIN} \
+    -o none
+else
+  echo "  (rjacq-api exists — update its image via the deploy pipeline)"
+fi
 
-az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --min-replicas 1 --max-replicas 3 \
-  --command arq rjacq.core.queue.WorkerSettings \
-  --secrets "${common_secrets[@]}" \
-  --env-vars "${common_env[@]}" "${s3_env[@]}" \
-  -o none 2>/dev/null || echo "  (rjacq-worker exists — update via the pipeline)"
+if ! az containerapp show -n rjacq-worker -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --min-replicas 1 --max-replicas 3 \
+    --command arq rjacq.core.queue.WorkerSettings \
+    --secrets "${common_secrets[@]}" \
+    --env-vars "${common_env[@]}" "${s3_env[@]}" \
+    -o none
+else
+  echo "  (rjacq-worker exists — update via the pipeline)"
+fi
 
 api_fqdn="$(az containerapp show -n rjacq-api -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
-az containerapp create -n rjacq-web -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$web_img" --ingress external --target-port 8080 --min-replicas 2 --max-replicas 4 \
-  --env-vars "API_URL=https://${api_fqdn}" \
-  -o none 2>/dev/null || echo "  (rjacq-web exists — update via the pipeline)"
+if ! az containerapp show -n rjacq-web -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n rjacq-web -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$web_img" --ingress external --target-port 8080 --min-replicas 2 --max-replicas 4 \
+    --env-vars "API_URL=https://${api_fqdn}" \
+    -o none
+else
+  echo "  (rjacq-web exists — update via the pipeline)"
+fi
 
 # ── 9. Migration job (the deploy pipeline updates its image + runs it each release) ──────────
 say "Migration job"
-az containerapp job create -n rjacq-migrate -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
-  --command alembic upgrade head \
-  --secrets database-url="$DATABASE_URL" \
-  --env-vars DATABASE_URL=secretref:database-url \
-  -o none 2>/dev/null || echo "  (rjacq-migrate exists)"
+if ! az containerapp job show -n rjacq-migrate -g "$RG" -o none 2>/dev/null; then
+  az containerapp job create -n rjacq-migrate -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
+    --command alembic upgrade head \
+    --secrets database-url="$DATABASE_URL" \
+    --env-vars DATABASE_URL=secretref:database-url \
+    -o none
+else
+  echo "  (rjacq-migrate exists)"
+fi
 
 # ── 10. First migrate + one-time seed (only when running real images) ────────────────────────
+# Seeding waits for the migration execution to SUCCEED first — the seed job writes to tables
+# the migration creates, and job start is async.
 if [[ "$SKIP_IMAGE_BUILD" != "1" ]]; then
-  say "Applying migrations + seeding reference data"
-  az containerapp job start -n rjacq-migrate -g "$RG" -o none
-  az containerapp job create -n rjacq-seed -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 0 \
-    --command python -m rjacq.seeds.load \
-    --secrets database-url="$DATABASE_URL" \
-    --env-vars DATABASE_URL=secretref:database-url -o none 2>/dev/null || true
-  az containerapp job start -n rjacq-seed -g "$RG" -o none
+  say "Applying migrations (waiting for completion)"
+  exec_name="$(az containerapp job start -n rjacq-migrate -g "$RG" --query name -o tsv)"
+  wait_job rjacq-migrate "$exec_name"
+
+  say "Seeding reference data"
+  if ! az containerapp job show -n rjacq-seed -g "$RG" -o none 2>/dev/null; then
+    az containerapp job create -n rjacq-seed -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+      --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 0 \
+      --command python -m rjacq.seeds.load \
+      --secrets database-url="$DATABASE_URL" \
+      --env-vars DATABASE_URL=secretref:database-url -o none
+  fi
+  exec_name="$(az containerapp job start -n rjacq-seed -g "$RG" --query name -o tsv)"
+  wait_job rjacq-seed "$exec_name" \
+    || echo "  (!) seed failed — safe to re-run: az containerapp job start -n rjacq-seed -g $RG"
 fi
 
 web_fqdn="$(az containerapp show -n rjacq-web -g "$RG" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)"

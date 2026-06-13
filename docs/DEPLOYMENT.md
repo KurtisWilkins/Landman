@@ -218,8 +218,14 @@ az containerapp job create -n rjacq-migrate -g $RG --environment $ENVNAME \
 
 ### 2.5 First migration + one-time seed
 
+Job starts are **async** — wait for the migrate execution to report `Succeeded` before
+seeding (the seed writes to tables the migration creates). `provision-azure.sh` does this
+polling for you; manually it looks like:
+
 ```bash
-az containerapp job start -n rjacq-migrate -g $RG          # apply schema
+exec_name=$(az containerapp job start -n rjacq-migrate -g $RG --query name -o tsv)
+az containerapp job execution show -n rjacq-migrate -g $RG \
+  --job-execution-name $exec_name --query properties.status -o tsv   # repeat until Succeeded
 # Seed reference data ONCE (GL chart §8.5 + gate questions; idempotent upsert-by-PK):
 az containerapp job create -n rjacq-seed -g $RG --environment $ENVNAME \
   --image $ACR.azurecr.io/rjacq-api:$SHA --trigger-type Manual --replica-timeout 600 \
