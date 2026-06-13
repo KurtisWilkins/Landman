@@ -46,9 +46,12 @@ say "Container Apps Easy Auth on $WEBAPP"
 az containerapp auth microsoft update -n "$WEBAPP" -g "$RG" \
   --client-id "$app_id" --client-secret "$client_secret" \
   --issuer "$issuer" --yes -o none
-# Gate the whole app: unauthenticated browsers are redirected to the Microsoft login page.
+# Allow-anonymous mode: ACA's RedirectToLoginPage returns a bare 401 instead of redirecting
+# (observed on this environment), so nginx performs the login redirect itself (web image).
+# Easy Auth still verifies every session and injects/strips the identity headers, and the API
+# still requires an allowlisted identity + the proxy secret — anonymity ends at the SPA shell.
 az containerapp auth update -n "$WEBAPP" -g "$RG" \
-  --unauthenticated-client-action RedirectToLoginPage \
+  --unauthenticated-client-action AllowAnonymous \
   --redirect-provider azureactivedirectory -o none
 
 cat <<EOF

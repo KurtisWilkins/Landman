@@ -7,7 +7,14 @@ server {
   index index.html;
 
   # SPA client-side routing: serve the file if it exists, else fall back to the app shell.
+  # Signed-out visitors are redirected to the Microsoft login here (not by Easy Auth's
+  # RedirectToLoginPage, which returns a bare 401 on Container Apps): Easy Auth runs in
+  # allow-anonymous mode, verifies any existing session, and injects
+  # X-MS-CLIENT-PRINCIPAL-NAME (stripping client-supplied copies) — empty means signed out.
   location / {
+    if ($http_x_ms_client_principal_name = "") {
+      return 302 /.auth/login/aad?post_login_redirect_uri=$request_uri;
+    }
     try_files $uri $uri/ /index.html;
   }
 
@@ -33,6 +40,9 @@ server {
   # Never cache the HTML shell so a new deploy is picked up immediately; cache hashed assets
   # (Vite fingerprints them) hard.
   location = /index.html {
+    if ($http_x_ms_client_principal_name = "") {
+      return 302 /.auth/login/aad?post_login_redirect_uri=/;
+    }
     add_header Cache-Control "no-store";
   }
   location /assets/ {
