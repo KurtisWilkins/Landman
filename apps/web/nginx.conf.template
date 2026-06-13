@@ -5,6 +5,10 @@ server {
   server_name _;
   root /usr/share/nginx/html;
   index index.html;
+  # TLS terminates at the Container Apps ingress and nginx listens on plain :8080, so an
+  # absolute redirect would leak http://host:8080. Emit relative Location headers; the browser
+  # resolves them against the real https origin (needed for the /.auth/login redirect below).
+  absolute_redirect off;
 
   # SPA client-side routing: serve the file if it exists, else fall back to the app shell.
   # Signed-out visitors are redirected to the Microsoft login here (not by Easy Auth's
