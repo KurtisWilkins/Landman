@@ -48,7 +48,8 @@ az containerapp auth microsoft update -n "$WEBAPP" -g "$RG" \
   --issuer "$issuer" --yes -o none
 # Gate the whole app: unauthenticated browsers are redirected to the Microsoft login page.
 az containerapp auth update -n "$WEBAPP" -g "$RG" \
-  --action RequireAuthentication --redirect-provider azureactivedirectory -o none
+  --unauthenticated-client-action RedirectToLoginPage \
+  --redirect-provider azureactivedirectory -o none
 
 cat <<EOF
 
