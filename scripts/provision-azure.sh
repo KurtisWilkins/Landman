@@ -154,6 +154,15 @@ fi
 s3_fqdn="$(az containerapp show -n rjacq-s3proxy -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 S3_ENDPOINT="https://${s3_fqdn}"
 
+# Enable CORS on the gateway so the browser can run presigned PUT/GET (uploads/downloads).
+# Idempotent, so it also finalizes an already-provisioned gateway on a re-run. We allow all
+# origins rather than enumerate them because the Azure CLI cannot set env-var values containing
+# spaces (azure-cli#30396) and S3PROXY_CORS_ALLOW_ORIGINS/_METHODS are space-separated lists.
+# This is safe for a presigned-only gateway: every request still carries an AWS signature, which
+# is the actual access control — CORS only governs which browser origins may *attempt* a request.
+az containerapp update -n rjacq-s3proxy -g "$RG" \
+  --set-env-vars S3PROXY_CORS_ALLOW_ALL=true -o none
+
 # ── 8. API (internal), worker (no ingress), web (public) ─────────────────────────────────────
 say "API / worker / web container apps"
 common_secrets=(database-url="$DATABASE_URL" redis-url="$REDIS_URL" secret-key="$SECRET_KEY" s3-secret="$S3PROXY_CREDENTIAL")
@@ -189,6 +198,15 @@ if ! az containerapp show -n rjacq-web -g "$RG" -o none 2>/dev/null; then
     -o none
 else
   echo "  (rjacq-web exists — update via the pipeline)"
+fi
+
+# Finalize the public web origin on the API once it is known (drives CORS + the OIDC redirect).
+# Idempotent update so it also applies to an already-provisioned API on a re-run; both values are
+# single tokens (no spaces), so --set-env-vars handles them.
+if [[ -n "$WEB_ORIGIN" ]]; then
+  say "Setting APP_BASE_URL / WEB_BASE_URL on the API ($WEB_ORIGIN)"
+  az containerapp update -n rjacq-api -g "$RG" \
+    --set-env-vars "APP_BASE_URL=$WEB_ORIGIN" "WEB_BASE_URL=$WEB_ORIGIN" -o none
 fi
 
 # ── 9. Migration job (the deploy pipeline updates its image + runs it each release) ──────────
@@ -233,11 +251,15 @@ cat <<EOF
    API  (internal)  https://${api_fqdn}
    s3proxy (public) ${S3_ENDPOINT}
 
-Next:
-  • Set health probes on rjacq-api (/health) — see docs/DEPLOYMENT.md §2.4.
-  • Bind your custom domain + cert to rjacq-web, then set APP_BASE_URL / WEB_BASE_URL to it
-    (re-run with WEB_ORIGIN set) and configure the Entra OIDC redirect (DEPLOYMENT.md §2.6).
-  • Add CORS on rjacq-web's origin to the s3proxy app so browser presigned PUT/GET succeed.
+Done automatically by this script:
+  • s3proxy CORS enabled (browser presigned PUT/GET work).
+  • APP_BASE_URL / WEB_BASE_URL set on the API${WEB_ORIGIN:+ ($WEB_ORIGIN)}.
+
+Still your move (needs your domain / Entra tenant / repo admin — see docs/DEPLOYMENT.md §2.7):
+  • Bind a custom domain + managed cert to rjacq-web, then re-run with WEB_ORIGIN set so the
+    API's base URLs and the OIDC redirect point at it.
+  • Register the app in Entra ID and set the OIDC redirect to <web-origin>/api/auth/callback.
+  • (Optional) Switch the API to HTTP /health probes — default TCP probes already gate traffic.
   • Wire the GitHub Actions deploy secrets/vars (DEPLOYMENT.md §3.1); pushes to main then
     build → migrate → roll automatically.
 EOF

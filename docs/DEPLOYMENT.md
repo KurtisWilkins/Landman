@@ -128,8 +128,20 @@ az containerapp create -n rjacq-s3proxy -g $RG --environment $ENVNAME \
     JCLOUDS_ENDPOINT=https://$STORAGEACCT.blob.core.windows.net
 ```
 
-Then add a **CORS** rule on the gateway allowing the web origin so browser presigned PUT/GET
-succeed. The API's `S3_ENDPOINT` is the gateway's public FQDN; `S3_ACCESS_KEY_ID` /
+Then enable **CORS** on the gateway so browser presigned PUT/GET succeed. `provision-azure.sh`
+does this for you (idempotently, so a re-run finalizes an existing gateway):
+
+```bash
+az containerapp update -n rjacq-s3proxy -g $RG --set-env-vars S3PROXY_CORS_ALLOW_ALL=true
+```
+
+We allow all origins rather than enumerate them because the Azure CLI cannot set env-var values
+containing spaces ([azure-cli#30396](https://github.com/Azure/azure-cli/issues/30396)) and
+`S3PROXY_CORS_ALLOW_ORIGINS`/`_METHODS` are space-separated lists. This is safe for a
+presigned-only gateway: every request still carries an AWS signature (the real access control);
+CORS only governs which browser origins may *attempt* a request.
+
+The API's `S3_ENDPOINT` is the gateway's public FQDN; `S3_ACCESS_KEY_ID` /
 `S3_SECRET_ACCESS_KEY` are `S3PROXY_IDENTITY` / `S3PROXY_CREDENTIAL`. The boto3 client switches
 to path-style addressing automatically whenever `S3_ENDPOINT` is set (`core/storage.py`).
 
@@ -192,18 +204,26 @@ az containerapp create -n rjacq-web -g $RG --environment $ENVNAME \
   --env-vars API_URL=https://$API_FQDN
 ```
 
-Add **health probes** to the API (liveness + readiness on `/health`) so revisions only take
-traffic when ready — patch via `az containerapp update --yaml` with:
+**Health probes (optional upgrade).** When ingress is enabled, Container Apps already adds
+**default TCP probes** on the target port, so revisions are health-gated out of the box — this
+is why the apps come up healthy from `provision-azure.sh` without extra steps. Upgrading the API
+to **HTTP `/health`** probes additionally confirms the app *responds*, not just that the port is
+open. `az containerapp update --yaml` **replaces** the container template, so fetch the current
+spec, add the `probes` block to the API container, and re-apply — don't hand-write a partial
+file (you'd drop the image/secrets/env):
 
-```yaml
-probes:
-  - type: Liveness
-    httpGet: { path: /health, port: 8000 }
-    periodSeconds: 10
-  - type: Readiness
-    httpGet: { path: /health, port: 8000 }
-    initialDelaySeconds: 5
-    periodSeconds: 5
+```bash
+az containerapp show -n rjacq-api -g $RG -o yaml > api.yaml
+# Add under properties.template.containers[0]:
+#   probes:
+#     - type: Liveness
+#       httpGet: { path: /health, port: 8000 }
+#       periodSeconds: 10
+#     - type: Readiness
+#       httpGet: { path: /health, port: 8000 }
+#       initialDelaySeconds: 5
+#       periodSeconds: 5
+az containerapp update -n rjacq-api -g $RG --yaml api.yaml
 ```
 
 Create the **migration job** (the pipeline updates its image and runs it each deploy):
@@ -236,8 +256,13 @@ az containerapp job start -n rjacq-seed -g $RG
 
 ### 2.6 Custom domain, TLS, and Entra
 
+These need resources only you control (DNS, the Entra tenant), so they stay manual:
+
 - Bind your domain + managed certificate to the **web** app
   (`az containerapp hostname add` / `... bind`).
+- Re-run `make deploy-provision` with `WEB_ORIGIN=https://<your-domain>` set in
+  `scripts/deploy.env`. The script then sets `APP_BASE_URL` / `WEB_BASE_URL` on the API (drives
+  CORS + the OIDC redirect) — idempotently, so it just updates the running API.
 - Register the app in **Entra ID** (ADR-0003); set the OIDC redirect URI to
   `https://<your-domain>/api/auth/callback` (nginx proxies `/api` → API `/auth/callback`).
 - Confirm SHIELD creds are the **read-only** login (ADR-0002) — the app must never write there.
