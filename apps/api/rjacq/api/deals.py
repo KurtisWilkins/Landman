@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.auth import Principal, get_current_principal
 from ..core.config import settings
 from ..core.db import get_session
+from ..core.logging import get_logger
 from ..core.rbac import Capability, require
 from ..ingestion import service as ingestion
 from ..ingestion.extractor import build_pdf_extractor, extract_offering_memorandum
@@ -41,6 +42,7 @@ from ._stub import not_implemented
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 router = APIRouter(tags=["deals"])
+log = get_logger("deals")
 
 
 @router.get("/deals", response_model=list[DealSummary])
@@ -171,6 +173,14 @@ async def extract_om(
             model=settings.anthropic_model,
         )
     except Exception as exc:  # provider/network/parse failure → upstream error, not a 500
+        # Log the failure cause (type + message only — never the OM contents, which carry
+        # financials/PII) so extraction problems are diagnosable from the API logs.
+        log.warning(
+            "om_extraction_failed",
+            error_type=type(exc).__name__,
+            error=str(exc)[:500],
+            bytes=len(data),
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail={"error": {"code": "extraction_failed", "message": "OM extraction failed."}},

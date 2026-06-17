@@ -6,6 +6,10 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
+  # Seller files (OMs, P&Ls) are multi-MB; the API caps at 25MB, so allow headroom here
+  # (nginx defaults to 1MB and would 413 the upload before it reaches the API).
+  client_max_body_size 30m;
+
   # SPA client-side routing: serve the file if it exists, else fall back to the app shell.
   location / {
     try_files $uri $uri/ /index.html;
@@ -16,6 +20,9 @@ server {
   location /api/ {
     proxy_pass ${API_URL}/;
     proxy_http_version 1.1;
+    # OM/PDF extraction runs a Claude call inline and can take minutes; the nginx default
+    # proxy_read_timeout is 60s, which would 504 a large extraction.
+    proxy_read_timeout 300s;
     proxy_ssl_server_name on; # send SNI to the API's internal HTTPS ingress
     # Address the API by its OWN fqdn: Container Apps' internal ingress routes by Host header, so
     # forwarding the browser's Host ($host) makes the ingress return "Container App does not exist".
