@@ -1,5 +1,5 @@
-# Rendered at container start (envsubst injects ${API_URL}). nginx runtime vars like $uri /
-# $host are NOT in the environment, so envsubst leaves them untouched.
+# Rendered at container start (envsubst injects ${API_URL} and ${PROXY_AUTH_SECRET}). nginx
+# runtime vars like $uri / $host are NOT in the environment, so envsubst leaves them untouched.
 server {
   listen 8080;
   server_name _;
@@ -25,6 +25,12 @@ server {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    # Auth (ADR-0011): the EasyAuth edge authenticates the user and sets the principal headers
+    # (it strips any client-supplied X-MS-CLIENT-PRINCIPAL-*). We forward the principal's email
+    # and stamp the shared secret so the API trusts it. Overwriting X-Proxy-Auth here means a
+    # client cannot forge it. ${PROXY_AUTH_SECRET} is injected from the env at container start.
+    proxy_set_header X-MS-CLIENT-PRINCIPAL-NAME $http_x_ms_client_principal_name;
+    proxy_set_header X-Proxy-Auth "${PROXY_AUTH_SECRET}";
   }
 
   # Never cache the HTML shell so a new deploy is picked up immediately; cache hashed assets
