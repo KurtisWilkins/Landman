@@ -64,6 +64,23 @@ class DealCreate(BaseModel):
     notes: str | None = None
 
 
+class OmFinancialLine(BaseModel):
+    description: str
+    amount: Decimal | None = None
+
+
+class OmProposal(BaseModel):
+    """AI-proposed deal from an offering memorandum, for human review before accept (§5.2)."""
+
+    name: str | None = None
+    property_type: PropertyType | None = None
+    address: Address | None = None
+    site_count: int | None = None
+    ask_price: Decimal | None = None
+    seller_name: str | None = None
+    financial_lines: list[OmFinancialLine] = Field(default_factory=list)
+
+
 class DealSummary(ApiModel):
     """Row in the pipeline list (GET /deals)."""
 

@@ -48,6 +48,15 @@ export function useCreateDeal() {
   });
 }
 
+type OmProposal = Schemas["OmProposal"];
+
+export function useExtractOm() {
+  // Extracts a reviewable proposal from an OM PDF (nothing is persisted server-side).
+  return useMutation({
+    mutationFn: (file: File) => apiUpload<OmProposal>("/deals/extract-om", file),
+  });
+}
+
 export function useUploadDocument(dealId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -9,10 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import Principal, get_current_principal
+from ..core.config import settings
 from ..core.db import get_session
 from ..core.rbac import Capability, require
 from ..ingestion import service as ingestion
-from ..ingestion.extractor import build_pdf_extractor
+from ..ingestion.extractor import build_pdf_extractor, extract_offering_memorandum
 from ..ingestion.service import IngestError
 from ..models.deals import Deal
 from ..models.enums import DealStatus, Phase
@@ -25,6 +27,8 @@ from ..schemas.deal import (
     DealDocument,
     DealMetadata,
     DealSummary,
+    OmFinancialLine,
+    OmProposal,
     PhaseAdvanceRequest,
 )
 from ..schemas.market import PopulationRingOverride, PopulationRingsDoc
@@ -121,6 +125,73 @@ async def create_deal(
             notes=deal.notes,
         ),
         market=rings,
+    )
+
+
+@router.post("/deals/extract-om", response_model=OmProposal)
+async def extract_om(
+    file: UploadFile = File(...),
+    _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
+) -> OmProposal:
+    """Extract a proposed deal from an offering-memorandum PDF for human review (§5.2).
+
+    Returns a *proposal* only — nothing is persisted. The operator reviews/edits it and then
+    creates the deal (AI proposes, a person accepts — CLAUDE.md). Gated on the AI provider key.
+    """
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "extractor_not_configured",
+                    "message": "OM extraction is not configured (set ANTHROPIC_API_KEY).",
+                }
+            },
+        )
+    is_pdf = (file.content_type or "") == "application/pdf" or (
+        file.filename or ""
+    ).lower().endswith(".pdf")
+    if not is_pdf:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail={"error": {"code": "unsupported_media_type", "message": "Upload a PDF."}},
+        )
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={"error": {"code": "file_too_large", "message": "Upload exceeds the limit."}},
+        )
+    try:
+        # Anthropic's client is sync + blocking — run it off the event loop.
+        proposal = await asyncio.to_thread(
+            extract_offering_memorandum,
+            data,
+            api_key=settings.anthropic_api_key,
+            model=settings.anthropic_model,
+        )
+    except Exception as exc:  # provider/network/parse failure → upstream error, not a 500
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"error": {"code": "extraction_failed", "message": "OM extraction failed."}},
+        ) from exc
+
+    address = (
+        Address(city=proposal.city, state=proposal.state)
+        if (proposal.city or proposal.state)
+        else None
+    )
+    return OmProposal(
+        name=proposal.name,
+        property_type=proposal.property_type,
+        address=address,
+        site_count=proposal.site_count,
+        ask_price=proposal.ask_price,
+        seller_name=proposal.seller_name,
+        financial_lines=[
+            OmFinancialLine(description=line.description, amount=line.amount)
+            for line in proposal.financial_lines
+        ],
     )
 
 

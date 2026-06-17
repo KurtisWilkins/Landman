@@ -49,6 +49,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/deals/extract-om": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract Om
+         * @description Extract a proposed deal from an offering-memorandum PDF for human review (§5.2).
+         *
+         *     Returns a *proposal* only — nothing is persisted. The operator reviews/edits it and then
+         *     creates the deal (AI proposes, a person accepts — CLAUDE.md). Gated on the AI provider key.
+         */
+        post: operations["extract_om_deals_extract_om_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/deals/{deal_id}": {
         parameters: {
             query?: never;
@@ -558,6 +581,11 @@ export interface components {
             note?: string | null;
             /** Override Value */
             override_value: number | string;
+        };
+        /** Body_extract_om_deals_extract_om_post */
+        Body_extract_om_deals_extract_om_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_document_deals__deal_id__documents_post */
         Body_upload_document_deals__deal_id__documents_post: {
@@ -1152,6 +1180,31 @@ export interface components {
             /** State */
             state?: string | null;
         };
+        /** OmFinancialLine */
+        OmFinancialLine: {
+            /** Amount */
+            amount?: string | null;
+            /** Description */
+            description: string;
+        };
+        /**
+         * OmProposal
+         * @description AI-proposed deal from an offering memorandum, for human review before accept (§5.2).
+         */
+        OmProposal: {
+            address?: components["schemas"]["Address"] | null;
+            /** Ask Price */
+            ask_price?: string | null;
+            /** Financial Lines */
+            financial_lines?: components["schemas"]["OmFinancialLine"][];
+            /** Name */
+            name?: string | null;
+            property_type?: components["schemas"]["PropertyType"] | null;
+            /** Seller Name */
+            seller_name?: string | null;
+            /** Site Count */
+            site_count?: number | null;
+        };
         /** OperationsDoc */
         OperationsDoc: {
             /** Bookings */
@@ -1616,6 +1669,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DealDocument"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    extract_om_deals_extract_om_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_extract_om_deals_extract_om_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OmProposal"];
                 };
             };
             /** @description Bad Request */

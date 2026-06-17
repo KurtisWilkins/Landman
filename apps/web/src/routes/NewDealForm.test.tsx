@@ -8,6 +8,16 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
+const OM_PROPOSAL = {
+  name: "Cedar Ridge RV",
+  property_type: "campground",
+  address: { city: "Austin", state: "TX" },
+  site_count: 120,
+  ask_price: "4500000",
+  seller_name: null,
+  financial_lines: [{ description: "Rental Income", amount: "520000" }],
+};
+
 function renderForm(onCreated = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -22,10 +32,11 @@ describe("NewDealForm", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_url: string, init?: RequestInit) => {
-        if ((init?.method ?? "GET") === "POST") {
+      vi.fn(async (url: string) => {
+        if (url.includes("/deals/extract-om")) return jsonResponse(OM_PROPOSAL, 200);
+        if (url.includes("/documents")) return jsonResponse({ status: "loaded" }, 202);
+        if (url.includes("/deals"))
           return jsonResponse({ deal_id: "dl_new123", metadata: {}, market: { rings: [] } }, 201);
-        }
         return jsonResponse([], 200);
       }),
     );
@@ -45,9 +56,10 @@ describe("NewDealForm", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith("dl_new123"));
 
     const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-    const [url, init] = fetchMock.mock.calls.at(-1)!;
-    expect(url).toContain("/deals");
-    const body = JSON.parse((init as RequestInit).body as string);
+    const createCall = fetchMock.mock.calls.find(
+      ([u, init]) => u.includes("/deals") && (init as RequestInit)?.method === "POST",
+    )!;
+    const body = JSON.parse((createCall[1] as RequestInit).body as string);
     expect(body).toMatchObject({
       name: "Cedar Ridge RV",
       property_type: "campground",
@@ -59,5 +71,27 @@ describe("NewDealForm", () => {
   it("disables submit until a name is entered", () => {
     renderForm();
     expect(screen.getByRole("button", { name: "Create deal" })).toBeDisabled();
+  });
+
+  it("OM mode extracts a proposal and pre-fills the form for review", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.click(screen.getByRole("tab", { name: "Upload OM (PDF)" }));
+    const pdf = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], "om.pdf", {
+      type: "application/pdf",
+    });
+    await user.upload(screen.getByLabelText("Offering memorandum"), pdf);
+    await user.click(screen.getByRole("button", { name: "Extract from OM" }));
+
+    // Fields are pre-filled from the proposal, and the extracted financials are previewed.
+    await waitFor(() =>
+      expect(screen.getByLabelText("Property name")).toHaveValue("Cedar Ridge RV"),
+    );
+    expect(screen.getByLabelText("Ask price (USD)")).toHaveValue("4500000");
+    expect(screen.getByText("Rental Income")).toBeInTheDocument();
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([u]) => u.includes("/deals/extract-om"))).toBe(true);
   });
 });
