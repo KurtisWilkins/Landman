@@ -50,8 +50,12 @@ def test_rbac_allows_admin_to_reach_stub(client: TestClient) -> None:
 
 
 def test_full_api_surface_present(client: TestClient) -> None:
-    """Every design-doc §9 route is registered on the app."""
-    paths = {route.path for route in client.app.routes}  # type: ignore[attr-defined]
+    """Every design-doc §9 route is registered on the app.
+
+    Read paths from the OpenAPI schema rather than walking ``app.routes`` — FastAPI's lazy
+    router inclusion (Starlette 1.x) keeps included routes behind opaque wrappers there.
+    """
+    paths = set(client.get("/openapi.json").json()["paths"])
     expected = {
         "/auth/callback",
         "/deals",
