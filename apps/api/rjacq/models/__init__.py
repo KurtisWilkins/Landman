@@ -4,6 +4,7 @@ Column names match §8 exactly. ``raw_payload`` (jsonb) is retained on ingest-fe
 ``financial_lines.account_code`` is nullable on purpose so unmapped lines persist.
 """
 
+from .app_secret import AppSecret
 from .base import Base
 from .comps import Comp
 from .deals import Deal, DealPhoto
@@ -28,6 +29,7 @@ from .underwriting import (
 
 __all__ = [
     "Base",
+    "AppSecret",
     "Deal",
     "DealPhoto",
     "GLAccount",

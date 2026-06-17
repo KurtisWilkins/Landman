@@ -190,7 +190,9 @@ class ClaudePdfExtractor:
         ]
 
 
-def build_pdf_extractor() -> PdfExtractor | None:
-    if not settings.anthropic_api_key:
+def build_pdf_extractor(api_key: str | None = None) -> PdfExtractor | None:
+    # Prefer an explicitly-resolved key (admin DB override → env); fall back to env directly.
+    key = api_key or settings.anthropic_api_key
+    if not key:
         return None
-    return ClaudePdfExtractor(settings.anthropic_api_key, settings.anthropic_model)
+    return ClaudePdfExtractor(key, settings.anthropic_model)

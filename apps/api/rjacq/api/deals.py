@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core import app_config
 from ..core.auth import Principal, get_current_principal
 from ..core.config import settings
 from ..core.db import get_session
@@ -133,20 +134,24 @@ async def create_deal(
 @router.post("/deals/extract-om", response_model=OmProposal)
 async def extract_om(
     file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
 ) -> OmProposal:
     """Extract a proposed deal from an offering-memorandum PDF for human review (§5.2).
 
     Returns a *proposal* only — nothing is persisted. The operator reviews/edits it and then
-    creates the deal (AI proposes, a person accepts — CLAUDE.md). Gated on the AI provider key.
+    creates the deal (AI proposes, a person accepts — CLAUDE.md). Gated on the AI provider key
+    (admin DB override → env), so an admin can fix the key in Settings with no restart.
     """
-    if not settings.anthropic_api_key:
+    api_key = await app_config.effective_secret(session, "anthropic_api_key")
+    if not api_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "error": {
                     "code": "extractor_not_configured",
-                    "message": "OM extraction is not configured (set ANTHROPIC_API_KEY).",
+                    "message": "OM extraction is not configured — set the Anthropic key in "
+                    "Settings (or ANTHROPIC_API_KEY).",
                 }
             },
         )
@@ -169,7 +174,7 @@ async def extract_om(
         proposal = await asyncio.to_thread(
             extract_offering_memorandum,
             data,
-            api_key=settings.anthropic_api_key,
+            api_key=api_key,
             model=settings.anthropic_model,
         )
     except Exception as exc:  # provider/network/parse failure → upstream error, not a 500
@@ -333,6 +338,8 @@ async def upload_document(
                 "error": {"code": "file_too_large", "message": "Upload exceeds the size limit."}
             },
         )
+    # Resolve the Anthropic key (admin DB override → env) so PDF extraction uses the live key.
+    anthropic_key = await app_config.effective_secret(session, "anthropic_api_key")
     try:
         result = await ingestion.ingest_document(
             session,
@@ -340,7 +347,7 @@ async def upload_document(
             filename=file.filename or "upload",
             content_type=file.content_type or "",
             data=data,
-            pdf_extractor=build_pdf_extractor(),
+            pdf_extractor=build_pdf_extractor(anthropic_key),
         )
     except IngestError as exc:
         await session.rollback()

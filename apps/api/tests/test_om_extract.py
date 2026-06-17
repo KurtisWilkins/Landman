@@ -11,6 +11,7 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 from rjacq.api import deals as deals_api
+from rjacq.core import app_config
 from rjacq.ingestion.extractor import (
     OmFinancialLine,
     OmProposal,
@@ -49,8 +50,12 @@ def test_proposal_unknown_property_type_is_none() -> None:
     assert proposal_from_tool_input({"property_type": "skyscraper"}).property_type is None
 
 
-def test_extract_om_not_configured_returns_503(client: TestClient) -> None:
-    # No ANTHROPIC_API_KEY → the endpoint refuses rather than guessing.
+def test_extract_om_not_configured_returns_503(
+    migrated_db: str, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No key configured (DB override or env) → the endpoint refuses rather than guessing.
+    monkeypatch.setattr(app_config.settings, "anthropic_api_key", None)
+    client.delete("/admin/integrations/anthropic_api_key", headers=DEV_ADMIN)  # clear any override
     r = client.post(
         "/deals/extract-om",
         files={"file": ("om.pdf", b"%PDF-1.4 test", "application/pdf")},
@@ -60,8 +65,10 @@ def test_extract_om_not_configured_returns_503(client: TestClient) -> None:
     assert r.json()["error"]["code"] == "extractor_not_configured"
 
 
-def test_extract_om_rejects_non_pdf(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(deals_api.settings, "anthropic_api_key", "sk-test")
+def test_extract_om_rejects_non_pdf(
+    migrated_db: str, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_config.settings, "anthropic_api_key", "sk-test")
     r = client.post(
         "/deals/extract-om",
         files={"file": ("books.xlsx", b"PK\x03\x04", "application/vnd.ms-excel")},
@@ -71,9 +78,9 @@ def test_extract_om_rejects_non_pdf(client: TestClient, monkeypatch: pytest.Monk
 
 
 def test_extract_om_returns_reviewable_proposal(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    migrated_db: str, client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(deals_api.settings, "anthropic_api_key", "sk-test")
+    monkeypatch.setattr(app_config.settings, "anthropic_api_key", "sk-test")
 
     def fake_extract(data: bytes, *, api_key: str, model: str) -> OmProposal:
         return OmProposal(

@@ -32,6 +32,7 @@ class Capability(str, enum.Enum):
     FEEDBACK_SUBMIT = "feedback:submit"
     FEEDBACK_TRIAGE = "feedback:triage"  # triage + dispatch (admin; others per A-33)
     MAPPING_CONFIRM = "mapping:confirm"
+    SETTINGS_MANAGE = "settings:manage"  # view/set integration keys (admin only)
 
 
 _MATRIX: dict[Role, set[Capability]] = {

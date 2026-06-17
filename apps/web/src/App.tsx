@@ -5,6 +5,7 @@ import { DealDetail } from "./routes/DealDetail";
 import { FeedbackTriage } from "./routes/FeedbackTriage";
 import { Pipeline } from "./routes/Pipeline";
 import { Placeholder } from "./routes/Placeholder";
+import { Settings } from "./routes/Settings";
 
 /**
  * App routes. The responsive shell wraps every page (so the "?" widget is always present).
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       },
       { path: "approvals", element: <Approvals /> },
       { path: "feedback", element: <FeedbackTriage /> },
+      { path: "settings", element: <Settings /> },
     ],
   },
 ]);

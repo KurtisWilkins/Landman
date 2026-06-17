@@ -10,4 +10,5 @@ export const DESTINATIONS: Destination[] = [
   { to: "/mapping", label: "GL Mapping", short: "Map" },
   { to: "/approvals", label: "Approvals", short: "Appr" },
   { to: "/feedback", label: "Feedback", short: "Feed" },
+  { to: "/settings", label: "Settings", short: "Set" },
 ];

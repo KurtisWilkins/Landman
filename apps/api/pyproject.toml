@@ -24,6 +24,7 @@ dependencies = [
     "openpyxl>=3.1",
     "python-multipart>=0.0.9",
     "anthropic>=0.69",
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]

@@ -69,6 +69,28 @@ export function useUploadDocument(dealId: string) {
   });
 }
 
+type IntegrationStatus = Schemas["IntegrationStatus"];
+
+export function useIntegrations() {
+  return useQuery({
+    queryKey: ["admin", "integrations"],
+    queryFn: () => apiFetch<IntegrationStatus[]>("/admin/integrations"),
+    retry: false, // a 403 (non-admin) shouldn't retry
+  });
+}
+
+export function useSetIntegration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) =>
+      apiFetch<IntegrationStatus>(`/admin/integrations/${key}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "integrations"] }),
+  });
+}
+
 export function useDeal(dealId: string) {
   return useQuery({
     queryKey: ["deal", dealId],
