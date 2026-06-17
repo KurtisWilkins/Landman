@@ -106,8 +106,9 @@ def _unauthorized(message: str) -> HTTPException:
 
 async def get_current_principal(
     authorization: str | None = Header(default=None),
-    x_proxy_auth: str | None = Header(default=None),
-    x_ms_client_principal_name: str | None = Header(default=None),
+    # Proxy/EasyAuth-injected, never client-supplied — hidden from the public OpenAPI contract.
+    x_proxy_auth: str | None = Header(default=None, include_in_schema=False),
+    x_ms_client_principal_name: str | None = Header(default=None, include_in_schema=False),
 ) -> Principal:
     """FastAPI dependency: resolve the caller into a Principal.
 

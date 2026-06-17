@@ -4,10 +4,18 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "./types";
-import { apiFetch, type Schemas } from "./client";
+import { apiFetch, apiUpload, type Schemas } from "./client";
 
 type DealSummary = Schemas["DealSummary"];
 type DealDocument = Schemas["DealDocument"];
+type DealCreate = Schemas["DealCreate"];
+/** Result of POST /deals/{id}/documents (endpoint returns an untyped dict, so typed here). */
+export type UploadResult = {
+  status: string;
+  sheet_type: string;
+  financial_lines_loaded: number;
+  units_loaded: number;
+};
 type ProformaResults = Schemas["ProformaResults"];
 type CompSet = Schemas["CompSet"];
 type MappingReview = Schemas["MappingReview"];
@@ -28,6 +36,27 @@ export function usePipeline(filters?: { phase?: Phase }) {
   return useQuery({
     queryKey: ["deals", filters ?? {}],
     queryFn: () => apiFetch<DealSummary[]>(`/deals${qs}`),
+  });
+}
+
+export function useCreateDeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DealCreate) =>
+      apiFetch<DealDocument>("/deals", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["deals"] }),
+  });
+}
+
+export function useUploadDocument(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => apiUpload<UploadResult>(`/deals/${dealId}/documents`, file),
+    onSuccess: () => {
+      // The upload changes the deal's financials + mapping queue; refresh both.
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
+    },
   });
 }
 

@@ -2,8 +2,10 @@
  * Pipeline dashboard (design doc §5.8, §6): phase buckets with deal counts and rolled-up
  * acquisition dollars, then deal lists with blocker chips. Mobile-first.
  */
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { usePipeline } from "../api/hooks";
+import { NewDealForm } from "./NewDealForm";
 import type { components } from "../api/types";
 import type { Schemas } from "../api/client";
 
@@ -34,10 +36,30 @@ function rollup(deals: DealSummary[], phase: Phase): { count: number; dollars: n
 export function Pipeline() {
   const { data, isLoading, error } = usePipeline();
   const deals = data ?? [];
+  const navigate = useNavigate();
+  const [showForm, setShowForm] = useState(false);
 
   return (
     <section>
-      <h1 className="text-2xl font-semibold">Pipeline</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Pipeline</h1>
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="rounded bg-forest px-3 py-1.5 text-sm text-bone"
+        >
+          {showForm ? "Close" : "New deal"}
+        </button>
+      </div>
+
+      {showForm && (
+        <NewDealForm
+          onCreated={(dealId) => {
+            setShowForm(false);
+            navigate(`/deals/${dealId}`);
+          }}
+          onCancel={() => setShowForm(false)}
+        />
+      )}
 
       {isLoading && <p className="mt-4 text-sm opacity-70">Loading…</p>}
       {error && (

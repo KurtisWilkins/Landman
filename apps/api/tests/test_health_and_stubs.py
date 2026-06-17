@@ -28,7 +28,8 @@ def test_protected_endpoint_requires_auth(client: TestClient) -> None:
 
 
 def test_stub_returns_501_with_envelope(client: TestClient) -> None:
-    r = client.get("/deals", headers=DEV_ANALYST)
+    # PATCH /phase is still a stub (admin holds phase:advance); /deals is now implemented.
+    r = client.patch("/deals/dl_x/phase", json={}, headers=DEV_ADMIN)
     assert r.status_code == 501
     body = r.json()
     assert body["error"]["code"] == "not_implemented"

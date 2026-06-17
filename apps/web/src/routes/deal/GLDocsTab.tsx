@@ -4,16 +4,26 @@
  * mapping backend; until then the tab degrades gracefully.
  */
 import { useMapping } from "../../api/hooks";
+import { DocUpload } from "./DocUpload";
 
 export function GLDocsTab({ dealId }: { dealId: string }) {
+  return (
+    <div className="space-y-4">
+      <DocUpload dealId={dealId} />
+      <MappingReview dealId={dealId} />
+    </div>
+  );
+}
+
+function MappingReview({ dealId }: { dealId: string }) {
   const { data, isLoading, error } = useMapping(dealId);
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)
     return (
       <p className="rounded border border-forest/20 p-3 text-sm opacity-80">
-        The GL mapping queue lands with the ingestion/mapping backend. This tab is wired to the
-        contract and will render proposed mappings for human review once it’s implemented.
+        Proposed GL mappings for human review appear here once a document is uploaded and the
+        mapping backend has processed it.
       </p>
     );
 

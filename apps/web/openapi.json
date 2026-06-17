@@ -3477,7 +3477,7 @@
     },
     "/deals": {
       "get": {
-        "description": "Pipeline list, filterable by phase/status.",
+        "description": "Pipeline list, filterable by phase/status (newest first).",
         "operationId": "list_deals_deals_get",
         "parameters": [
           {
@@ -3741,7 +3741,7 @@
     },
     "/deals/{deal_id}": {
       "get": {
-        "description": "Full assembled \u00a78.3 document.",
+        "description": "Full assembled \u00a78.3 document. Financials/pro forma/comps/gates fill in as their\nbackends land; today this returns the deal metadata and the market (population) block.",
         "operationId": "get_deal_deals__deal_id__get",
         "parameters": [
           {

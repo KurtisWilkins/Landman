@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.auth import Principal, get_current_principal
@@ -42,10 +43,32 @@ router = APIRouter(tags=["deals"])
 async def list_deals(
     phase: Phase | None = Query(default=None),
     status_filter: DealStatus | None = Query(default=None, alias="status"),
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> list[DealSummary]:
-    """Pipeline list, filterable by phase/status."""
-    not_implemented("GET /deals", phase="Phase 4 (pipeline)")
+    """Pipeline list, filterable by phase/status (newest first)."""
+    stmt = select(Deal).order_by(Deal.created_at.desc())
+    if phase is not None:
+        stmt = stmt.where(Deal.current_phase == phase)
+    if status_filter is not None:
+        stmt = stmt.where(Deal.status == status_filter)
+    deals = (await session.execute(stmt)).scalars().all()
+    return [
+        DealSummary(
+            deal_id=d.deal_id,
+            name=d.name,
+            property_type=d.property_type,
+            current_phase=d.current_phase,
+            status=d.status,
+            ask_price=d.ask_price,
+            site_count=d.site_count,
+            city=d.city,
+            state=d.state,
+            # Gate scoring is Phase 4; no blocking-gate count yet (never invented).
+            blocking_gate_count=0,
+        )
+        for d in deals
+    ]
 
 
 @router.post("/deals", response_model=DealDocument, status_code=status.HTTP_201_CREATED)
@@ -169,10 +192,38 @@ async def override_population_ring(
 @router.get("/deals/{deal_id}", response_model=DealDocument)
 async def get_deal(
     deal_id: str,
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> DealDocument:
-    """Full assembled §8.3 document."""
-    not_implemented("GET /deals/{id}", phase="Phase 4 (pipeline)")
+    """Full assembled §8.3 document. Financials/pro forma/comps/gates fill in as their
+    backends land; today this returns the deal metadata and the market (population) block."""
+    deal = await _require_deal(session, deal_id)
+    rings = await population.get_rings(session, deal_id)
+    return DealDocument(
+        deal_id=deal.deal_id,
+        metadata=DealMetadata(
+            name=deal.name,
+            property_type=deal.property_type,
+            address=Address(
+                line1=deal.address_line1,
+                city=deal.city,
+                state=deal.state,
+                zip=deal.zip,
+                lat=float(deal.lat) if deal.lat is not None else None,
+                lng=float(deal.lng) if deal.lng is not None else None,
+            ),
+            site_count=deal.site_count,
+            ask_price=deal.ask_price,
+            price_per_site=deal.price_per_site,
+            seller_name=deal.seller_name,
+            date_received=deal.date_received,
+            current_phase=deal.current_phase,
+            status=deal.status,
+            thesis=deal.thesis,
+            notes=deal.notes,
+        ),
+        market=rings,
+    )
 
 
 @router.patch("/deals/{deal_id}/phase", response_model=DealDocument)

@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * List Deals
-         * @description Pipeline list, filterable by phase/status.
+         * @description Pipeline list, filterable by phase/status (newest first).
          */
         get: operations["list_deals_deals_get"];
         put?: never;
@@ -58,7 +58,8 @@ export interface paths {
         };
         /**
          * Get Deal
-         * @description Full assembled §8.3 document.
+         * @description Full assembled §8.3 document. Financials/pro forma/comps/gates fill in as their
+         *     backends land; today this returns the deal metadata and the market (population) block.
          */
         get: operations["get_deal_deals__deal_id__get"];
         put?: never;
