@@ -1,7 +1,11 @@
 # Production web image: build the SPA, then serve it from nginx and reverse-proxy /api to
 # the API Container App (same-origin → no CORS, auth cookies just work). The dev image stays
 # apps/web/Dockerfile (used by docker-compose); this one is built by the deploy pipeline.
-FROM node:20-slim AS build
+# BASE_REGISTRY lets ACR builds pull base images from our own registry (avoiding Docker Hub's
+# anonymous pull-rate limit); empty default keeps local/CI builds on Docker Hub. Pass e.g.
+# --build-arg BASE_REGISTRY=rjacqprod.azurecr.io/ once the base images are imported there.
+ARG BASE_REGISTRY=
+FROM ${BASE_REGISTRY}node:20-slim AS build
 WORKDIR /app
 # Use the pnpm pinned in package.json (packageManager field), not corepack's "latest" — the
 # latest pnpm now requires Node 22. The prompt flag keeps the non-interactive build from hanging.
@@ -15,7 +19,7 @@ ARG VITE_API_BASE=/api
 ENV VITE_API_BASE=$VITE_API_BASE
 RUN pnpm build
 
-FROM nginx:1.27-alpine AS serve
+FROM ${BASE_REGISTRY}nginx:1.27-alpine AS serve
 # The official nginx image renders /etc/nginx/templates/*.template with envsubst at startup,
 # so ${API_URL} is injected from the container environment (the API's internal FQDN).
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
