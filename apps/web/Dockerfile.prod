@@ -3,6 +3,9 @@
 # apps/web/Dockerfile (used by docker-compose); this one is built by the deploy pipeline.
 FROM node:20-slim AS build
 WORKDIR /app
+# Use the pnpm pinned in package.json (packageManager field), not corepack's "latest" — the
+# latest pnpm now requires Node 22. The prompt flag keeps the non-interactive build from hanging.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
