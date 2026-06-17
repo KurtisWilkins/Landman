@@ -70,14 +70,6 @@ say "Resource group + ACR"
 az group create -n "$RG" -l "$LOC" -o none
 az acr create -n "$ACR" -g "$RG" --sku Standard --admin-enabled false -o none
 
-# Mirror base images into our own ACR so builds never pull from Docker Hub anonymously
-# (its anonymous pull-rate limit otherwise breaks `az acr build`). Idempotent (--force).
-say "Importing base images into ACR"
-for base in python:3.12-slim node:20-slim nginx:1.27-alpine; do
-  az acr import -n "$ACR" --source "docker.io/library/$base" -t "$base" --force -o none 2>/dev/null \
-    || echo "  (base image $base import skipped — already present?)"
-done
-
 # ── 2. PostgreSQL Flexible Server (+ pgvector, + automated backups/PITR) ─────────────────────
 say "PostgreSQL Flexible Server ($PGSERVER)"
 if ! az postgres flexible-server show -n "$PGSERVER" -g "$RG" -o none 2>/dev/null; then
@@ -137,10 +129,11 @@ if [[ "$SKIP_IMAGE_BUILD" == "1" ]]; then
   api_img="$PLACEHOLDER_IMAGE"; web_img="$PLACEHOLDER_IMAGE"
 else
   say "Building first images in ACR (tag: $IMAGE_TAG) — server-side, no local Docker"
-  # Pull base images from our ACR mirror (imported above), not Docker Hub.
-  ( cd "$repo_root" && az acr build --registry "$ACR" --build-arg "BASE_REGISTRY=${acr_login}/" \
+  # Pull base images from Google's public Docker Hub mirror (no auth, no anonymous rate limit
+  # — Docker Hub throttles the shared ACR build pool's anonymous pulls).
+  ( cd "$repo_root" && az acr build --registry "$ACR" --build-arg "BASE_REGISTRY=mirror.gcr.io/library/" \
     -f apps/api/Dockerfile -t "rjacq-api:$IMAGE_TAG" . )
-  ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" --build-arg "BASE_REGISTRY=${acr_login}/" \
+  ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" --build-arg "BASE_REGISTRY=mirror.gcr.io/library/" \
     -f Dockerfile.prod -t "rjacq-web:$IMAGE_TAG" . )
 fi
 # Let the apps pull from ACR via the env's managed identity (assigned below for real images).

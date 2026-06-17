@@ -75,8 +75,8 @@ jobs:
           context: .
           file: apps/api/Dockerfile
           push: true
-          # Pull base images from ACR (imported during provisioning), not Docker Hub anonymously.
-          build-args: BASE_REGISTRY=${{ env.ACR_LOGIN_SERVER }}/
+          # Pull base images from Google's Docker Hub mirror (no anonymous rate limit).
+          build-args: BASE_REGISTRY=mirror.gcr.io/library/
           tags: ${{ env.ACR_LOGIN_SERVER }}/rjacq-api:${{ steps.tag.outputs.sha }}
           cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-api:buildcache
           cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-api:buildcache,mode=max
@@ -87,7 +87,7 @@ jobs:
           context: apps/web
           file: apps/web/Dockerfile.prod
           push: true
-          build-args: BASE_REGISTRY=${{ env.ACR_LOGIN_SERVER }}/
+          build-args: BASE_REGISTRY=mirror.gcr.io/library/
           tags: ${{ env.ACR_LOGIN_SERVER }}/rjacq-web:${{ steps.tag.outputs.sha }}
           cache-from: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-web:buildcache
           cache-to: type=registry,ref=${{ env.ACR_LOGIN_SERVER }}/rjacq-web:buildcache,mode=max
