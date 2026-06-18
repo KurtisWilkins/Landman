@@ -55,3 +55,27 @@ def parse_tabular(data: bytes, content_type: str, filename: str) -> tuple[list[s
     if name.endswith((".xlsx", ".xlsm")) or "spreadsheet" in content_type:
         return parse_xlsx(data)
     return parse_csv(data)
+
+
+def parse_csv_matrix(data: bytes) -> list[list[object]]:
+    text = data.decode("utf-8-sig", errors="replace")
+    return [list(rec) for rec in csv.reader(io.StringIO(text))]
+
+
+def parse_xlsx_matrix(data: bytes) -> list[list[object]]:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    ws = wb.active
+    if ws is None:
+        return []
+    return [list(rec) for rec in ws.iter_rows(values_only=True)]
+
+
+def parse_matrix(data: bytes, content_type: str, filename: str) -> list[list[object]]:
+    """Raw cell matrix (no header assumption) — for layouts whose header isn't row 0,
+    e.g. the QuickBooks 'N Month Recap' P&L."""
+    name = filename.lower()
+    if name.endswith((".xlsx", ".xlsm")) or "spreadsheet" in content_type:
+        return parse_xlsx_matrix(data)
+    return parse_csv_matrix(data)

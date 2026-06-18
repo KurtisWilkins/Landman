@@ -35,6 +35,57 @@ def test_detect_sheet_types() -> None:
 # ── number parsing ──────────────────────────────────────────────────────────
 
 
+# ── QuickBooks 'N Month Recap' P&L (month-columnar, indented GL leaves) ───────
+
+
+def _recap_csv() -> bytes:
+    # Mirrors the QuickBooks layout: title rows, a month-columnar header, section + non-posting
+    # group + Total subtotal rows interleaved with indented leaf accounts.
+    return (
+        b"Profit & Loss 3 Month Recap\n"
+        b"Property: Ridgeview RV Resort LLC\n"
+        b"Cash Basis\n"
+        b"\n"
+        b" ,JUN 25,JUL 25,AUG 25,TOTAL\n"
+        b"Income\n"
+        b"   412000 Rental Income - RV (Non-Posting)\n"
+        b"      412130 RV Monthly,71077.76,73770.25,72403.28\n"
+        b"      412140 RV Additional Fees,0,0,5.0\n"
+        b"   Total 412000 Rental Income - RV (Non-Posting)\n"
+        b"Total Income\n"
+        b"\n"
+        b"Expense\n"
+        b"      540360 Sewer-Offset,-80.0,0,0\n"
+        b"Total Expense\n"
+    )
+
+
+def test_recap_detection_and_leaf_extraction() -> None:
+    from rjacq.ingestion.parse import parse_matrix
+    from rjacq.ingestion.recap import find_header_row, is_recap, recap_to_lines
+
+    matrix = parse_matrix(_recap_csv(), "text/csv", "recap.csv")
+    assert is_recap(matrix)
+    assert find_header_row(matrix) == 4  # month header sits under the title block
+
+    lines = recap_to_lines(matrix)
+    # Only the three leaf posting lines — section/group/Total rows excluded (no double count).
+    assert [line.seller_source_line for line in lines] == [
+        "412130 RV Monthly",
+        "412140 RV Additional Fees",
+        "540360 Sewer-Offset",
+    ]
+    by_label = {line.seller_source_line: line for line in lines}
+    # Month columns summed into the trailing-period amount (TOTAL column ignored).
+    assert by_label["412130 RV Monthly"].amount == Decimal("217251.29")
+    assert by_label["412140 RV Additional Fees"].amount == Decimal("5.0")
+    assert by_label["540360 Sewer-Offset"].amount == Decimal("-80.0")  # negatives kept
+    # Section context retained as provenance; original label preserved.
+    assert by_label["412130 RV Monthly"].raw["_section"] == "Income"
+    assert by_label["540360 Sewer-Offset"].raw["_section"] == "Expense"
+    assert by_label["412130 RV Monthly"].raw["_seller_line"] == "412130 RV Monthly"
+
+
 def test_to_decimal_handles_money_formats() -> None:
     assert to_decimal("$2,680,000") == Decimal("2680000")
     assert to_decimal("(84,000)") == Decimal("-84000")
@@ -122,6 +173,26 @@ async def test_ingest_pnl_loads_unmapped_with_raw_payload(session: AsyncSession)
     assert first.map_confidence == MapConfidence.UNMAPPED
     assert first.amount == Decimal("2680000")
     assert first.raw_payload == {"Account": "Site Rental Income", "Amount": "2680000"}  # provenance
+
+
+async def test_ingest_quickbooks_recap_pnl(session: AsyncSession) -> None:
+    deal_id = await _deal(session)
+    result = await ingest.ingest_document(
+        session, deal_id, filename="recap.csv", content_type="text/csv", data=_recap_csv()
+    )
+    assert result.sheet_type == "pnl"
+    assert result.financial_lines_loaded == 3  # leaves only; subtotals/sections excluded
+
+    lines = (
+        (await session.execute(select(FinancialLine).where(FinancialLine.deal_id == deal_id)))
+        .scalars()
+        .all()
+    )
+    monthly = next(line_ for line_ in lines if line_.seller_source_line == "412130 RV Monthly")
+    assert monthly.account_code is None  # loaded unmapped for the GL engine
+    assert monthly.map_confidence == MapConfidence.UNMAPPED
+    assert monthly.amount == Decimal("217251.29")
+    assert monthly.raw_payload["_section"] == "Income"  # provenance retained
 
 
 async def test_ingest_unit_mix_maps_known_skips_unknown(session: AsyncSession) -> None:

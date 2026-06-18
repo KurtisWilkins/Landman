@@ -14,7 +14,8 @@ from ..core.logging import get_logger
 from . import load
 from .detect import detect_sheet_type
 from .extractor import PdfExtractor
-from .parse import parse_tabular
+from .parse import parse_matrix, parse_tabular
+from .recap import is_recap, recap_to_lines
 from .records import pnl_to_lines, unit_mix_to_units
 
 log = get_logger("ingestion")
@@ -59,6 +60,15 @@ async def ingest_document(
         lines = pdf_extractor.extract_pnl(data)
         period_id, n = await load.load_pnl(session, deal_id, period_label=period_label, lines=lines)
         log.info("ingestion.pdf_loaded", deal_id=deal_id, lines=n)
+        return IngestResult(sheet_type="pnl", financial_lines_loaded=n, period_id=period_id)
+
+    # A QuickBooks 'N Month Recap' P&L doesn't fit the header+columns model (its header isn't
+    # row 0 and it's month-columnar) — detect and normalize it from the raw cell matrix first.
+    matrix = parse_matrix(data, content_type, filename)
+    if is_recap(matrix):
+        lines = recap_to_lines(matrix)
+        period_id, n = await load.load_pnl(session, deal_id, period_label=period_label, lines=lines)
+        log.info("ingestion.recap_loaded", deal_id=deal_id, lines=n)
         return IngestResult(sheet_type="pnl", financial_lines_loaded=n, period_id=period_id)
 
     headers, rows = parse_tabular(data, content_type, filename)
