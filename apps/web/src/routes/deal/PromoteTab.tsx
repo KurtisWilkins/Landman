@@ -1,44 +1,79 @@
 /**
- * Promote Waterfall calculator (standalone tool). Reconstructs the deal-by-deal JV promote
- * model: an editable input set drives a live recalculation (debounced POST to the pure Python
- * engine) and shows returns for both equity positions — **Partner Equity** and **RJourney
- * Equity** — plus the deal-level reference. Genericized: no fund/brand/property names.
+ * Promote tab — the deal-by-deal JV promote waterfall, living inside a deal beside its pro
+ * forma (not a standalone page). It consumes THIS deal's pro forma cash flows: the deal-level
+ * equity stream ([-equity_basis, levered CF…, +net exit]) is derived from the pro forma and fed
+ * to the pure waterfall engine via `cashflow_override`. Only promote-specific assumptions
+ * (hurdles, promote %s, RJourney co-invest, fees) are entered here.
+ *
+ * Until a deal has a computed pro forma (the projection engine is deferred — §14 A-1..A-4), the
+ * tab falls back to editable return-case assumptions so the promote is still usable per deal;
+ * it switches to pro-forma-fed automatically once the pro forma produces cash flows.
  *
  * Presentational; the calculation lives server-side (usePromoteWaterfall). No browser storage.
  */
-import { useEffect, useRef, useState } from "react";
-import { usePromoteWaterfall } from "../api/hooks";
-import type { Schemas } from "../api/client";
-import { fmtMult, fmtPct, fmtUsd } from "../lib/format";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeal, useProforma, usePromoteWaterfall } from "../../api/hooks";
+import type { Schemas } from "../../api/client";
+import { fmtMult, fmtPct, fmtUsd } from "../../lib/format";
 
 type PromoteRequest = Schemas["PromoteRequest"];
+type ProformaResults = Schemas["ProformaResults"];
 
-const DEFAULTS: PromoteRequest = {
-  deal_name: "Deal 1",
+/** Promote-specific assumptions — the only inputs entered on this tab. */
+type PromoteInputs = {
+  start_date: string;
+  ltv: number;
+  acquisition_fee_pct: number;
+  mgmt_fee_pct: number;
+  rjourney_coinvest_pct: number;
+  hurdles: number[];
+  promotes: number[];
+};
+
+/** Return-case assumptions — used only as the fallback when there is no pro forma. */
+type ReturnCase = {
+  equity: number;
+  yr1_distribution_pct: number;
+  distribution_growth: number;
+  exit: { cap_rate: number; base_value: number; income_yield: number };
+};
+
+const PROMOTE_DEFAULTS: PromoteInputs = {
   start_date: "2025-12-31",
-  hold_years: 5,
-  equity: 150000000,
   ltv: 0.65,
   acquisition_fee_pct: 0,
   mgmt_fee_pct: 0,
   rjourney_coinvest_pct: 0.1,
+  hurdles: [0.08, 0.15, 0.2, 0.2],
+  promotes: [0.1, 0.2, 0.3, 0.3],
+};
+
+const RETURN_CASE_DEFAULTS: ReturnCase = {
+  equity: 150000000,
   yr1_distribution_pct: 0.05,
   distribution_growth: 0.05,
   exit: { cap_rate: 0.05, base_value: 300000000, income_yield: 0.07 },
-  hurdles: [0.08, 0.15, 0.2, 0.2],
-  promotes: [0.1, 0.2, 0.3, 0.3],
-  cashflow_override: null,
 };
 
-type Form = Omit<PromoteRequest, "exit" | "hurdles" | "promotes" | "cashflow_override"> & {
-  exit: { cap_rate: number; base_value: number; income_yield: number };
-  hurdles: number[];
-  promotes: number[];
-  cashflow_override: number[] | null;
-};
+const DEFAULT_HOLD_YEARS = 5;
 
 function num(v: unknown): number {
   return Number(v) || 0;
+}
+
+/**
+ * Derive the deal-level equity cash-flow stream from a pro forma:
+ * `[-equity_basis, levered_cf₁ … levered_cfₙ]`, with the net exit proceeds added to the final
+ * year. Returns null when the pro forma has no usable cash flows yet (so we fall back).
+ */
+function streamFromProforma(pf: ProformaResults | undefined): number[] | null {
+  if (!pf) return null;
+  const years = [...(pf.years ?? [])].sort((a, b) => (a.yr ?? 0) - (b.yr ?? 0));
+  const equityBasis = pf.equity_basis;
+  if (years.length === 0 || equityBasis == null) return null;
+  const stream = [-num(equityBasis), ...years.map((y) => num(y.levered_cf))];
+  stream[stream.length - 1] += num(pf.exit?.net_proceeds);
+  return stream;
 }
 
 // A labelled numeric input. `pct` fields display ×100 and store the decimal.
@@ -87,76 +122,110 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-export function Promote() {
-  const [form, setForm] = useState<Form>(DEFAULTS as Form);
+export function PromoteTab({ dealId }: { dealId: string }) {
+  const { data: deal } = useDeal(dealId);
+  const { data: proforma, isLoading: pfLoading } = useProforma(dealId);
+  const [inputs, setInputs] = useState<PromoteInputs>(PROMOTE_DEFAULTS);
+  const [returnCase, setReturnCase] = useState<ReturnCase>(RETURN_CASE_DEFAULTS);
   const calc = usePromoteWaterfall();
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Live recalc: debounce edits, then POST. Runs on mount for the reference scenario too.
+  const dealName = deal?.metadata.name ?? dealId;
+  const sourcedStream = useMemo(() => streamFromProforma(proforma), [proforma]);
+  const sourced = sourcedStream != null;
+  const holdYears = sourcedStream ? sourcedStream.length - 1 : DEFAULT_HOLD_YEARS;
+
+  // Build the engine request: promote-specific inputs always; cash flows from the pro forma
+  // when present (cashflow_override), else from the editable return case.
+  const request = useMemo<PromoteRequest>(() => {
+    const base: PromoteRequest = {
+      deal_name: dealName,
+      start_date: inputs.start_date,
+      hold_years: holdYears,
+      ltv: inputs.ltv,
+      acquisition_fee_pct: inputs.acquisition_fee_pct,
+      mgmt_fee_pct: inputs.mgmt_fee_pct,
+      rjourney_coinvest_pct: inputs.rjourney_coinvest_pct,
+      hurdles: inputs.hurdles,
+      promotes: inputs.promotes,
+      // Return-case fields are ignored by the engine when cashflow_override is set, but the
+      // contract requires them — send the (defaulted/edited) values either way.
+      equity: sourcedStream ? -sourcedStream[0] : returnCase.equity,
+      yr1_distribution_pct: returnCase.yr1_distribution_pct,
+      distribution_growth: returnCase.distribution_growth,
+      exit: returnCase.exit,
+      cashflow_override: sourcedStream ?? null,
+    };
+    return base;
+  }, [dealName, inputs, returnCase, sourcedStream, holdYears]);
+
+  // Live recalc: debounce edits, then POST. Runs on mount and whenever inputs/pro forma change.
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => calc.mutate(form), 350);
+    timer.current = setTimeout(() => calc.mutate(request), 350);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form]);
+  }, [request]);
 
-  const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
-  const partnerPct = 1 - num(form.rjourney_coinvest_pct);
+  const setI = (patch: Partial<PromoteInputs>) => setInputs((f) => ({ ...f, ...patch }));
+  const setR = (patch: Partial<ReturnCase>) => setReturnCase((f) => ({ ...f, ...patch }));
+  const partnerPct = 1 - num(inputs.rjourney_coinvest_pct);
   const r = calc.data;
 
   return (
-    <section className="space-y-4">
-      <header>
-        <h1 className="text-2xl font-semibold">Promote Waterfall</h1>
-        <p className="mt-1 text-sm opacity-70">
-          Deal-by-deal JV returns — IRR hurdles &amp; promote splits. Edit any input; results
-          recalculate live.
+    <div className="space-y-4">
+      <p className="text-sm opacity-70">
+        Deal-by-deal JV returns for <span className="font-medium">{dealName}</span> — IRR hurdles
+        &amp; promote splits. Edit any input; results recalculate live.
+      </p>
+
+      {/* Source-of-cash-flows banner: pro-forma-fed vs. interim return case. */}
+      {sourced ? (
+        <p className="rounded border border-brand/20 bg-brand/5 p-2 text-xs">
+          Cash flows are sourced from this deal&apos;s <span className="font-medium">pro forma</span>{" "}
+          ({holdYears}-year hold). Edit the pro forma to change them; only promote assumptions are
+          entered here.
         </p>
-      </header>
+      ) : (
+        <p className="rounded border border-accent/40 bg-accent/10 p-2 text-xs text-accent-ink">
+          No pro forma for this deal yet — using editable return-case assumptions. Once the pro
+          forma produces cash flows, this tab switches to them automatically.
+        </p>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
         {/* ── Inputs ───────────────────────────────────────── */}
         <div className="space-y-3">
           <Panel title="Deal setup">
-            <label className="col-span-2 flex flex-col gap-1 text-xs">
-              <span className="opacity-70">Deal name</span>
-              <input
-                aria-label="Deal name"
-                value={form.deal_name}
-                onChange={(e) => set({ deal_name: e.target.value })}
-                className="rounded border border-brand/20 bg-surface px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-            </label>
             <label className="flex flex-col gap-1 text-xs">
               <span className="opacity-70">Start date</span>
               <input
                 type="date"
                 aria-label="Start date"
-                value={String(form.start_date)}
-                onChange={(e) => set({ start_date: e.target.value })}
+                value={String(inputs.start_date)}
+                onChange={(e) => setI({ start_date: e.target.value })}
                 className="rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
             <Field
-              label="Total equity"
-              money
-              value={num(form.equity)}
-              onChange={(n) => set({ equity: n })}
+              label="Asset LTV"
+              pct
+              value={num(inputs.ltv)}
+              onChange={(n) => setI({ ltv: n })}
             />
-            <Field label="Asset LTV" pct value={num(form.ltv)} onChange={(n) => set({ ltv: n })} />
             <Field
               label="Acquisition fee"
               pct
-              value={num(form.acquisition_fee_pct)}
-              onChange={(n) => set({ acquisition_fee_pct: n })}
+              value={num(inputs.acquisition_fee_pct)}
+              onChange={(n) => setI({ acquisition_fee_pct: n })}
             />
             <Field
               label="Mgmt fee / yr"
               pct
-              value={num(form.mgmt_fee_pct)}
-              onChange={(n) => set({ mgmt_fee_pct: n })}
+              value={num(inputs.mgmt_fee_pct)}
+              onChange={(n) => setI({ mgmt_fee_pct: n })}
             />
           </Panel>
 
@@ -164,8 +233,8 @@ export function Promote() {
             <Field
               label="RJourney co-invest"
               pct
-              value={num(form.rjourney_coinvest_pct)}
-              onChange={(n) => set({ rjourney_coinvest_pct: n })}
+              value={num(inputs.rjourney_coinvest_pct)}
+              onChange={(n) => setI({ rjourney_coinvest_pct: n })}
             />
             <label className="flex flex-col gap-1 text-xs">
               <span className="opacity-70">Partner equity (%)</span>
@@ -175,59 +244,71 @@ export function Promote() {
             </label>
           </Panel>
 
-          <Panel title="Return case">
-            <Field
-              label="Year-1 distribution"
-              pct
-              value={num(form.yr1_distribution_pct)}
-              onChange={(n) => set({ yr1_distribution_pct: n })}
-            />
-            <Field
-              label="Distribution growth"
-              pct
-              value={num(form.distribution_growth)}
-              onChange={(n) => set({ distribution_growth: n })}
-            />
-          </Panel>
-
-          <Panel title="Exit (year 5 reversion)">
-            <Field
-              label="Exit cap rate"
-              pct
-              value={form.exit.cap_rate}
-              onChange={(n) => set({ exit: { ...form.exit, cap_rate: n } })}
-            />
-            <Field
-              label="Income yield"
-              pct
-              value={form.exit.income_yield}
-              onChange={(n) => set({ exit: { ...form.exit, income_yield: n } })}
-            />
-            <Field
-              label="Reversion base value"
-              money
-              value={form.exit.base_value}
-              onChange={(n) => set({ exit: { ...form.exit, base_value: n } })}
-            />
-          </Panel>
+          {/* Return case + exit: only the interim fallback (no pro forma). */}
+          {!sourced && (
+            <>
+              <Panel title="Return case (no pro forma yet)">
+                <Field
+                  label="Total equity"
+                  money
+                  value={num(returnCase.equity)}
+                  onChange={(n) => setR({ equity: n })}
+                />
+                <Field
+                  label="Year-1 distribution"
+                  pct
+                  value={num(returnCase.yr1_distribution_pct)}
+                  onChange={(n) => setR({ yr1_distribution_pct: n })}
+                />
+                <Field
+                  label="Distribution growth"
+                  pct
+                  value={num(returnCase.distribution_growth)}
+                  onChange={(n) => setR({ distribution_growth: n })}
+                />
+              </Panel>
+              <Panel title="Exit (year 5 reversion)">
+                <Field
+                  label="Exit cap rate"
+                  pct
+                  value={returnCase.exit.cap_rate}
+                  onChange={(n) => setR({ exit: { ...returnCase.exit, cap_rate: n } })}
+                />
+                <Field
+                  label="Income yield"
+                  pct
+                  value={returnCase.exit.income_yield}
+                  onChange={(n) => setR({ exit: { ...returnCase.exit, income_yield: n } })}
+                />
+                <Field
+                  label="Reversion base value"
+                  money
+                  value={returnCase.exit.base_value}
+                  onChange={(n) => setR({ exit: { ...returnCase.exit, base_value: n } })}
+                />
+              </Panel>
+            </>
+          )}
 
           <Panel title="Hurdles & promotes">
-            {form.hurdles.map((h, i) => (
+            {inputs.hurdles.map((h, i) => (
               <Field
                 key={`h${i}`}
                 label={`Hurdle ${i + 1}`}
                 pct
                 value={h}
-                onChange={(n) => set({ hurdles: form.hurdles.map((x, j) => (j === i ? n : x)) })}
+                onChange={(n) => setI({ hurdles: inputs.hurdles.map((x, j) => (j === i ? n : x)) })}
               />
             ))}
-            {form.promotes.map((p, i) => (
+            {inputs.promotes.map((p, i) => (
               <Field
                 key={`p${i}`}
                 label={`Promote ${i + 1}`}
                 pct
                 value={p}
-                onChange={(n) => set({ promotes: form.promotes.map((x, j) => (j === i ? n : x)) })}
+                onChange={(n) =>
+                  setI({ promotes: inputs.promotes.map((x, j) => (j === i ? n : x)) })
+                }
               />
             ))}
           </Panel>
@@ -235,9 +316,10 @@ export function Promote() {
 
         {/* ── Outputs ──────────────────────────────────────── */}
         <div className="space-y-4">
+          {pfLoading && <p className="text-sm opacity-70">Loading pro forma…</p>}
           {calc.isError && (
             <p role="alert" className="rounded border border-danger/30 p-3 text-sm text-danger">
-              Couldn’t calculate — check the inputs.
+              Couldn&apos;t calculate — check the inputs.
             </p>
           )}
           {!r && !calc.isError && <p className="text-sm opacity-70">Calculating…</p>}
@@ -260,7 +342,7 @@ export function Promote() {
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 

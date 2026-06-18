@@ -11,8 +11,9 @@ import { GLDocsTab } from "./deal/GLDocsTab";
 import { GatesTab } from "./deal/GatesTab";
 import { MarketTab } from "./deal/MarketTab";
 import { ProformaTab } from "./deal/ProformaTab";
+import { PromoteTab } from "./deal/PromoteTab";
 
-const TABS = ["Pro forma", "Market", "Comps", "Gates", "GL / Docs"] as const;
+const TABS = ["Pro forma", "Promote", "Market", "Comps", "Gates", "GL / Docs"] as const;
 type Tab = (typeof TABS)[number];
 
 export function DealDetail() {
@@ -51,6 +52,7 @@ export function DealDetail() {
 
       <div className="mt-4">
         {tab === "Pro forma" && <ProformaTab dealId={dealId} />}
+        {tab === "Promote" && <PromoteTab dealId={dealId} />}
         {tab === "Market" && <MarketTab dealId={dealId} />}
         {tab === "Comps" && <CompsTab dealId={dealId} />}
         {tab === "Gates" && <GatesTab />}
