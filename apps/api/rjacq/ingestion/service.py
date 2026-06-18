@@ -58,7 +58,9 @@ async def ingest_document(
                 "pdf_extractor_not_configured", "PDF extraction not configured (C-20)."
             )
         lines = pdf_extractor.extract_pnl(data)
-        period_id, n = await load.load_pnl(session, deal_id, period_label=period_label, lines=lines)
+        period_id, n = await load.load_pnl(
+            session, deal_id, period_label=period_label, lines=lines, source_filename=filename
+        )
         log.info("ingestion.pdf_loaded", deal_id=deal_id, lines=n)
         return IngestResult(sheet_type="pnl", financial_lines_loaded=n, period_id=period_id)
 
@@ -67,7 +69,9 @@ async def ingest_document(
     matrix = parse_matrix(data, content_type, filename)
     if is_recap(matrix):
         lines = recap_to_lines(matrix)
-        period_id, n = await load.load_pnl(session, deal_id, period_label=period_label, lines=lines)
+        period_id, n = await load.load_pnl(
+            session, deal_id, period_label=period_label, lines=lines, source_filename=filename
+        )
         log.info("ingestion.recap_loaded", deal_id=deal_id, lines=n)
         return IngestResult(sheet_type="pnl", financial_lines_loaded=n, period_id=period_id)
 
@@ -77,7 +81,9 @@ async def ingest_document(
 
     if sheet_type == "pnl":
         lines = pnl_to_lines(headers, rows)
-        period_id, n = await load.load_pnl(session, deal_id, period_label=period_label, lines=lines)
+        period_id, n = await load.load_pnl(
+            session, deal_id, period_label=period_label, lines=lines, source_filename=filename
+        )
         return IngestResult(sheet_type=sheet_type, financial_lines_loaded=n, period_id=period_id)
 
     if sheet_type == "unit_mix":

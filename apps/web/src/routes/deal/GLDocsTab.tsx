@@ -5,11 +5,13 @@
  */
 import { useMapping } from "../../api/hooks";
 import { DocUpload } from "./DocUpload";
+import { FinancialVersions } from "./FinancialVersions";
 
 export function GLDocsTab({ dealId }: { dealId: string }) {
   return (
     <div className="space-y-4">
       <DocUpload dealId={dealId} />
+      <FinancialVersions dealId={dealId} />
       <MappingReview dealId={dealId} />
     </div>
   );

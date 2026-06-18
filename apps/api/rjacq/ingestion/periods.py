@@ -1,0 +1,48 @@
+"""Financial-period (upload version) lifecycle (§5.2, §8.4).
+
+Each P&L upload is a dated, retained version of a deal's financials. Exactly one is *current*
+(feeds the GL/mapping view); the rest stay queryable as history. Activation only flips the
+``is_current`` flag — no version is ever deleted (append-never-overwrite; provenance is sacred).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..models.financials import FinancialLine, FinancialPeriod
+
+
+async def list_periods(
+    session: AsyncSession, deal_id: str
+) -> Sequence[tuple[FinancialPeriod, int]]:
+    """All upload versions for a deal (newest first) with their line counts."""
+    stmt = (
+        select(FinancialPeriod, func.count(FinancialLine.line_id))
+        .outerjoin(FinancialLine, FinancialLine.period_id == FinancialPeriod.period_id)
+        .where(FinancialPeriod.deal_id == deal_id)
+        .group_by(FinancialPeriod.period_id)
+        .order_by(FinancialPeriod.ingested_at.desc())
+    )
+    return [(period, count) for period, count in (await session.execute(stmt)).all()]
+
+
+async def activate_period(session: AsyncSession, deal_id: str, period_id: str) -> bool:
+    """Make ``period_id`` the current version for the deal. Returns False if it isn't this
+    deal's period. Demotes the others (UPDATE only — nothing is deleted)."""
+    period = await session.get(FinancialPeriod, period_id)
+    if period is None or period.deal_id != deal_id:
+        return False
+    await session.execute(
+        update(FinancialPeriod)
+        .where(FinancialPeriod.deal_id == deal_id, FinancialPeriod.is_current.is_(True))
+        .values(is_current=False)
+    )
+    await session.execute(
+        update(FinancialPeriod)
+        .where(FinancialPeriod.period_id == period_id)
+        .values(is_current=True)
+    )
+    return True

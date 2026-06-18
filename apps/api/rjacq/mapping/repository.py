@@ -9,12 +9,23 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.financials import FinancialLine
+from ..models.financials import FinancialLine, FinancialPeriod
 from ..models.reference import GLAccount, GLMappingLearned
 
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:16]}"
+
+
+async def current_period_id(session: AsyncSession, deal_id: str) -> str | None:
+    """The deal's active financial version: the current one, else the most recent upload."""
+    stmt = (
+        select(FinancialPeriod.period_id)
+        .where(FinancialPeriod.deal_id == deal_id)
+        .order_by(FinancialPeriod.is_current.desc(), FinancialPeriod.ingested_at.desc())
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalars().first()
 
 
 async def shortlist_accounts(
@@ -81,9 +92,14 @@ async def get_line(session: AsyncSession, line_id: str) -> FinancialLine | None:
 
 
 async def list_lines(session: AsyncSession, deal_id: str) -> Sequence[FinancialLine]:
+    """Lines for the deal's *active* financial version only (older uploads stay queryable but
+    don't bleed into the mapping view)."""
+    period_id = await current_period_id(session, deal_id)
+    if period_id is None:
+        return []
     stmt = (
         select(FinancialLine)
-        .where(FinancialLine.deal_id == deal_id)
+        .where(FinancialLine.deal_id == deal_id, FinancialLine.period_id == period_id)
         .order_by(FinancialLine.line_id)
     )
     return (await session.execute(stmt)).scalars().all()

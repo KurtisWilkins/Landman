@@ -62,8 +62,35 @@ export function useUploadDocument(dealId: string) {
   return useMutation({
     mutationFn: (file: File) => apiUpload<UploadResult>(`/deals/${dealId}/documents`, file),
     onSuccess: () => {
-      // The upload changes the deal's financials + mapping queue; refresh both.
+      // The upload adds a new financials version + refreshes the mapping queue.
       qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "financial-periods"] });
+    },
+  });
+}
+
+type FinancialPeriodVersion = Schemas["FinancialPeriodVersion"];
+
+export function useFinancialPeriods(dealId: string) {
+  // Dated, retained upload versions; the current one feeds the GL view.
+  return useQuery({
+    queryKey: ["deal", dealId, "financial-periods"],
+    queryFn: () => apiFetch<FinancialPeriodVersion[]>(`/deals/${dealId}/financial-periods`),
+  });
+}
+
+export function useActivateFinancialPeriod(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (periodId: string) =>
+      apiFetch<FinancialPeriodVersion[]>(
+        `/deals/${dealId}/financial-periods/${periodId}/activate`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      // Switching the active version changes which lines the GL view shows.
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "financial-periods"] });
       qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
     },
   });

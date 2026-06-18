@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ._columns import pg_enum
-from .base import Base
+from .base import Base, created_at_column
 from .enums import AccountLevel, MapConfidence, NoiPlacement
 
 
@@ -24,6 +24,11 @@ class FinancialPeriod(Base):
     period_start: Mapped[date | None] = mapped_column(Date)
     period_end: Mapped[date | None] = mapped_column(Date)
     granularity: Mapped[str | None] = mapped_column(String)  # t12 | monthly | …
+    # Versioning: each upload is a dated, retained version (never overwritten). The active one
+    # for a deal is is_current=True; the rest stay queryable as history (provenance is sacred).
+    source_filename: Mapped[str | None] = mapped_column(String)
+    ingested_at: Mapped[datetime] = created_at_column()
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 
 class FinancialLine(Base):

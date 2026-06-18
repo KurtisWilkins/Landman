@@ -15,6 +15,7 @@ from ..core.config import settings
 from ..core.db import get_session
 from ..core.logging import get_logger
 from ..core.rbac import Capability, require
+from ..ingestion import periods as financial_periods
 from ..ingestion import service as ingestion
 from ..ingestion.extractor import build_pdf_extractor, extract_offering_memorandum
 from ..ingestion.service import IngestError
@@ -33,6 +34,7 @@ from ..schemas.deal import (
     OmProposal,
     PhaseAdvanceRequest,
 )
+from ..schemas.financials import FinancialPeriodVersion
 from ..schemas.market import PopulationRingOverride, PopulationRingsDoc
 from ..schemas.underwriting import AssumptionOverride, ProformaResults
 from ..underwriting import service as underwriting
@@ -362,6 +364,56 @@ async def upload_document(
         "financial_lines_loaded": result.financial_lines_loaded,
         "units_loaded": result.units_loaded,
     }
+
+
+async def _period_versions(session: AsyncSession, deal_id: str) -> list[FinancialPeriodVersion]:
+    rows = await financial_periods.list_periods(session, deal_id)
+    return [
+        FinancialPeriodVersion(
+            period_id=period.period_id,
+            label=period.label,
+            source_filename=period.source_filename,
+            granularity=period.granularity,
+            ingested_at=period.ingested_at,
+            is_current=period.is_current,
+            line_count=count,
+        )
+        for period, count in rows
+    ]
+
+
+@router.get("/deals/{deal_id}/financial-periods", response_model=list[FinancialPeriodVersion])
+async def list_financial_periods(
+    deal_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> list[FinancialPeriodVersion]:
+    """Dated upload versions of the deal's financials (newest first). The current one feeds the
+    GL/mapping view; older versions are retained and selectable."""
+    await _require_deal(session, deal_id)
+    return await _period_versions(session, deal_id)
+
+
+@router.post(
+    "/deals/{deal_id}/financial-periods/{period_id}/activate",
+    response_model=list[FinancialPeriodVersion],
+)
+async def activate_financial_period(
+    deal_id: str,
+    period_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
+) -> list[FinancialPeriodVersion]:
+    """Make an earlier upload the current version (human-in-the-loop; nothing is deleted)."""
+    await _require_deal(session, deal_id)
+    ok = await financial_periods.activate_period(session, deal_id, period_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "not_found", "message": "Financial version not found."}},
+        )
+    await session.commit()
+    return await _period_versions(session, deal_id)
 
 
 @router.get("/deals/{deal_id}/proforma", response_model=ProformaResults)
