@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core import app_config
 from ..core.auth import Principal, get_current_principal
+from ..core.config import settings
 from ..core.db import get_session
+from ..core.logging import get_logger
 from ..core.rbac import Capability, require
+from ..ingestion import periods as financial_periods
 from ..ingestion import service as ingestion
-from ..ingestion.extractor import build_pdf_extractor
+from ..ingestion.extractor import build_pdf_extractor, extract_offering_memorandum
 from ..ingestion.service import IngestError
 from ..models.deals import Deal
 from ..models.enums import DealStatus, Phase
@@ -24,8 +30,11 @@ from ..schemas.deal import (
     DealDocument,
     DealMetadata,
     DealSummary,
+    OmFinancialLine,
+    OmProposal,
     PhaseAdvanceRequest,
 )
+from ..schemas.financials import FinancialPeriodVersion
 from ..schemas.market import PopulationRingOverride, PopulationRingsDoc
 from ..schemas.underwriting import AssumptionOverride, ProformaResults
 from ..underwriting import service as underwriting
@@ -36,16 +45,39 @@ from ._stub import not_implemented
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 router = APIRouter(tags=["deals"])
+log = get_logger("deals")
 
 
 @router.get("/deals", response_model=list[DealSummary])
 async def list_deals(
     phase: Phase | None = Query(default=None),
     status_filter: DealStatus | None = Query(default=None, alias="status"),
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> list[DealSummary]:
-    """Pipeline list, filterable by phase/status."""
-    not_implemented("GET /deals", phase="Phase 4 (pipeline)")
+    """Pipeline list, filterable by phase/status (newest first)."""
+    stmt = select(Deal).order_by(Deal.created_at.desc())
+    if phase is not None:
+        stmt = stmt.where(Deal.current_phase == phase)
+    if status_filter is not None:
+        stmt = stmt.where(Deal.status == status_filter)
+    deals = (await session.execute(stmt)).scalars().all()
+    return [
+        DealSummary(
+            deal_id=d.deal_id,
+            name=d.name,
+            property_type=d.property_type,
+            current_phase=d.current_phase,
+            status=d.status,
+            ask_price=d.ask_price,
+            site_count=d.site_count,
+            city=d.city,
+            state=d.state,
+            # Gate scoring is Phase 4; no blocking-gate count yet (never invented).
+            blocking_gate_count=0,
+        )
+        for d in deals
+    ]
 
 
 @router.post("/deals", response_model=DealDocument, status_code=status.HTTP_201_CREATED)
@@ -98,6 +130,85 @@ async def create_deal(
             notes=deal.notes,
         ),
         market=rings,
+    )
+
+
+@router.post("/deals/extract-om", response_model=OmProposal)
+async def extract_om(
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
+) -> OmProposal:
+    """Extract a proposed deal from an offering-memorandum PDF for human review (§5.2).
+
+    Returns a *proposal* only — nothing is persisted. The operator reviews/edits it and then
+    creates the deal (AI proposes, a person accepts — CLAUDE.md). Gated on the AI provider key
+    (admin DB override → env), so an admin can fix the key in Settings with no restart.
+    """
+    api_key = await app_config.effective_secret(session, "anthropic_api_key")
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "extractor_not_configured",
+                    "message": "OM extraction is not configured — set the Anthropic key in "
+                    "Settings (or ANTHROPIC_API_KEY).",
+                }
+            },
+        )
+    is_pdf = (file.content_type or "") == "application/pdf" or (
+        file.filename or ""
+    ).lower().endswith(".pdf")
+    if not is_pdf:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail={"error": {"code": "unsupported_media_type", "message": "Upload a PDF."}},
+        )
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={"error": {"code": "file_too_large", "message": "Upload exceeds the limit."}},
+        )
+    try:
+        # Anthropic's client is sync + blocking — run it off the event loop.
+        proposal = await asyncio.to_thread(
+            extract_offering_memorandum,
+            data,
+            api_key=api_key,
+            model=settings.anthropic_model,
+        )
+    except Exception as exc:  # provider/network/parse failure → upstream error, not a 500
+        # Log the failure cause (type + message only — never the OM contents, which carry
+        # financials/PII) so extraction problems are diagnosable from the API logs.
+        log.warning(
+            "om_extraction_failed",
+            error_type=type(exc).__name__,
+            error=str(exc)[:500],
+            bytes=len(data),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"error": {"code": "extraction_failed", "message": "OM extraction failed."}},
+        ) from exc
+
+    address = (
+        Address(city=proposal.city, state=proposal.state)
+        if (proposal.city or proposal.state)
+        else None
+    )
+    return OmProposal(
+        name=proposal.name,
+        property_type=proposal.property_type,
+        address=address,
+        site_count=proposal.site_count,
+        ask_price=proposal.ask_price,
+        seller_name=proposal.seller_name,
+        financial_lines=[
+            OmFinancialLine(description=line.description, amount=line.amount)
+            for line in proposal.financial_lines
+        ],
     )
 
 
@@ -169,10 +280,38 @@ async def override_population_ring(
 @router.get("/deals/{deal_id}", response_model=DealDocument)
 async def get_deal(
     deal_id: str,
+    session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> DealDocument:
-    """Full assembled §8.3 document."""
-    not_implemented("GET /deals/{id}", phase="Phase 4 (pipeline)")
+    """Full assembled §8.3 document. Financials/pro forma/comps/gates fill in as their
+    backends land; today this returns the deal metadata and the market (population) block."""
+    deal = await _require_deal(session, deal_id)
+    rings = await population.get_rings(session, deal_id)
+    return DealDocument(
+        deal_id=deal.deal_id,
+        metadata=DealMetadata(
+            name=deal.name,
+            property_type=deal.property_type,
+            address=Address(
+                line1=deal.address_line1,
+                city=deal.city,
+                state=deal.state,
+                zip=deal.zip,
+                lat=float(deal.lat) if deal.lat is not None else None,
+                lng=float(deal.lng) if deal.lng is not None else None,
+            ),
+            site_count=deal.site_count,
+            ask_price=deal.ask_price,
+            price_per_site=deal.price_per_site,
+            seller_name=deal.seller_name,
+            date_received=deal.date_received,
+            current_phase=deal.current_phase,
+            status=deal.status,
+            thesis=deal.thesis,
+            notes=deal.notes,
+        ),
+        market=rings,
+    )
 
 
 @router.patch("/deals/{deal_id}/phase", response_model=DealDocument)
@@ -201,6 +340,8 @@ async def upload_document(
                 "error": {"code": "file_too_large", "message": "Upload exceeds the size limit."}
             },
         )
+    # Resolve the Anthropic key (admin DB override → env) so PDF extraction uses the live key.
+    anthropic_key = await app_config.effective_secret(session, "anthropic_api_key")
     try:
         result = await ingestion.ingest_document(
             session,
@@ -208,7 +349,7 @@ async def upload_document(
             filename=file.filename or "upload",
             content_type=file.content_type or "",
             data=data,
-            pdf_extractor=build_pdf_extractor(),
+            pdf_extractor=build_pdf_extractor(anthropic_key),
         )
     except IngestError as exc:
         await session.rollback()
@@ -223,6 +364,56 @@ async def upload_document(
         "financial_lines_loaded": result.financial_lines_loaded,
         "units_loaded": result.units_loaded,
     }
+
+
+async def _period_versions(session: AsyncSession, deal_id: str) -> list[FinancialPeriodVersion]:
+    rows = await financial_periods.list_periods(session, deal_id)
+    return [
+        FinancialPeriodVersion(
+            period_id=period.period_id,
+            label=period.label,
+            source_filename=period.source_filename,
+            granularity=period.granularity,
+            ingested_at=period.ingested_at,
+            is_current=period.is_current,
+            line_count=count,
+        )
+        for period, count in rows
+    ]
+
+
+@router.get("/deals/{deal_id}/financial-periods", response_model=list[FinancialPeriodVersion])
+async def list_financial_periods(
+    deal_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> list[FinancialPeriodVersion]:
+    """Dated upload versions of the deal's financials (newest first). The current one feeds the
+    GL/mapping view; older versions are retained and selectable."""
+    await _require_deal(session, deal_id)
+    return await _period_versions(session, deal_id)
+
+
+@router.post(
+    "/deals/{deal_id}/financial-periods/{period_id}/activate",
+    response_model=list[FinancialPeriodVersion],
+)
+async def activate_financial_period(
+    deal_id: str,
+    period_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.DEAL_WRITE)),
+) -> list[FinancialPeriodVersion]:
+    """Make an earlier upload the current version (human-in-the-loop; nothing is deleted)."""
+    await _require_deal(session, deal_id)
+    ok = await financial_periods.activate_period(session, deal_id, period_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "not_found", "message": "Financial version not found."}},
+        )
+    await session.commit()
+    return await _period_versions(session, deal_id)
 
 
 @router.get("/deals/{deal_id}/proforma", response_model=ProformaResults)

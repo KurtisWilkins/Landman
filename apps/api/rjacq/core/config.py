@@ -44,6 +44,19 @@ class Settings(BaseSettings):
     oidc_redirect_uri: str = "http://localhost:8000/auth/callback"
     external_auth_secret: str | None = None  # magic-link vs password — C-16
 
+    # ── Auth delivery: Container Apps EasyAuth at the edge (ADR-0011, refines C-16) ──
+    # EasyAuth on the web app authenticates the user (Entra) and injects the principal's email
+    # as X-MS-CLIENT-PRINCIPAL-NAME; nginx forwards it to the API along with this shared secret.
+    # The API trusts the forwarded identity ONLY when the secret matches — the API has its own
+    # ingress, so an identity header on its own is never trusted. None ⇒ production auth is not
+    # yet configured (the API refuses to mint an identity rather than guess).
+    proxy_auth_secret: str | None = None
+    # Email → role mapping (comma-separated; case-insensitive). RBAC stays server-side.
+    admin_emails: str = ""
+    executive_emails: str = ""
+    equity_partner_emails: str = ""
+    analyst_emails: str = ""
+
     # ── Object storage (S3-compatible) ─────────────────────────────────
     s3_endpoint: str | None = None
     s3_region: str = "us-east-1"

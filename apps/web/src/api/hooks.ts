@@ -4,10 +4,18 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "./types";
-import { apiFetch, type Schemas } from "./client";
+import { apiFetch, apiUpload, type Schemas } from "./client";
 
 type DealSummary = Schemas["DealSummary"];
 type DealDocument = Schemas["DealDocument"];
+type DealCreate = Schemas["DealCreate"];
+/** Result of POST /deals/{id}/documents (endpoint returns an untyped dict, so typed here). */
+export type UploadResult = {
+  status: string;
+  sheet_type: string;
+  financial_lines_loaded: number;
+  units_loaded: number;
+};
 type ProformaResults = Schemas["ProformaResults"];
 type CompSet = Schemas["CompSet"];
 type MappingReview = Schemas["MappingReview"];
@@ -28,6 +36,99 @@ export function usePipeline(filters?: { phase?: Phase }) {
   return useQuery({
     queryKey: ["deals", filters ?? {}],
     queryFn: () => apiFetch<DealSummary[]>(`/deals${qs}`),
+  });
+}
+
+export function useCreateDeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DealCreate) =>
+      apiFetch<DealDocument>("/deals", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["deals"] }),
+  });
+}
+
+type OmProposal = Schemas["OmProposal"];
+
+export function useExtractOm() {
+  // Extracts a reviewable proposal from an OM PDF (nothing is persisted server-side).
+  return useMutation({
+    mutationFn: (file: File) => apiUpload<OmProposal>("/deals/extract-om", file),
+  });
+}
+
+export function useUploadDocument(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => apiUpload<UploadResult>(`/deals/${dealId}/documents`, file),
+    onSuccess: () => {
+      // The upload adds a new financials version + refreshes the mapping queue.
+      qc.invalidateQueries({ queryKey: ["deal", dealId] });
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "financial-periods"] });
+    },
+  });
+}
+
+type FinancialPeriodVersion = Schemas["FinancialPeriodVersion"];
+
+export function useFinancialPeriods(dealId: string) {
+  // Dated, retained upload versions; the current one feeds the GL view.
+  return useQuery({
+    queryKey: ["deal", dealId, "financial-periods"],
+    queryFn: () => apiFetch<FinancialPeriodVersion[]>(`/deals/${dealId}/financial-periods`),
+  });
+}
+
+export function useActivateFinancialPeriod(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (periodId: string) =>
+      apiFetch<FinancialPeriodVersion[]>(
+        `/deals/${dealId}/financial-periods/${periodId}/activate`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      // Switching the active version changes which lines the GL view shows.
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "financial-periods"] });
+      qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
+    },
+  });
+}
+
+type PromoteRequest = Schemas["PromoteRequest"];
+type PromoteResponse = Schemas["PromoteResponse"];
+
+export function usePromoteWaterfall() {
+  // Stateless calculator: POST the inputs, get the full deal-by-deal promote result back.
+  return useMutation({
+    mutationFn: (body: PromoteRequest) =>
+      apiFetch<PromoteResponse>("/promote/waterfall", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
+type IntegrationStatus = Schemas["IntegrationStatus"];
+
+export function useIntegrations() {
+  return useQuery({
+    queryKey: ["admin", "integrations"],
+    queryFn: () => apiFetch<IntegrationStatus[]>("/admin/integrations"),
+    retry: false, // a 403 (non-admin) shouldn't retry
+  });
+}
+
+export function useSetIntegration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) =>
+      apiFetch<IntegrationStatus>(`/admin/integrations/${key}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "integrations"] }),
   });
 }
 

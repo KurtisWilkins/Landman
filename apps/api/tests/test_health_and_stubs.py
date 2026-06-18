@@ -28,7 +28,8 @@ def test_protected_endpoint_requires_auth(client: TestClient) -> None:
 
 
 def test_stub_returns_501_with_envelope(client: TestClient) -> None:
-    r = client.get("/deals", headers=DEV_ANALYST)
+    # PATCH /phase is still a stub (admin holds phase:advance); /deals is now implemented.
+    r = client.patch("/deals/dl_x/phase", json={}, headers=DEV_ADMIN)
     assert r.status_code == 501
     body = r.json()
     assert body["error"]["code"] == "not_implemented"
@@ -50,8 +51,12 @@ def test_rbac_allows_admin_to_reach_stub(client: TestClient) -> None:
 
 
 def test_full_api_surface_present(client: TestClient) -> None:
-    """Every design-doc §9 route is registered on the app."""
-    paths = {route.path for route in client.app.routes}  # type: ignore[attr-defined]
+    """Every design-doc §9 route is registered on the app.
+
+    Read paths from the OpenAPI schema rather than walking ``app.routes`` — FastAPI's lazy
+    router inclusion (Starlette 1.x) keeps included routes behind opaque wrappers there.
+    """
+    paths = set(client.get("/openapi.json").json()["paths"])
     expected = {
         "/auth/callback",
         "/deals",

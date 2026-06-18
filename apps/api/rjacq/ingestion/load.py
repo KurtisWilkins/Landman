@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.enums import MapConfidence, UnitType
@@ -50,12 +51,35 @@ def _match_unit_type(label: str) -> UnitType | None:
 
 
 async def load_pnl(
-    session: AsyncSession, deal_id: str, *, period_label: str, lines: Sequence[ParsedLine]
+    session: AsyncSession,
+    deal_id: str,
+    *,
+    period_label: str,
+    lines: Sequence[ParsedLine],
+    source_filename: str | None = None,
 ) -> tuple[str, int]:
-    """Create a financial period and load lines unmapped with raw_payload retained."""
+    """Create a financial period and load lines unmapped with raw_payload retained.
+
+    Each upload is a new, dated version: prior versions for the deal are demoted to
+    ``is_current=False`` (retained, never deleted) and the new one becomes current (§5.2,
+    append-never-overwrite). An operator can re-activate an older version later.
+    """
+    # Demote any existing current version for this deal — an UPDATE, not a delete (history kept).
+    await session.execute(
+        update(FinancialPeriod)
+        .where(FinancialPeriod.deal_id == deal_id, FinancialPeriod.is_current.is_(True))
+        .values(is_current=False)
+    )
     period_id = _new_id("fp")
     session.add(
-        FinancialPeriod(period_id=period_id, deal_id=deal_id, label=period_label, granularity="t12")
+        FinancialPeriod(
+            period_id=period_id,
+            deal_id=deal_id,
+            label=period_label,
+            granularity="t12",
+            source_filename=source_filename,
+            is_current=True,
+        )
     )
     await session.flush()  # ensure the period exists before its lines reference it (FK)
     for line in lines:

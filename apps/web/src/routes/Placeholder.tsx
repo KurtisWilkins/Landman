@@ -6,7 +6,7 @@ export function Placeholder({ title, note }: { title: string; note: string }) {
   return (
     <section>
       <h1 className="text-2xl font-semibold">{title}</h1>
-      <p className="mt-4 rounded border border-forest/20 p-3 text-sm opacity-80">{note}</p>
+      <p className="mt-4 rounded border border-brand/20 p-3 text-sm opacity-80">{note}</p>
     </section>
   );
 }

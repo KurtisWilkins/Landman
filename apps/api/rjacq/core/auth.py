@@ -12,12 +12,13 @@ refuses to fabricate a trusted identity in production.
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException, status
 
 from .config import settings
-from .rbac import Role
+from .rbac import Role, role_for_email
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,43 @@ class Principal:
     role: Role
     # For external PE partners, deal access is scoped — populated once D-24 is resolved.
     scoped_deal_ids: frozenset[str] | None = None
+
+
+def _principal_from_proxy(proxy_auth: str | None, email: str | None) -> Principal:
+    """Build a Principal from the identity forwarded by the EasyAuth edge (ADR-0011).
+
+    The API has its own ingress, so the forwarded ``X-MS-CLIENT-PRINCIPAL-NAME`` is trusted
+    ONLY when ``X-Proxy-Auth`` carries the shared secret that our nginx injects (and which a
+    client cannot supply — nginx overwrites it). Constant-time compare avoids leaking the
+    secret via timing.
+    """
+    expected = settings.proxy_auth_secret
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail={
+                "error": {
+                    "code": "auth_not_configured",
+                    "message": "Edge authentication is not yet configured (decision C-16).",
+                }
+            },
+        )
+    if not proxy_auth or not secrets.compare_digest(proxy_auth, expected):
+        raise _unauthorized("request did not arrive through the authenticated proxy")
+    if not email:
+        raise _unauthorized("no authenticated principal")
+    role = role_for_email(email)
+    if role is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "forbidden",
+                    "message": "Your account is not provisioned for this application.",
+                }
+            },
+        )
+    return Principal(user_id=email.strip().lower(), email=email, role=role)
 
 
 def decode_token(token: str) -> Principal:
@@ -68,8 +106,17 @@ def _unauthorized(message: str) -> HTTPException:
 
 async def get_current_principal(
     authorization: str | None = Header(default=None),
+    # Proxy/EasyAuth-injected, never client-supplied — hidden from the public OpenAPI contract.
+    x_proxy_auth: str | None = Header(default=None, include_in_schema=False),
+    x_ms_client_principal_name: str | None = Header(default=None, include_in_schema=False),
 ) -> Principal:
-    """FastAPI dependency: extract + validate the bearer token into a Principal."""
+    """FastAPI dependency: resolve the caller into a Principal.
+
+    Production trusts the identity forwarded by the EasyAuth edge (via the proxy secret);
+    locally a ``Bearer dev <role>`` shim is used (never trusted in production).
+    """
+    if settings.is_production:
+        return _principal_from_proxy(x_proxy_auth, x_ms_client_principal_name)
     if not authorization or not authorization.lower().startswith("bearer "):
         raise _unauthorized("missing bearer token")
     token = authorization.split(" ", 1)[1]

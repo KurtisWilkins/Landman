@@ -1,7 +1,7 @@
 # 0003. Identity provider + external auth method (C-16)
 
 Date: 2026-06-10
-Status: Accepted (resolved 2026-06-11)
+Status: Accepted (resolved 2026-06-11; internal-SSO delivery refined by ADR-0011)
 
 ## Context
 

@@ -4,6 +4,39 @@
 
 :root {
   color-scheme: light;
+  /* Brand tokens exposed as CSS vars (derived from the Tailwind theme — still one source) so
+     non-class contexts like Recharts can reference them instead of hardcoding hex. */
+  --color-brand: theme(colors.brand.DEFAULT);
+  --color-accent: theme(colors.accent.DEFAULT);
+  --color-ink: theme(colors.ink.DEFAULT);
+}
+
+/* Brand base (RJourney): Gabarito face, warm paper page, ink body text. */
+@layer base {
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  /* Brand modular type scale on bare headings; components that set an explicit text-* size
+     still win (Tailwind utilities override base), so no existing layout shifts. */
+  h1 {
+    @apply text-h1 text-brand;
+  }
+  h2 {
+    @apply text-h2 text-brand;
+  }
+  h3 {
+    @apply text-h3 text-brand;
+  }
+  h4 {
+    @apply text-h4 text-brand;
+  }
+}
+
+@layer components {
+  /* Section "eyebrow" label — small-caps, tracked-out, above a heading (brand cue). */
+  .eyebrow {
+    @apply text-eyebrow font-semibold uppercase text-ink-muted;
+  }
 }
 
 /* Respect reduced-motion (accessibility floor, §6). */

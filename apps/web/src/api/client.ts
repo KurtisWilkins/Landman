@@ -28,17 +28,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const method = init?.method ?? "GET";
-  addBreadcrumb("api", `${method} ${path}`);
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(DEV_BEARER ? { Authorization: `Bearer ${DEV_BEARER}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+async function handleResponse<T>(res: Response, path: string, method: string): Promise<T> {
   if (!res.ok) {
     let code = "error";
     let message = res.statusText;
@@ -61,4 +51,35 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method ?? "GET";
+  addBreadcrumb("api", `${method} ${path}`);
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(DEV_BEARER ? { Authorization: `Bearer ${DEV_BEARER}` } : {}),
+      ...(init?.headers ?? {}),
+    },
+  });
+  return handleResponse<T>(res, path, method);
+}
+
+/**
+ * Multipart file upload. No `Content-Type` header — the browser sets the multipart boundary;
+ * forcing JSON would break the upload. Auth rides the same-origin cookie (EasyAuth) in prod,
+ * or the dev bearer locally.
+ */
+export async function apiUpload<T>(path: string, file: File): Promise<T> {
+  addBreadcrumb("api", `POST ${path} (upload ${file.name})`);
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    body: form,
+    headers: DEV_BEARER ? { Authorization: `Bearer ${DEV_BEARER}` } : undefined,
+  });
+  return handleResponse<T>(res, path, "POST");
 }

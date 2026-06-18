@@ -32,6 +32,7 @@ class Capability(str, enum.Enum):
     FEEDBACK_SUBMIT = "feedback:submit"
     FEEDBACK_TRIAGE = "feedback:triage"  # triage + dispatch (admin; others per A-33)
     MAPPING_CONFIRM = "mapping:confirm"
+    SETTINGS_MANAGE = "settings:manage"  # view/set integration keys (admin only)
 
 
 _MATRIX: dict[Role, set[Capability]] = {
@@ -56,6 +57,30 @@ _MATRIX: dict[Role, set[Capability]] = {
 
 def has_capability(role: Role, capability: Capability) -> bool:
     return capability in _MATRIX.get(role, set())
+
+
+def _emails(raw: str) -> set[str]:
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def role_for_email(email: str) -> Role | None:
+    """Map an authenticated email to its role from config (None if not provisioned).
+
+    Read live from settings so role lists can change via config without a code change;
+    matching is case-insensitive. The most-privileged matching list wins.
+    """
+    from .config import settings
+
+    e = email.strip().lower()
+    if e in _emails(settings.admin_emails):
+        return Role.ADMIN
+    if e in _emails(settings.executive_emails):
+        return Role.EXECUTIVE
+    if e in _emails(settings.equity_partner_emails):
+        return Role.EQUITY_PARTNER
+    if e in _emails(settings.analyst_emails):
+        return Role.ANALYST
+    return None
 
 
 def require(*capabilities: Capability) -> Callable[..., Any]:

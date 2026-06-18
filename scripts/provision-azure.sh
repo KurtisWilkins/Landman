@@ -42,6 +42,22 @@ web_img="${acr_login}/rjacq-web:${IMAGE_TAG}"
 
 say() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 
+# Poll a Container Apps job execution to completion (mirrors the deploy.yml gate).
+wait_job() { # wait_job <job-name> <execution-name>
+  local job="$1" exec_name="$2" stat
+  for _ in $(seq 1 60); do
+    stat="$(az containerapp job execution show -n "$job" -g "$RG" \
+      --job-execution-name "$exec_name" --query properties.status -o tsv)"
+    echo "  $job: $stat"
+    case "$stat" in
+      Succeeded) return 0 ;;
+      Failed|Degraded) echo "  (!) $job execution $exec_name failed — check its logs"; return 1 ;;
+    esac
+    sleep 10
+  done
+  echo "  (!) $job timed out after 10 minutes"; return 1
+}
+
 # ── 0. Preflight ───────────────────────────────────────────────────────────────────────────
 say "Preflight"
 command -v az >/dev/null || { echo "az CLI not found"; exit 1; }
@@ -113,8 +129,12 @@ if [[ "$SKIP_IMAGE_BUILD" == "1" ]]; then
   api_img="$PLACEHOLDER_IMAGE"; web_img="$PLACEHOLDER_IMAGE"
 else
   say "Building first images in ACR (tag: $IMAGE_TAG) — server-side, no local Docker"
-  ( cd "$repo_root" && az acr build --registry "$ACR" -f apps/api/Dockerfile -t "rjacq-api:$IMAGE_TAG" . )
-  ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" -f Dockerfile.prod -t "rjacq-web:$IMAGE_TAG" . )
+  # Pull base images from Google's public Docker Hub mirror (no auth, no anonymous rate limit
+  # — Docker Hub throttles the shared ACR build pool's anonymous pulls).
+  ( cd "$repo_root" && az acr build --registry "$ACR" --build-arg "BASE_REGISTRY=mirror.gcr.io/library/" \
+    -f apps/api/Dockerfile -t "rjacq-api:$IMAGE_TAG" . )
+  ( cd "$repo_root/apps/web" && az acr build --registry "$ACR" --build-arg "BASE_REGISTRY=mirror.gcr.io/library/" \
+    -f Dockerfile.prod -t "rjacq-web:$IMAGE_TAG" . )
 fi
 # Let the apps pull from ACR via the env's managed identity (assigned below for real images).
 registry_args=(); [[ "$SKIP_IMAGE_BUILD" == "1" ]] || registry_args=(--registry-server "$acr_login" --registry-identity system)
@@ -138,50 +158,93 @@ fi
 s3_fqdn="$(az containerapp show -n rjacq-s3proxy -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 S3_ENDPOINT="https://${s3_fqdn}"
 
+# Enable CORS on the gateway so the browser can run presigned PUT/GET (uploads/downloads).
+# Idempotent, so it also finalizes an already-provisioned gateway on a re-run. We allow all
+# origins rather than enumerate them because the Azure CLI cannot set env-var values containing
+# spaces (azure-cli#30396) and S3PROXY_CORS_ALLOW_ORIGINS/_METHODS are space-separated lists.
+# This is safe for a presigned-only gateway: every request still carries an AWS signature, which
+# is the actual access control — CORS only governs which browser origins may *attempt* a request.
+az containerapp update -n rjacq-s3proxy -g "$RG" \
+  --set-env-vars S3PROXY_CORS_ALLOW_ALL=true -o none
+
 # ── 8. API (internal), worker (no ingress), web (public) ─────────────────────────────────────
 say "API / worker / web container apps"
 common_secrets=(database-url="$DATABASE_URL" redis-url="$REDIS_URL" secret-key="$SECRET_KEY" s3-secret="$S3PROXY_CREDENTIAL")
 common_env=(DATABASE_URL=secretref:database-url REDIS_URL=secretref:redis-url APP_ENV=production)
 s3_env=("S3_ENDPOINT=$S3_ENDPOINT" "S3_BUCKET=$BLOBCONTAINER" "S3_ACCESS_KEY_ID=$S3PROXY_IDENTITY" S3_SECRET_ACCESS_KEY=secretref:s3-secret)
 
-az containerapp create -n rjacq-api -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --ingress internal --target-port 8000 --min-replicas 2 --max-replicas 6 \
-  --secrets "${common_secrets[@]}" \
-  --env-vars "${common_env[@]}" SECRET_KEY=secretref:secret-key "${s3_env[@]}" ${WEB_ORIGIN:+WEB_BASE_URL=$WEB_ORIGIN APP_BASE_URL=$WEB_ORIGIN} \
-  -o none 2>/dev/null || echo "  (rjacq-api exists — update its image via the deploy pipeline)"
+if ! az containerapp show -n rjacq-api -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n rjacq-api -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --ingress internal --target-port 8000 --min-replicas 2 --max-replicas 6 \
+    --secrets "${common_secrets[@]}" \
+    --env-vars "${common_env[@]}" SECRET_KEY=secretref:secret-key "${s3_env[@]}" ${WEB_ORIGIN:+WEB_BASE_URL=$WEB_ORIGIN APP_BASE_URL=$WEB_ORIGIN} \
+    -o none
+else
+  echo "  (rjacq-api exists — update its image via the deploy pipeline)"
+fi
 
-az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --min-replicas 1 --max-replicas 3 \
-  --command arq rjacq.core.queue.WorkerSettings \
-  --secrets "${common_secrets[@]}" \
-  --env-vars "${common_env[@]}" "${s3_env[@]}" \
-  -o none 2>/dev/null || echo "  (rjacq-worker exists — update via the pipeline)"
+if ! az containerapp show -n rjacq-worker -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --min-replicas 1 --max-replicas 3 \
+    --command arq rjacq.core.queue.WorkerSettings \
+    --secrets "${common_secrets[@]}" \
+    --env-vars "${common_env[@]}" "${s3_env[@]}" \
+    -o none
+else
+  echo "  (rjacq-worker exists — update via the pipeline)"
+fi
 
 api_fqdn="$(az containerapp show -n rjacq-api -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
-az containerapp create -n rjacq-web -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$web_img" --ingress external --target-port 8080 --min-replicas 2 --max-replicas 4 \
-  --env-vars "API_URL=https://${api_fqdn}" \
-  -o none 2>/dev/null || echo "  (rjacq-web exists — update via the pipeline)"
+if ! az containerapp show -n rjacq-web -g "$RG" -o none 2>/dev/null; then
+  az containerapp create -n rjacq-web -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$web_img" --ingress external --target-port 8080 --min-replicas 2 --max-replicas 4 \
+    --env-vars "API_URL=https://${api_fqdn}" \
+    -o none
+else
+  echo "  (rjacq-web exists — update via the pipeline)"
+fi
+
+# Finalize the public web origin on the API once it is known (drives CORS + the OIDC redirect).
+# Idempotent update so it also applies to an already-provisioned API on a re-run; both values are
+# single tokens (no spaces), so --set-env-vars handles them.
+if [[ -n "$WEB_ORIGIN" ]]; then
+  say "Setting APP_BASE_URL / WEB_BASE_URL on the API ($WEB_ORIGIN)"
+  az containerapp update -n rjacq-api -g "$RG" \
+    --set-env-vars "APP_BASE_URL=$WEB_ORIGIN" "WEB_BASE_URL=$WEB_ORIGIN" -o none
+fi
 
 # ── 9. Migration job (the deploy pipeline updates its image + runs it each release) ──────────
 say "Migration job"
-az containerapp job create -n rjacq-migrate -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-  --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
-  --command alembic upgrade head \
-  --secrets database-url="$DATABASE_URL" \
-  --env-vars DATABASE_URL=secretref:database-url \
-  -o none 2>/dev/null || echo "  (rjacq-migrate exists)"
+if ! az containerapp job show -n rjacq-migrate -g "$RG" -o none 2>/dev/null; then
+  az containerapp job create -n rjacq-migrate -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
+    --command alembic upgrade head \
+    --secrets database-url="$DATABASE_URL" \
+    --env-vars DATABASE_URL=secretref:database-url \
+    -o none
+else
+  echo "  (rjacq-migrate exists)"
+fi
 
 # ── 10. First migrate + one-time seed (only when running real images) ────────────────────────
+# Seeding waits for the migration execution to SUCCEED first — the seed job writes to tables
+# the migration creates, and job start is async.
 if [[ "$SKIP_IMAGE_BUILD" != "1" ]]; then
-  say "Applying migrations + seeding reference data"
-  az containerapp job start -n rjacq-migrate -g "$RG" -o none
-  az containerapp job create -n rjacq-seed -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-    --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 0 \
-    --command python -m rjacq.seeds.load \
-    --secrets database-url="$DATABASE_URL" \
-    --env-vars DATABASE_URL=secretref:database-url -o none 2>/dev/null || true
-  az containerapp job start -n rjacq-seed -g "$RG" -o none
+  say "Applying migrations (waiting for completion)"
+  exec_name="$(az containerapp job start -n rjacq-migrate -g "$RG" --query name -o tsv)"
+  wait_job rjacq-migrate "$exec_name"
+
+  say "Seeding reference data"
+  if ! az containerapp job show -n rjacq-seed -g "$RG" -o none 2>/dev/null; then
+    az containerapp job create -n rjacq-seed -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
+      --image "$api_img" --trigger-type Manual --replica-timeout 600 --replica-retry-limit 0 \
+      --command python -m rjacq.seeds.load \
+      --secrets database-url="$DATABASE_URL" \
+      --env-vars DATABASE_URL=secretref:database-url -o none
+  fi
+  exec_name="$(az containerapp job start -n rjacq-seed -g "$RG" --query name -o tsv)"
+  wait_job rjacq-seed "$exec_name" \
+    || echo "  (!) seed failed — safe to re-run: az containerapp job start -n rjacq-seed -g $RG"
 fi
 
 web_fqdn="$(az containerapp show -n rjacq-web -g "$RG" --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || true)"
@@ -192,11 +255,15 @@ cat <<EOF
    API  (internal)  https://${api_fqdn}
    s3proxy (public) ${S3_ENDPOINT}
 
-Next:
-  • Set health probes on rjacq-api (/health) — see docs/DEPLOYMENT.md §2.4.
-  • Bind your custom domain + cert to rjacq-web, then set APP_BASE_URL / WEB_BASE_URL to it
-    (re-run with WEB_ORIGIN set) and configure the Entra OIDC redirect (DEPLOYMENT.md §2.6).
-  • Add CORS on rjacq-web's origin to the s3proxy app so browser presigned PUT/GET succeed.
+Done automatically by this script:
+  • s3proxy CORS enabled (browser presigned PUT/GET work).
+  • APP_BASE_URL / WEB_BASE_URL set on the API${WEB_ORIGIN:+ ($WEB_ORIGIN)}.
+
+Still your move (needs your domain / Entra tenant / repo admin — see docs/DEPLOYMENT.md §2.7):
+  • Bind a custom domain + managed cert to rjacq-web, then re-run with WEB_ORIGIN set so the
+    API's base URLs and the OIDC redirect point at it.
+  • Register the app in Entra ID and set the OIDC redirect to <web-origin>/api/auth/callback.
+  • (Optional) Switch the API to HTTP /health probes — default TCP probes already gate traffic.
   • Wire the GitHub Actions deploy secrets/vars (DEPLOYMENT.md §3.1); pushes to main then
     build → migrate → roll automatically.
 EOF

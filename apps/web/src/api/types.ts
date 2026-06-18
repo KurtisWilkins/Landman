@@ -4,6 +4,50 @@
  */
 
 export interface paths {
+    "/admin/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Integrations
+         * @description Configured/missing status for every managed integration key (never the value).
+         */
+        get: operations["list_integrations_admin_integrations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/integrations/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Integration
+         * @description Set/replace an integration key (encrypted at rest; takes effect immediately).
+         */
+        put: operations["set_integration_admin_integrations__key__put"];
+        post?: never;
+        /**
+         * Clear Integration
+         * @description Remove an admin override so the environment value applies again.
+         */
+        delete: operations["clear_integration_admin_integrations__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/callback": {
         parameters: {
             query?: never;
@@ -33,7 +77,7 @@ export interface paths {
         };
         /**
          * List Deals
-         * @description Pipeline list, filterable by phase/status.
+         * @description Pipeline list, filterable by phase/status (newest first).
          */
         get: operations["list_deals_deals_get"];
         put?: never;
@@ -49,6 +93,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/deals/extract-om": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extract Om
+         * @description Extract a proposed deal from an offering-memorandum PDF for human review (§5.2).
+         *
+         *     Returns a *proposal* only — nothing is persisted. The operator reviews/edits it and then
+         *     creates the deal (AI proposes, a person accepts — CLAUDE.md). Gated on the AI provider key
+         *     (admin DB override → env), so an admin can fix the key in Settings with no restart.
+         */
+        post: operations["extract_om_deals_extract_om_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/deals/{deal_id}": {
         parameters: {
             query?: never;
@@ -58,7 +126,8 @@ export interface paths {
         };
         /**
          * Get Deal
-         * @description Full assembled §8.3 document.
+         * @description Full assembled §8.3 document. Financials/pro forma/comps/gates fill in as their
+         *     backends land; today this returns the deal metadata and the market (population) block.
          */
         get: operations["get_deal_deals__deal_id__get"];
         put?: never;
@@ -127,6 +196,47 @@ export interface paths {
          * @description Upload a source document → parse + normalized load (§5.2).
          */
         post: operations["upload_document_deals__deal_id__documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/deals/{deal_id}/financial-periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Financial Periods
+         * @description Dated upload versions of the deal's financials (newest first). The current one feeds the
+         *     GL/mapping view; older versions are retained and selectable.
+         */
+        get: operations["list_financial_periods_deals__deal_id__financial_periods_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/deals/{deal_id}/financial-periods/{period_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Activate Financial Period
+         * @description Make an earlier upload the current version (human-in-the-loop; nothing is deleted).
+         */
+        post: operations["activate_financial_period_deals__deal_id__financial_periods__period_id__activate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -398,6 +508,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/promote/waterfall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compute Promote Waterfall
+         * @description Run the deal-by-deal promote waterfall and return both equity positions + the breakdown.
+         */
+        post: operations["compute_promote_waterfall_promote_waterfall_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/question-suggestions": {
         parameters: {
             query?: never;
@@ -557,6 +687,11 @@ export interface components {
             note?: string | null;
             /** Override Value */
             override_value: number | string;
+        };
+        /** Body_extract_om_deals_extract_om_post */
+        Body_extract_om_deals_extract_om_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_document_deals__deal_id__documents_post */
         Body_upload_document_deals__deal_id__documents_post: {
@@ -824,6 +959,24 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorDetail"];
         };
+        /** ExitAssumptionsIn */
+        ExitAssumptionsIn: {
+            /**
+             * Base Value
+             * @default 300000000
+             */
+            base_value: number | string;
+            /**
+             * Cap Rate
+             * @default 0.05
+             */
+            cap_rate: number | string;
+            /**
+             * Income Yield
+             * @default 0.07
+             */
+            income_yield: number | string;
+        };
         /**
          * FeedbackAttachmentCreate
          * @description POST /feedback/{id}/attachments — screenshot/file (access-scoped, D-32).
@@ -975,6 +1128,30 @@ export interface components {
             /** Start */
             start?: string | null;
         };
+        /**
+         * FinancialPeriodVersion
+         * @description A dated, retained financials upload. The active one (is_current) feeds the GL view;
+         *     older versions stay queryable (append-never-overwrite).
+         */
+        FinancialPeriodVersion: {
+            /** Granularity */
+            granularity?: string | null;
+            /**
+             * Ingested At
+             * Format: date-time
+             */
+            ingested_at: string;
+            /** Is Current */
+            is_current: boolean;
+            /** Label */
+            label?: string | null;
+            /** Line Count */
+            line_count: number;
+            /** Period Id */
+            period_id: string;
+            /** Source Filename */
+            source_filename?: string | null;
+        };
         /** FinancialsDoc */
         FinancialsDoc: {
             /** Lines */
@@ -1072,6 +1249,24 @@ export interface components {
             /** Passes */
             passes?: boolean | null;
         };
+        /** IntegrationStatus */
+        IntegrationStatus: {
+            /** Configured */
+            configured: boolean;
+            /** Hint */
+            hint?: string | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Source */
+            source?: string | null;
+        };
+        /** IntegrationUpdate */
+        IntegrationUpdate: {
+            /** Value */
+            value: string;
+        };
         /**
          * MapConfidence
          * @enum {string}
@@ -1150,6 +1345,31 @@ export interface components {
             code: string;
             /** State */
             state?: string | null;
+        };
+        /** OmFinancialLine */
+        OmFinancialLine: {
+            /** Amount */
+            amount?: string | null;
+            /** Description */
+            description: string;
+        };
+        /**
+         * OmProposal
+         * @description AI-proposed deal from an offering memorandum, for human review before accept (§5.2).
+         */
+        OmProposal: {
+            address?: components["schemas"]["Address"] | null;
+            /** Ask Price */
+            ask_price?: string | null;
+            /** Financial Lines */
+            financial_lines?: components["schemas"]["OmFinancialLine"][];
+            /** Name */
+            name?: string | null;
+            property_type?: components["schemas"]["PropertyType"] | null;
+            /** Seller Name */
+            seller_name?: string | null;
+            /** Site Count */
+            site_count?: number | null;
         };
         /** OperationsDoc */
         OperationsDoc: {
@@ -1238,6 +1458,21 @@ export interface components {
              */
             rings: components["schemas"]["PopulationRingOut"][];
         };
+        /** PositionOut */
+        PositionOut: {
+            /** Cashflows */
+            cashflows: string[];
+            /** Equity */
+            equity: string;
+            /** Irr */
+            irr: string | null;
+            /** Label */
+            label: string;
+            /** Moic */
+            moic: string | null;
+            /** Profit */
+            profit: string;
+        };
         /** ProformaExit */
         ProformaExit: {
             /** Exit Cap */
@@ -1277,6 +1512,109 @@ export interface components {
             revenue?: string | null;
             /** Yr */
             yr: number;
+        };
+        /** PromoteRequest */
+        PromoteRequest: {
+            /**
+             * Acquisition Fee Pct
+             * @default 0
+             */
+            acquisition_fee_pct: number | string;
+            /** Cashflow Override */
+            cashflow_override?: (number | string)[] | null;
+            /**
+             * Deal Name
+             * @default Deal 1
+             */
+            deal_name: string;
+            /**
+             * Distribution Growth
+             * @default 0.05
+             */
+            distribution_growth: number | string;
+            /**
+             * Equity
+             * @default 150000000
+             */
+            equity: number | string;
+            exit?: components["schemas"]["ExitAssumptionsIn"];
+            /**
+             * Hold Years
+             * @default 5
+             */
+            hold_years: number;
+            /**
+             * Hurdles
+             * @default [
+             *       "0.08",
+             *       "0.15",
+             *       "0.20",
+             *       "0.20"
+             *     ]
+             */
+            hurdles: (number | string)[];
+            /**
+             * Ltv
+             * @default 0.65
+             */
+            ltv: number | string;
+            /**
+             * Mgmt Fee Pct
+             * @default 0
+             */
+            mgmt_fee_pct: number | string;
+            /**
+             * Promotes
+             * @default [
+             *       "0.10",
+             *       "0.20",
+             *       "0.30",
+             *       "0.30"
+             *     ]
+             */
+            promotes: (number | string)[];
+            /**
+             * Rjourney Coinvest Pct
+             * @default 0.10
+             */
+            rjourney_coinvest_pct: number | string;
+            /**
+             * Start Date
+             * Format: date
+             * @default 2025-12-31
+             */
+            start_date: string;
+            /**
+             * Yr1 Distribution Pct
+             * @default 0.05
+             */
+            yr1_distribution_pct: number | string;
+        };
+        /** PromoteResponse */
+        PromoteResponse: {
+            /** Acquisition Fee */
+            acquisition_fee: string;
+            /** Cashflow Ties Out */
+            cashflow_ties_out: boolean;
+            /** Combined Equity Distributions */
+            combined_equity_distributions: string[];
+            /** Dates */
+            dates: string[];
+            deal: components["schemas"]["PositionOut"];
+            /** Deal Cashflows */
+            deal_cashflows: string[];
+            /** Deal Name */
+            deal_name: string;
+            partner: components["schemas"]["PositionOut"];
+            /** Purchase Price */
+            purchase_price: string;
+            rjourney: components["schemas"]["PositionOut"];
+            /** Rjourney Carried Interest */
+            rjourney_carried_interest: string[];
+            /** Tiers */
+            tiers: components["schemas"]["TierOut"][];
+            /** Total Promote */
+            total_promote: string;
         };
         /** PropertyDoc */
         PropertyDoc: {
@@ -1347,6 +1685,23 @@ export interface components {
          * @enum {string}
          */
         SuggestionType: "add" | "retire" | "edit";
+        /** TierOut */
+        TierOut: {
+            /** Binds */
+            binds: boolean;
+            /** Carry Total */
+            carry_total: string;
+            /** Equity Total */
+            equity_total: string;
+            /** Hurdle Rate */
+            hurdle_rate: string;
+            /** Irr Check */
+            irr_check: string | null;
+            /** Promote Pct */
+            promote_pct: string;
+            /** Tier */
+            tier: number;
+        };
         /** UnderwritingDoc */
         UnderwritingDoc: {
             /** Assumptions */
@@ -1418,6 +1773,267 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_integrations_admin_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationStatus"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_integration_admin_integrations__key__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntegrationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationStatus"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    clear_integration_admin_integrations__key__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     auth_callback_auth_callback_post: {
         parameters: {
             query?: never;
@@ -1615,6 +2231,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DealDocument"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    extract_om_deals_extract_om_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_extract_om_deals_extract_om_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OmProposal"];
                 };
             };
             /** @description Bad Request */
@@ -2064,6 +2769,181 @@ export interface operations {
                     "application/json": {
                         [key: string]: string | number;
                     };
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_financial_periods_deals__deal_id__financial_periods_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialPeriodVersion"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    activate_financial_period_deals__deal_id__financial_periods__period_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                deal_id: string;
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialPeriodVersion"][];
                 };
             };
             /** @description Bad Request */
@@ -3401,6 +4281,95 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    compute_promote_waterfall_promote_waterfall_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoteResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

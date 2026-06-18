@@ -54,7 +54,7 @@ export function FeedbackWidget() {
         aria-label="Send feedback"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-20 right-4 z-50 h-12 w-12 rounded-full bg-brass-accent text-bone-paper shadow-lg focus:outline-none focus:ring-2 focus:ring-forest-ink md:bottom-6"
+        className="fixed bottom-20 right-4 z-50 h-12 w-12 rounded-full bg-accent text-brand shadow-lg focus:outline-none focus:ring-2 focus:ring-ink md:bottom-6"
       >
         <span className="text-xl font-semibold">?</span>
       </button>
@@ -63,7 +63,7 @@ export function FeedbackWidget() {
         <div
           role="dialog"
           aria-label="Feedback"
-          className="fixed bottom-36 right-4 z-50 w-80 max-w-[90vw] rounded-lg border border-forest/20 bg-bone-paper p-4 shadow-xl md:bottom-20"
+          className="fixed bottom-36 right-4 z-50 w-80 max-w-[90vw] rounded-lg border border-brand/20 bg-paper p-4 shadow-xl md:bottom-20"
         >
           <fieldset className="mb-3">
             <legend className="sr-only">Feedback type</legend>
@@ -75,7 +75,7 @@ export function FeedbackWidget() {
                   aria-pressed={type === a.type}
                   onClick={() => setType(a.type)}
                   className={`flex-1 rounded px-2 py-1 text-xs ${
-                    type === a.type ? "bg-forest text-bone-paper" : "bg-bone text-forest-ink"
+                    type === a.type ? "bg-brand text-paper" : "bg-surface text-ink"
                   }`}
                 >
                   {a.label}
@@ -92,10 +92,10 @@ export function FeedbackWidget() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What happened / what would help?"
             rows={4}
-            className="w-full rounded border border-forest/20 bg-white p-2 text-sm"
+            className="w-full rounded border border-brand/20 bg-white p-2 text-sm"
           />
           {submit.isError && (
-            <p className="mt-1 text-xs text-red-700">Could not send — try again.</p>
+            <p className="mt-1 text-xs text-danger">Could not send — try again.</p>
           )}
           <div className="mt-3 flex justify-end gap-2">
             <button type="button" onClick={reset} className="px-3 py-1 text-sm">
@@ -105,7 +105,7 @@ export function FeedbackWidget() {
               type="button"
               onClick={onSubmit}
               disabled={!description.trim() || submit.isPending}
-              className="rounded bg-forest px-3 py-1 text-sm text-bone-paper disabled:opacity-50"
+              className="rounded bg-brand px-3 py-1 text-sm text-paper disabled:opacity-50"
             >
               {submit.isPending ? "Sending…" : "Send"}
             </button>

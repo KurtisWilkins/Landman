@@ -19,6 +19,19 @@ class FinancialPeriod(ApiModel):
     granularity: str | None = None
 
 
+class FinancialPeriodVersion(ApiModel):
+    """A dated, retained financials upload. The active one (is_current) feeds the GL view;
+    older versions stay queryable (append-never-overwrite)."""
+
+    period_id: str
+    label: str | None = None
+    source_filename: str | None = None
+    granularity: str | None = None
+    ingested_at: datetime
+    is_current: bool
+    line_count: int
+
+
 class FinancialLine(ApiModel):
     line_id: str | None = None
     period_id: str

@@ -15,7 +15,7 @@ export function MarketTab({ dealId }: { dealId: string }) {
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error)
     return (
-      <p className="rounded border border-forest/20 p-3 text-sm opacity-80">
+      <p className="rounded border border-brand/20 p-3 text-sm opacity-80">
         Couldn’t load the market view.
       </p>
     );
@@ -35,13 +35,13 @@ export function MarketTab({ dealId }: { dealId: string }) {
         {RADII.map((radius) => {
           const ring = byRadius.get(radius);
           return (
-            <div key={radius} className="rounded-lg border border-forest/15 p-3">
+            <div key={radius} className="rounded-lg border border-brand/15 p-3">
               <div className="text-xs uppercase tracking-wide opacity-70">{radius} mi</div>
               <div className="mt-1 font-figure text-2xl">
                 {ring?.population != null ? num.format(ring.population) : "—"}
               </div>
               {ring?.is_override ? (
-                <div className="font-figure text-xs text-brass-accent">override</div>
+                <div className="font-figure text-xs text-accent-ink">override</div>
               ) : ring?.source ? (
                 <div className="font-figure text-xs opacity-60">
                   {ring.source}

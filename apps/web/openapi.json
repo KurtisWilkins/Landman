@@ -264,6 +264,20 @@
         "title": "AssumptionOverride",
         "type": "object"
       },
+      "Body_extract_om_deals_extract_om_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_extract_om_deals_extract_om_post",
+        "type": "object"
+      },
       "Body_upload_document_deals__deal_id__documents_post": {
         "properties": {
           "file": {
@@ -1289,6 +1303,56 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "ExitAssumptionsIn": {
+        "properties": {
+          "base_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "300000000",
+            "title": "Base Value"
+          },
+          "cap_rate": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.05",
+            "title": "Cap Rate"
+          },
+          "income_yield": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.07",
+            "title": "Income Yield"
+          }
+        },
+        "title": "ExitAssumptionsIn",
+        "type": "object"
+      },
       "FeedbackAttachmentCreate": {
         "description": "POST /feedback/{id}/attachments \u2014 screenshot/file (access-scoped, D-32).",
         "properties": {
@@ -1883,6 +1947,69 @@
         "title": "FinancialPeriod",
         "type": "object"
       },
+      "FinancialPeriodVersion": {
+        "description": "A dated, retained financials upload. The active one (is_current) feeds the GL view;\nolder versions stay queryable (append-never-overwrite).",
+        "properties": {
+          "granularity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granularity"
+          },
+          "ingested_at": {
+            "format": "date-time",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "is_current": {
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "period_id": {
+            "title": "Period Id",
+            "type": "string"
+          },
+          "source_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Filename"
+          }
+        },
+        "required": [
+          "period_id",
+          "ingested_at",
+          "is_current",
+          "line_count"
+        ],
+        "title": "FinancialPeriodVersion",
+        "type": "object"
+      },
       "FinancialsDoc": {
         "properties": {
           "lines": {
@@ -2183,6 +2310,65 @@
         "title": "Hurdle",
         "type": "object"
       },
+      "IntegrationStatus": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "configured"
+        ],
+        "title": "IntegrationStatus",
+        "type": "object"
+      },
+      "IntegrationUpdate": {
+        "properties": {
+          "value": {
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "IntegrationUpdate",
+        "type": "object"
+      },
       "MapConfidence": {
         "enum": [
           "leaf",
@@ -2450,6 +2636,110 @@
         "title": "OidcCallback",
         "type": "object"
       },
+      "OmFinancialLine": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description"
+        ],
+        "title": "OmFinancialLine",
+        "type": "object"
+      },
+      "OmProposal": {
+        "description": "AI-proposed deal from an offering memorandum, for human review before accept (\u00a75.2).",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ask_price": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask Price"
+          },
+          "financial_lines": {
+            "items": {
+              "$ref": "#/components/schemas/OmFinancialLine"
+            },
+            "title": "Financial Lines",
+            "type": "array"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "property_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PropertyType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seller_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seller Name"
+          },
+          "site_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Count"
+          }
+        },
+        "title": "OmProposal",
+        "type": "object"
+      },
       "OperationsDoc": {
         "properties": {
           "bookings": {
@@ -2714,6 +3004,66 @@
         "title": "PopulationRingsDoc",
         "type": "object"
       },
+      "PositionOut": {
+        "properties": {
+          "cashflows": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Cashflows",
+            "type": "array"
+          },
+          "equity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equity",
+            "type": "string"
+          },
+          "irr": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irr"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "moic": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moic"
+          },
+          "profit": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Profit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "cashflows",
+          "equity",
+          "profit",
+          "irr",
+          "moic"
+        ],
+        "title": "PositionOut",
+        "type": "object"
+      },
       "ProformaExit": {
         "properties": {
           "exit_cap": {
@@ -2911,6 +3261,293 @@
         "title": "ProformaYear",
         "type": "object"
       },
+      "PromoteRequest": {
+        "properties": {
+          "acquisition_fee_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Acquisition Fee Pct"
+          },
+          "cashflow_override": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashflow Override"
+          },
+          "deal_name": {
+            "default": "Deal 1",
+            "title": "Deal Name",
+            "type": "string"
+          },
+          "distribution_growth": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": -1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.05",
+            "title": "Distribution Growth"
+          },
+          "equity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "150000000",
+            "title": "Equity"
+          },
+          "exit": {
+            "$ref": "#/components/schemas/ExitAssumptionsIn"
+          },
+          "hold_years": {
+            "default": 5,
+            "maximum": 10.0,
+            "minimum": 2.0,
+            "title": "Hold Years",
+            "type": "integer"
+          },
+          "hurdles": {
+            "default": [
+              "0.08",
+              "0.15",
+              "0.20",
+              "0.20"
+            ],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Hurdles",
+            "type": "array"
+          },
+          "ltv": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.65",
+            "title": "Ltv"
+          },
+          "mgmt_fee_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Mgmt Fee Pct"
+          },
+          "promotes": {
+            "default": [
+              "0.10",
+              "0.20",
+              "0.30",
+              "0.30"
+            ],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Promotes",
+            "type": "array"
+          },
+          "rjourney_coinvest_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.10",
+            "title": "Rjourney Coinvest Pct"
+          },
+          "start_date": {
+            "default": "2025-12-31",
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "yr1_distribution_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.05",
+            "title": "Yr1 Distribution Pct"
+          }
+        },
+        "title": "PromoteRequest",
+        "type": "object"
+      },
+      "PromoteResponse": {
+        "properties": {
+          "acquisition_fee": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Acquisition Fee",
+            "type": "string"
+          },
+          "cashflow_ties_out": {
+            "title": "Cashflow Ties Out",
+            "type": "boolean"
+          },
+          "combined_equity_distributions": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Combined Equity Distributions",
+            "type": "array"
+          },
+          "dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Dates",
+            "type": "array"
+          },
+          "deal": {
+            "$ref": "#/components/schemas/PositionOut"
+          },
+          "deal_cashflows": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Deal Cashflows",
+            "type": "array"
+          },
+          "deal_name": {
+            "title": "Deal Name",
+            "type": "string"
+          },
+          "partner": {
+            "$ref": "#/components/schemas/PositionOut"
+          },
+          "purchase_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Purchase Price",
+            "type": "string"
+          },
+          "rjourney": {
+            "$ref": "#/components/schemas/PositionOut"
+          },
+          "rjourney_carried_interest": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Rjourney Carried Interest",
+            "type": "array"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierOut"
+            },
+            "title": "Tiers",
+            "type": "array"
+          },
+          "total_promote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Promote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deal_name",
+          "dates",
+          "purchase_price",
+          "acquisition_fee",
+          "deal_cashflows",
+          "combined_equity_distributions",
+          "rjourney_carried_interest",
+          "total_promote",
+          "tiers",
+          "deal",
+          "partner",
+          "rjourney",
+          "cashflow_ties_out"
+        ],
+        "title": "PromoteResponse",
+        "type": "object"
+      },
       "PropertyDoc": {
         "properties": {
           "amenities": {
@@ -3090,6 +3727,61 @@
         ],
         "title": "SuggestionType",
         "type": "string"
+      },
+      "TierOut": {
+        "properties": {
+          "binds": {
+            "title": "Binds",
+            "type": "boolean"
+          },
+          "carry_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carry Total",
+            "type": "string"
+          },
+          "equity_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equity Total",
+            "type": "string"
+          },
+          "hurdle_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Hurdle Rate",
+            "type": "string"
+          },
+          "irr_check": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irr Check"
+          },
+          "promote_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Promote Pct",
+            "type": "string"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tier",
+          "hurdle_rate",
+          "promote_pct",
+          "equity_total",
+          "carry_total",
+          "irr_check",
+          "binds"
+        ],
+        "title": "TierOut",
+        "type": "object"
       },
       "UnderwritingDoc": {
         "properties": {
@@ -3373,6 +4065,359 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/integrations": {
+      "get": {
+        "description": "Configured/missing status for every managed integration key (never the value).",
+        "operationId": "list_integrations_admin_integrations_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationStatus"
+                  },
+                  "title": "Response List Integrations Admin Integrations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "List Integrations",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/integrations/{key}": {
+      "delete": {
+        "description": "Remove an admin override so the environment value applies again.",
+        "operationId": "clear_integration_admin_integrations__key__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Clear Integration",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Set/replace an integration key (encrypted at rest; takes effect immediately).",
+        "operationId": "set_integration_admin_integrations__key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Set Integration",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/auth/callback": {
       "post": {
         "description": "Exchange an OIDC code for a session (Entra ID / external). TODO(decision: \u00a714 C-16).",
@@ -3477,7 +4522,7 @@
     },
     "/deals": {
       "get": {
-        "description": "Pipeline list, filterable by phase/status.",
+        "description": "Pipeline list, filterable by phase/status (newest first).",
         "operationId": "list_deals_deals_get",
         "parameters": [
           {
@@ -3739,9 +4784,129 @@
         ]
       }
     },
+    "/deals/extract-om": {
+      "post": {
+        "description": "Extract a proposed deal from an offering-memorandum PDF for human review (\u00a75.2).\n\nReturns a *proposal* only \u2014 nothing is persisted. The operator reviews/edits it and then\ncreates the deal (AI proposes, a person accepts \u2014 CLAUDE.md). Gated on the AI provider key\n(admin DB override \u2192 env), so an admin can fix the key in Settings with no restart.",
+        "operationId": "extract_om_deals_extract_om_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_extract_om_deals_extract_om_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OmProposal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Extract Om",
+        "tags": [
+          "deals"
+        ]
+      }
+    },
     "/deals/{deal_id}": {
       "get": {
-        "description": "Full assembled \u00a78.3 document.",
+        "description": "Full assembled \u00a78.3 document. Financials/pro forma/comps/gates fill in as their\nbackends land; today this returns the deal metadata and the market (population) block.",
         "operationId": "get_deal_deals__deal_id__get",
         "parameters": [
           {
@@ -4368,6 +5533,261 @@
           }
         },
         "summary": "Upload Document",
+        "tags": [
+          "deals"
+        ]
+      }
+    },
+    "/deals/{deal_id}/financial-periods": {
+      "get": {
+        "description": "Dated upload versions of the deal's financials (newest first). The current one feeds the\nGL/mapping view; older versions are retained and selectable.",
+        "operationId": "list_financial_periods_deals__deal_id__financial_periods_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deal_id",
+            "required": true,
+            "schema": {
+              "title": "Deal Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FinancialPeriodVersion"
+                  },
+                  "title": "Response List Financial Periods Deals  Deal Id  Financial Periods Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "List Financial Periods",
+        "tags": [
+          "deals"
+        ]
+      }
+    },
+    "/deals/{deal_id}/financial-periods/{period_id}/activate": {
+      "post": {
+        "description": "Make an earlier upload the current version (human-in-the-loop; nothing is deleted).",
+        "operationId": "activate_financial_period_deals__deal_id__financial_periods__period_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deal_id",
+            "required": true,
+            "schema": {
+              "title": "Deal Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period_id",
+            "required": true,
+            "schema": {
+              "title": "Period Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FinancialPeriodVersion"
+                  },
+                  "title": "Response Activate Financial Period Deals  Deal Id  Financial Periods  Period Id  Activate Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Activate Financial Period",
         "tags": [
           "deals"
         ]
@@ -6186,6 +7606,126 @@
         "summary": "Health",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/promote/waterfall": {
+      "post": {
+        "description": "Run the deal-by-deal promote waterfall and return both equity positions + the breakdown.",
+        "operationId": "compute_promote_waterfall_promote_waterfall_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Compute Promote Waterfall",
+        "tags": [
+          "promote"
         ]
       }
     },

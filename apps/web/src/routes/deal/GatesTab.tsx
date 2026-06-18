@@ -12,7 +12,7 @@ export function GatesTab() {
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error)
     return (
-      <p className="rounded border border-forest/20 p-3 text-sm opacity-80">
+      <p className="rounded border border-brand/20 p-3 text-sm opacity-80">
         Couldn’t load gate questions.
       </p>
     );
@@ -20,12 +20,12 @@ export function GatesTab() {
     return <p className="text-sm opacity-70">No gate questions configured for this phase.</p>;
 
   return (
-    <ul className="divide-y divide-forest/10">
+    <ul className="divide-y divide-brand/10">
       {questions.map((q) => (
         <li key={q.question_id} className="flex items-start gap-3 py-2 text-sm">
           <span
             aria-hidden
-            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${q.blocking ? "bg-brass-accent" : "bg-forest/30"}`}
+            className={`mt-1 h-2 w-2 shrink-0 rounded-full ${q.blocking ? "bg-accent" : "bg-brand/30"}`}
           />
           <div>
             <div>{q.text}</div>

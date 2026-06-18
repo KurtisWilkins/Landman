@@ -426,7 +426,8 @@ gate_questions( question_id PK, phase, category, text, blocking bool,
 
 -- ── Financials ──────────────────────────────────────
 financial_periods( period_id PK, deal_id FK→deals, label, period_start date,
-  period_end date, granularity )
+  period_end date, granularity, source_filename, ingested_at timestamptz,
+  is_current bool )  -- each upload is a dated, retained version; is_current feeds the GL view
 financial_lines( line_id PK, deal_id FK→deals, period_id FK→financial_periods,
   account_code FK→gl_accounts NULL, account_level, amount numeric, seller_source_line,
   map_confidence, map_confidence_score numeric, noi_placement, is_addback bool,
