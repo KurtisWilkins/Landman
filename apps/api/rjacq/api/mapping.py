@@ -16,19 +16,19 @@ from ..schemas.financials import MappingConfirm, MappingReview
 router = APIRouter(tags=["mapping"])
 
 
-@router.get("/deals/{deal_id}/mapping", response_model=MappingReview)
+@router.get("/acquisitions/{acquisition_id}/mapping", response_model=MappingReview)
 async def get_mapping_queue(
-    deal_id: str,
+    acquisition_id: str,
     session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> MappingReview:
     """Mapping queue for human review (proposals + candidate shortlist)."""
-    return await service.build_review(session, deal_id, embedder=build_embedder())
+    return await service.build_review(session, acquisition_id, embedder=build_embedder())
 
 
-@router.post("/deals/{deal_id}/mapping/confirm", response_model=MappingReview)
+@router.post("/acquisitions/{acquisition_id}/mapping/confirm", response_model=MappingReview)
 async def confirm_mapping(
-    deal_id: str,
+    acquisition_id: str,
     body: MappingConfirm,
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(require(Capability.MAPPING_CONFIRM)),
@@ -51,4 +51,4 @@ async def confirm_mapping(
             detail={"error": {"code": exc.code, "message": exc.message}},
         ) from exc
     await session.commit()
-    return await service.build_review(session, deal_id, embedder=build_embedder())
+    return await service.build_review(session, acquisition_id, embedder=build_embedder())

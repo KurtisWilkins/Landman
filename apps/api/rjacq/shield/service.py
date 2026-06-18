@@ -1,4 +1,4 @@
-"""SHIELD sync service: aggregate baselines and seed each deal's assumptions.
+"""SHIELD sync service: aggregate baselines and seed each acquisition's assumptions.
 
 Writes only to *our* Postgres (never SHIELD). Seeding preserves provenance: an existing
 operator override is never clobbered — only the SHIELD baseline is refreshed.
@@ -23,16 +23,20 @@ log = get_logger("shield")
 
 async def seed_assumptions(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     baselines: dict[str, Decimal],
     specs: Sequence[MetricSpec],
 ) -> int:
-    """Upsert baseline assumptions for a deal. An existing override is preserved (only the
+    """Upsert baseline assumptions for a acquisition. An existing override is preserved (only the
     baseline_value / shield_source / label are refreshed)."""
     by_key = {s.key: s for s in specs}
     existing = {
         a.key: a
-        for a in (await session.execute(select(Assumption).where(Assumption.deal_id == deal_id)))
+        for a in (
+            await session.execute(
+                select(Assumption).where(Assumption.acquisition_id == acquisition_id)
+            )
+        )
         .scalars()
         .all()
     }
@@ -46,7 +50,7 @@ async def seed_assumptions(
             session.add(
                 Assumption(
                     assumption_id=f"as_{uuid.uuid4().hex[:16]}",
-                    deal_id=deal_id,
+                    acquisition_id=acquisition_id,
                     key=key,
                     label=spec.label,
                     baseline_value=value,
@@ -70,12 +74,12 @@ async def sync_baselines(
     connector: ShieldConnector,
     query: str,
     specs: Sequence[MetricSpec],
-    deal_ids: Sequence[str],
+    acquisition_ids: Sequence[str],
 ) -> dict[str, Decimal]:
-    """Pull portfolio actuals (read-only), aggregate baselines, seed the given deals."""
+    """Pull portfolio actuals (read-only), aggregate baselines, seed the given acquisitions."""
     rows = connector.fetch_all(query)  # read-only; guarded in the connector
     baselines = aggregate_baselines(rows, specs)
-    for deal_id in deal_ids:
-        await seed_assumptions(session, deal_id, baselines, specs)
-    log.info("shield.baselines_synced", metrics=len(baselines), deals=len(deal_ids))
+    for acquisition_id in acquisition_ids:
+        await seed_assumptions(session, acquisition_id, baselines, specs)
+    log.info("shield.baselines_synced", metrics=len(baselines), acquisitions=len(acquisition_ids))
     return baselines

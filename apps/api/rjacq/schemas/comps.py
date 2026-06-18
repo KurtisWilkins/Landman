@@ -27,7 +27,7 @@ class CompOut(ApiModel):
 
 
 class CompManualAdd(BaseModel):
-    """POST /deals/{id}/comps — manual add by URL or direct fields."""
+    """POST /acquisitions/{id}/comps — manual add by URL or direct fields."""
 
     url: str | None = None
     name: str | None = None

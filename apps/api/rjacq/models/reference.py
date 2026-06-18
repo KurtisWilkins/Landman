@@ -1,4 +1,4 @@
-"""Reference / config tables, not per-deal (§8.4 — Reference / config).
+"""Reference / config tables, not per-acquisition (§8.4 — Reference / config).
 
 ``gl_accounts`` carries a pgvector embedding column used by the Phase-1 mapping engine.
 ``gl_accounts`` and ``gate_questions`` are shared config edited via the admin UI.

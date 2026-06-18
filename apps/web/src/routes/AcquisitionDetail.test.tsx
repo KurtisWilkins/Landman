@@ -3,33 +3,33 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DealDetail } from "./DealDetail";
+import { AcquisitionDetail } from "./AcquisitionDetail";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status });
 }
 
-function renderDeal() {
+function renderAcquisition() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={["/deals/dl_1"]}>
+      <MemoryRouter initialEntries={["/acquisitions/dl_1"]}>
         <Routes>
-          <Route path="/deals/:dealId" element={<DealDetail />} />
+          <Route path="/acquisitions/:acquisitionId" element={<AcquisitionDetail />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe("DealDetail", () => {
+describe("AcquisitionDetail", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.endsWith("/deals/dl_1"))
+        if (url.endsWith("/acquisitions/dl_1"))
           return jsonResponse({
-            deal_id: "dl_1",
+            acquisition_id: "dl_1",
             metadata: {
               name: "Cedar Hollow",
               property_type: "rv_resort",
@@ -61,7 +61,7 @@ describe("DealDetail", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("shows the header and tabs, and renders pro forma rows", async () => {
-    renderDeal();
+    renderAcquisition();
     expect(await screen.findByRole("heading", { name: "Cedar Hollow" })).toBeInTheDocument();
     for (const t of ["Pro forma", "Comps", "Gates", "GL / Docs"]) {
       expect(screen.getByRole("tab", { name: t })).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe("DealDetail", () => {
 
   it("switches to the Gates tab", async () => {
     const user = userEvent.setup();
-    renderDeal();
+    renderAcquisition();
     await user.click(screen.getByRole("tab", { name: "Gates" }));
     expect(await screen.findByText(/no gate questions configured/i)).toBeInTheDocument();
   });

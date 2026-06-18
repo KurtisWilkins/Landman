@@ -17,11 +17,11 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:16]}"
 
 
-async def current_period_id(session: AsyncSession, deal_id: str) -> str | None:
-    """The deal's active financial version: the current one, else the most recent upload."""
+async def current_period_id(session: AsyncSession, acquisition_id: str) -> str | None:
+    """The acquisition's active financial version: the current one, else the most recent upload."""
     stmt = (
         select(FinancialPeriod.period_id)
-        .where(FinancialPeriod.deal_id == deal_id)
+        .where(FinancialPeriod.acquisition_id == acquisition_id)
         .order_by(FinancialPeriod.is_current.desc(), FinancialPeriod.ingested_at.desc())
         .limit(1)
     )
@@ -91,15 +91,15 @@ async def get_line(session: AsyncSession, line_id: str) -> FinancialLine | None:
     return await session.get(FinancialLine, line_id)
 
 
-async def list_lines(session: AsyncSession, deal_id: str) -> Sequence[FinancialLine]:
-    """Lines for the deal's *active* financial version only (older uploads stay queryable but
+async def list_lines(session: AsyncSession, acquisition_id: str) -> Sequence[FinancialLine]:
+    """Lines for the acquisition's *active* financial version only (older uploads stay queryable but
     don't bleed into the mapping view)."""
-    period_id = await current_period_id(session, deal_id)
+    period_id = await current_period_id(session, acquisition_id)
     if period_id is None:
         return []
     stmt = (
         select(FinancialLine)
-        .where(FinancialLine.deal_id == deal_id, FinancialLine.period_id == period_id)
+        .where(FinancialLine.acquisition_id == acquisition_id, FinancialLine.period_id == period_id)
         .order_by(FinancialLine.line_id)
     )
     return (await session.execute(stmt)).scalars().all()

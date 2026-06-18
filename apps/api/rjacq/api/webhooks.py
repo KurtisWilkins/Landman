@@ -1,4 +1,4 @@
-"""Inbound webhooks (§9): deal email intake and GitHub issue/PR sync."""
+"""Inbound webhooks (§9): acquisition email intake and GitHub issue/PR sync."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ router = APIRouter(tags=["webhooks"])
 
 @router.post("/webhooks/email-intake", status_code=status.HTTP_202_ACCEPTED)
 async def email_intake(_request: Request) -> dict[str, str]:
-    """Inbound deal mail → create a deal in initial_uw + queue parse (§5.1).
+    """Inbound acquisition mail → create a acquisition in initial_uw + queue parse (§5.1).
 
     TODO(decision: §14 C-18): Graph mailbox vs. inbound-parse provider; verify signature.
     """

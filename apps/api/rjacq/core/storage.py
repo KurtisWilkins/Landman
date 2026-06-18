@@ -1,6 +1,6 @@
 """S3-compatible object storage client (source files, photos, feedback screenshots).
 
-Feedback screenshots may contain deal financials — they are stored in access-scoped
+Feedback screenshots may contain acquisition financials — they are stored in access-scoped
 buckets and their contents are never logged (CLAUDE.md; [DECISION] D-32 for redaction).
 """
 

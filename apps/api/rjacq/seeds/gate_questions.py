@@ -1,18 +1,18 @@
 """Gate-question seeds.
 
 Only the items the design doc names *explicitly* are seeded here (§5.7): the Initial UW
-set (P&L + unit mix) and the LOI set (attorneys looped, deal points). These are structural,
+set (P&L + unit mix) and the LOI set (attorneys looped, acquisition points). These are structural,
 not guessed business values.
 
 The full sets are unresolved decisions and are NOT invented here:
   • The RV-remastered Due Diligence checklist (50+ items, which are blocking) — §14 A-8.
   • Final Initial UW / LOI content and the Close set — §14 A-9.
 The loader merges a reviewed config file when ``gate_questions_config_path`` is set. Until
-then DD/Close intentionally seed empty so nothing un-vetted gates a deal.
+then DD/Close intentionally seed empty so nothing un-vetted gates a acquisition.
 
 ``blocking`` defaults to False for any item whose blocking status is itself part of the
 open decision; the explicitly-named "must have P&L / unit mix / executed LOI" items are
-marked blocking because the doc states a deal cannot clear Initial UW without them.
+marked blocking because the doc states a acquisition cannot clear Initial UW without them.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ GATE_QUESTIONS: list[GateQuestionRow] = [
         "blocking": True,
         "default_route_type": "internal",
     },
-    # ── LOI (§5.7: "attorneys looped, deal points") ─────────────────────
+    # ── LOI (§5.7: "attorneys looped, acquisition points") ─────────────────────
     {
         "question_id": "q_loi_attorneys",
         "phase": "loi",
@@ -59,8 +59,8 @@ GATE_QUESTIONS: list[GateQuestionRow] = [
     {
         "question_id": "q_loi_deal_points",
         "phase": "loi",
-        "category": "deal",
-        "text": "Key deal points (price, terms, contingencies) agreed.",
+        "category": "acquisition",
+        "text": "Key acquisition points (price, terms, contingencies) agreed.",
         "blocking": True,
         "default_route_type": "internal",
     },

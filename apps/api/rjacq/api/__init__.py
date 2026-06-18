@@ -8,11 +8,11 @@ changing the signatures.
 
 from fastapi import APIRouter
 
-from . import admin, auth, comps, deals, feedback, gates, mapping, promote, webhooks
+from . import acquisitions, admin, auth, comps, feedback, gates, mapping, promote, webhooks
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
-api_router.include_router(deals.router)
+api_router.include_router(acquisitions.router)
 api_router.include_router(mapping.router)
 api_router.include_router(comps.router)
 api_router.include_router(gates.router)

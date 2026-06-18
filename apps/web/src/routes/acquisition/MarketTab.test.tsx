@@ -7,7 +7,7 @@ function renderTab() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MarketTab dealId="dl_1" />
+      <MarketTab acquisitionId="dl_1" />
     </QueryClientProvider>,
   );
 }

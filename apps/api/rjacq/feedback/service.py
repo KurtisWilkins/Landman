@@ -62,7 +62,7 @@ async def submit(
         submitted_by=submitted_by,
         role=role,
         page_route=ctx.page_route,
-        deal_id=ctx.deal_id,
+        acquisition_id=ctx.acquisition_id,
         app_version=ctx.app_version,
         browser=ctx.browser,
         os=ctx.os,
@@ -145,8 +145,8 @@ def build_brief(
     lines += ["## Context", ""]
     if item.page_route:
         lines.append(f"- Page / route: `{item.page_route}`")
-    if item.deal_id:
-        lines.append(f"- Deal: `{item.deal_id}`")
+    if item.acquisition_id:
+        lines.append(f"- Acquisition: `{item.acquisition_id}`")
     if item.role:
         lines.append(f"- Reporter role: {item.role}")
     if item.app_version:

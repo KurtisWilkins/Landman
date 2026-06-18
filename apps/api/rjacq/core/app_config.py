@@ -79,9 +79,7 @@ async def set_secret(session: AsyncSession, key: str, value: str, *, actor: str 
     last4 = value[-4:] if len(value) >= 4 else None
     row = await session.get(AppSecret, key)
     if row is None:
-        session.add(
-            AppSecret(key=key, value_encrypted=token, last4=last4, updated_by=actor)
-        )
+        session.add(AppSecret(key=key, value_encrypted=token, last4=last4, updated_by=actor))
     else:
         row.value_encrypted = token
         row.last4 = last4
@@ -114,9 +112,7 @@ async def list_status(session: AsyncSession) -> list[IntegrationStatus]:
         if db_row is not None:
             out.append(IntegrationStatus(k.key, k.label, True, "database", db_row.last4))
         elif env_val:
-            out.append(
-                IntegrationStatus(k.key, k.label, True, "environment", str(env_val)[-4:])
-            )
+            out.append(IntegrationStatus(k.key, k.label, True, "environment", str(env_val)[-4:]))
         else:
             out.append(IntegrationStatus(k.key, k.label, False, None, None))
     return out

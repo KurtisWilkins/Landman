@@ -1,7 +1,7 @@
 """Ingestion service (design doc §5.2): detect → parse → normalized load.
 
 Greedy ingest, graceful degradation: an unrecognized sheet is reported (loaded 0), never an
-error; one bad file never blocks a deal.
+error; one bad file never blocks a acquisition.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def _is_pdf(content_type: str, filename: str) -> bool:
 
 async def ingest_document(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     *,
     filename: str,
     content_type: str,
@@ -59,9 +59,13 @@ async def ingest_document(
             )
         lines = pdf_extractor.extract_pnl(data)
         period_id, n = await load.load_pnl(
-            session, deal_id, period_label=period_label, lines=lines, source_filename=filename
+            session,
+            acquisition_id,
+            period_label=period_label,
+            lines=lines,
+            source_filename=filename,
         )
-        log.info("ingestion.pdf_loaded", deal_id=deal_id, lines=n)
+        log.info("ingestion.pdf_loaded", acquisition_id=acquisition_id, lines=n)
         return IngestResult(sheet_type="pnl", financial_lines_loaded=n, period_id=period_id)
 
     # A QuickBooks 'N Month Recap' P&L doesn't fit the header+columns model (its header isn't
@@ -70,25 +74,35 @@ async def ingest_document(
     if is_recap(matrix):
         lines = recap_to_lines(matrix)
         period_id, n = await load.load_pnl(
-            session, deal_id, period_label=period_label, lines=lines, source_filename=filename
+            session,
+            acquisition_id,
+            period_label=period_label,
+            lines=lines,
+            source_filename=filename,
         )
-        log.info("ingestion.recap_loaded", deal_id=deal_id, lines=n)
+        log.info("ingestion.recap_loaded", acquisition_id=acquisition_id, lines=n)
         return IngestResult(sheet_type="pnl", financial_lines_loaded=n, period_id=period_id)
 
     headers, rows = parse_tabular(data, content_type, filename)
     sheet_type = detect_sheet_type(headers)
-    log.info("ingestion.detected", deal_id=deal_id, sheet_type=sheet_type, rows=len(rows))
+    log.info(
+        "ingestion.detected", acquisition_id=acquisition_id, sheet_type=sheet_type, rows=len(rows)
+    )
 
     if sheet_type == "pnl":
         lines = pnl_to_lines(headers, rows)
         period_id, n = await load.load_pnl(
-            session, deal_id, period_label=period_label, lines=lines, source_filename=filename
+            session,
+            acquisition_id,
+            period_label=period_label,
+            lines=lines,
+            source_filename=filename,
         )
         return IngestResult(sheet_type=sheet_type, financial_lines_loaded=n, period_id=period_id)
 
     if sheet_type == "unit_mix":
         units = unit_mix_to_units(headers, rows)
-        loaded, skipped = await load.load_units(session, deal_id, units)
+        loaded, skipped = await load.load_units(session, acquisition_id, units)
         return IngestResult(sheet_type=sheet_type, units_loaded=loaded, units_skipped=skipped)
 
     # rent_roll / booking / unknown: detected but not yet normalized — reported, not failed.

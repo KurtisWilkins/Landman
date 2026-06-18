@@ -4,7 +4,7 @@ Pure, side-effect-light functions for gate readiness and phase-advancement guard
 the suggest→approve workflow. Routers call these; DB access goes through ``repository``.
 
 Human-in-the-loop (CLAUDE.md): this module *guards* advancement and *applies* an admin's
-approval — it never auto-advances a deal or auto-approves a suggestion.
+approval — it never auto-advances a acquisition or auto-approves a suggestion.
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ from ..models.enums import (
     SuggestionStatus,
     SuggestionType,
 )
-from ..models.gates import DealGateItem, QuestionSuggestion
+from ..models.gates import AcquisitionGateItem, QuestionSuggestion
 from ..models.reference import GateQuestion
 from . import repository as repo
 
-# Canonical phase order (§8.2 / §5.7). A deal advances one step at a time and cannot skip.
+# Canonical phase order (§8.2 / §5.7). A acquisition advances one step at a time and cannot skip.
 PHASE_ORDER: tuple[Phase, ...] = (
     Phase.INITIAL_UW,
     Phase.LOI,
@@ -55,8 +55,8 @@ def next_phase(current: Phase) -> Phase | None:
     return PHASE_ORDER[idx + 1] if idx + 1 < len(PHASE_ORDER) else None
 
 
-def evaluate_readiness(items: Iterable[DealGateItem]) -> tuple[int, int, bool]:
-    """Return ``(cleared, total, ready_to_advance)`` for a deal's gate items.
+def evaluate_readiness(items: Iterable[AcquisitionGateItem]) -> tuple[int, int, bool]:
+    """Return ``(cleared, total, ready_to_advance)`` for a acquisition's gate items.
 
     ``ready_to_advance`` is True only when **every blocking item** is cleared (accepted or
     waived). Non-blocking items never hold up advancement but still count toward totals.
@@ -71,9 +71,9 @@ def evaluate_readiness(items: Iterable[DealGateItem]) -> tuple[int, int, bool]:
 def assert_can_advance(
     current_phase: Phase,
     target_phase: Phase,
-    items: Iterable[DealGateItem],
+    items: Iterable[AcquisitionGateItem],
 ) -> None:
-    """Raise ``GateError`` unless the deal may advance from current to target.
+    """Raise ``GateError`` unless the acquisition may advance from current to target.
 
     Enforces two rules (§5.7): the target must be the immediate next phase (no skipping),
     and all blocking items for the current phase must be cleared first.
@@ -82,13 +82,13 @@ def assert_can_advance(
     if expected is None:
         raise GateError(
             "phase_terminal",
-            f"Deal is already at the final phase ({current_phase.value}).",
+            f"Acquisition is already at the final phase ({current_phase.value}).",
             {"current_phase": current_phase.value},
         )
     if target_phase != expected:
         raise GateError(
             "phase_skip_not_allowed",
-            "A deal advances one phase at a time and cannot skip.",
+            "A acquisition advances one phase at a time and cannot skip.",
             {
                 "current_phase": current_phase.value,
                 "requested_phase": target_phase.value,
@@ -140,7 +140,7 @@ async def decide_suggestion(
     """Admin approves or declines a suggestion.
 
     On approval of an ``add`` suggestion, a new active gate question joins the live set
-    going forward — historical deals' gate items are untouched (§5.7). ``retire``/``edit``
+    going forward — historical acquisitions' gate items are untouched (§5.7). ``retire``/``edit``
     approvals are recorded for an admin to apply against a specific question, since the §8
     ``question_suggestions`` shape carries no target ``question_id`` to mutate safely.
     """

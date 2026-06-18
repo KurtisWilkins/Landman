@@ -16,9 +16,9 @@ log = get_logger("shield")
 
 
 async def sync_shield_baselines(ctx: dict[str, Any]) -> str:
-    """Pull SHIELD portfolio actuals → baseline metrics → seed deal assumptions.
+    """Pull SHIELD portfolio actuals → baseline metrics → seed acquisition assumptions.
 
-    Wiring note: the SELECT to run and the deal set are config/operational inputs tied to
+    Wiring note: the SELECT to run and the acquisition set are config/operational inputs tied to
     C-14/C-15; this entrypoint is intentionally inert until those are provided, so the worker
     can register it safely today.
     """
@@ -29,7 +29,7 @@ async def sync_shield_baselines(ctx: dict[str, Any]) -> str:
     if not settings.shield_baseline_metrics:
         log.info("shield.sync.skipped", reason="no_metric_spec", decision="C-15")
         return "skipped: no metric spec (C-15)"
-    # The concrete query + deal selection land with C-14/C-15; until then we only verify
+    # The concrete query + acquisition selection land with C-14/C-15; until then we only verify
     # connectivity by snapshotting the schema (read-only).
     snapshot = connector.snapshot()
     log.info("shield.sync.connected", tables=len(snapshot))

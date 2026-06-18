@@ -8,8 +8,8 @@ import { usePopulationRings } from "../../api/hooks";
 const RADII = [25, 50, 100, 150] as const;
 const num = new Intl.NumberFormat("en-US");
 
-export function MarketTab({ dealId }: { dealId: string }) {
-  const { data, isLoading, error } = usePopulationRings(dealId);
+export function MarketTab({ acquisitionId }: { acquisitionId: string }) {
+  const { data, isLoading, error } = usePopulationRings(acquisitionId);
   const byRadius = new Map((data?.rings ?? []).map((r) => [r.radius_mi, r]));
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;

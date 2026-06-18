@@ -23,7 +23,9 @@ class Unit(Base):
     __tablename__ = "units"
 
     unit_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     unit_type: Mapped[UnitType] = mapped_column(pg_enum(UnitType, "unit_type"))
     hookup_level: Mapped[HookupLevel | None] = mapped_column(pg_enum(HookupLevel, "hookup_level"))
     amp_rating: Mapped[int | None] = mapped_column(Integer)  # {20,30,50,null}
@@ -35,7 +37,9 @@ class Amenity(Base):
     __tablename__ = "amenities"
 
     amenity_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     category: Mapped[str | None] = mapped_column(String)
     present: Mapped[bool | None] = mapped_column(Boolean)
@@ -47,7 +51,9 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     booking_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     site_id: Mapped[str | None] = mapped_column(String)
     unit_type: Mapped[UnitType | None] = mapped_column(pg_enum(UnitType, "booking_unit_type"))
     check_in: Mapped[date | None] = mapped_column(Date)
@@ -65,7 +71,9 @@ class WeeklySummary(Base):
     __tablename__ = "weekly_summary"
 
     summary_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     week_start: Mapped[date | None] = mapped_column(Date)
     available_unit_nights: Mapped[int | None] = mapped_column(Integer)
     occupied_unit_nights: Mapped[int | None] = mapped_column(Integer)

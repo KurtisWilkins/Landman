@@ -1,7 +1,7 @@
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { Approvals } from "./routes/Approvals";
-import { DealDetail } from "./routes/DealDetail";
+import { AcquisitionDetail } from "./routes/AcquisitionDetail";
 import { FeedbackTriage } from "./routes/FeedbackTriage";
 import { Pipeline } from "./routes/Pipeline";
 import { Placeholder } from "./routes/Placeholder";
@@ -18,7 +18,7 @@ const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <Pipeline /> },
-      { path: "deals/:dealId", element: <DealDetail /> },
+      { path: "acquisitions/:acquisitionId", element: <AcquisitionDetail /> },
       {
         path: "mapping",
         element: (

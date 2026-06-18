@@ -14,15 +14,19 @@ from rjacq.models.enums import (
     SuggestionStatus,
     SuggestionType,
 )
-from rjacq.models.gates import DealGateItem
+from rjacq.models.gates import AcquisitionGateItem
 from rjacq.models.reference import GateQuestion
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
-def _item(blocking: bool, status: GateItemStatus, qid: str = "q") -> DealGateItem:
-    return DealGateItem(
-        item_id=f"gi_{qid}", deal_id="dl_x", question_id=qid, status=status, blocking=blocking
+def _item(blocking: bool, status: GateItemStatus, qid: str = "q") -> AcquisitionGateItem:
+    return AcquisitionGateItem(
+        item_id=f"gi_{qid}",
+        acquisition_id="dl_x",
+        question_id=qid,
+        status=status,
+        blocking=blocking,
     )
 
 

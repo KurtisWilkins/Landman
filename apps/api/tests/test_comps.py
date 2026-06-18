@@ -13,12 +13,12 @@ from rjacq.comps.distance import haversine_miles, within_radius
 from rjacq.comps.enrichment import Enrichment
 from rjacq.comps.service import CompError
 from rjacq.comps.sources import RawComp, build_sources
-from rjacq.models.deals import Deal
-from rjacq.models.enums import DealStatus, Phase, PropertyType
+from rjacq.models.acquisitions import Acquisition
+from rjacq.models.enums import AcquisitionStatus, Phase, PropertyType
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# Asheville, NC (a deal location) and a point ~8 mi away vs ~120 mi away.
-DEAL_LAT, DEAL_LNG = 35.5951, -82.6040
+# Asheville, NC (a acquisition location) and a point ~8 mi away vs ~120 mi away.
+ACQUISITION_LAT, ACQUISITION_LNG = 35.5951, -82.6040
 NEAR_LAT, NEAR_LNG = 35.61, -82.55  # ~3 mi
 FAR_LAT, FAR_LNG = 34.85, -82.40  # Greenville SC, ~50+ mi south
 
@@ -55,10 +55,10 @@ class FakeEnricher:
 
 
 def test_haversine_and_radius() -> None:
-    assert haversine_miles(DEAL_LAT, DEAL_LNG, NEAR_LAT, NEAR_LNG) < 10
-    assert haversine_miles(DEAL_LAT, DEAL_LNG, FAR_LAT, FAR_LNG) > 50
-    assert within_radius(DEAL_LAT, DEAL_LNG, NEAR_LAT, NEAR_LNG)
-    assert not within_radius(DEAL_LAT, DEAL_LNG, FAR_LAT, FAR_LNG)
+    assert haversine_miles(ACQUISITION_LAT, ACQUISITION_LNG, NEAR_LAT, NEAR_LNG) < 10
+    assert haversine_miles(ACQUISITION_LAT, ACQUISITION_LNG, FAR_LAT, FAR_LNG) > 50
+    assert within_radius(ACQUISITION_LAT, ACQUISITION_LNG, NEAR_LAT, NEAR_LNG)
+    assert not within_radius(ACQUISITION_LAT, ACQUISITION_LNG, FAR_LAT, FAR_LNG)
 
 
 # ── source gating (D-22) ────────────────────────────────────────────────────
@@ -90,38 +90,38 @@ async def session(migrated_db: str) -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
-async def _deal(session: AsyncSession) -> str:
-    deal_id = f"dl_{uuid.uuid4().hex[:12]}"
+async def _acquisition(session: AsyncSession) -> str:
+    acquisition_id = f"dl_{uuid.uuid4().hex[:12]}"
     session.add(
-        Deal(
-            deal_id=deal_id,
+        Acquisition(
+            acquisition_id=acquisition_id,
             name="Comp Test Park",
             property_type=PropertyType.RV_RESORT,
             current_phase=Phase.INITIAL_UW,
-            status=DealStatus.ACTIVE,
-            lat=DEAL_LAT,
-            lng=DEAL_LNG,
+            status=AcquisitionStatus.ACTIVE,
+            lat=ACQUISITION_LAT,
+            lng=ACQUISITION_LNG,
         )
     )
     await session.flush()
-    return deal_id
+    return acquisition_id
 
 
 async def test_discover_filters_by_radius_and_survives_failures(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     near = RawComp("Near Park", NEAR_LAT, NEAR_LNG, Decimal("91"), "fake")
     far = RawComp("Far Park", FAR_LAT, FAR_LNG, Decimal("80"), "fake")
     count = await service.discover_comps(
         session,
-        deal_id=deal_id,
-        deal_lat=DEAL_LAT,
-        deal_lng=DEAL_LNG,
+        acquisition_id=acquisition_id,
+        acquisition_lat=ACQUISITION_LAT,
+        acquisition_lng=ACQUISITION_LNG,
         sources=[FakeSource([near, far]), FailingSource()],  # failing source must not block
         enricher=FakeEnricher(),
     )
     await session.commit()
     assert count == 1  # only the in-radius comp persisted
-    comp_set = await service.build_comp_set(session, deal_id)
+    comp_set = await service.build_comp_set(session, acquisition_id)
     assert len(comp_set.comps) == 1
     c = comp_set.comps[0]
     assert c.name == "Near Park"
@@ -131,17 +131,17 @@ async def test_discover_filters_by_radius_and_survives_failures(session: AsyncSe
 
 
 async def test_manual_add_by_fields_enriched(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     comp = await service.add_manual(
         session,
-        deal_id=deal_id,
+        acquisition_id=acquisition_id,
         url=None,
         name="Blue Ridge Basecamp",
         lat=NEAR_LAT,
         lng=NEAR_LNG,
         avg_rate=Decimal("91"),
-        deal_lat=DEAL_LAT,
-        deal_lng=DEAL_LNG,
+        acquisition_lat=ACQUISITION_LAT,
+        acquisition_lng=ACQUISITION_LNG,
         enricher=FakeEnricher(),
     )
     await session.commit()
@@ -151,39 +151,39 @@ async def test_manual_add_by_fields_enriched(session: AsyncSession) -> None:
 
 
 async def test_manual_add_requires_url_or_name(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     with pytest.raises(CompError) as ei:
         await service.add_manual(
             session,
-            deal_id=deal_id,
+            acquisition_id=acquisition_id,
             url=None,
             name=None,
             lat=None,
             lng=None,
             avg_rate=None,
-            deal_lat=None,
-            deal_lng=None,
+            acquisition_lat=None,
+            acquisition_lng=None,
             enricher=None,
         )
     assert ei.value.code == "invalid_manual_add"
 
 
 async def test_comp_set_visualization_points(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     await service.add_manual(
         session,
-        deal_id=deal_id,
+        acquisition_id=acquisition_id,
         url="https://x",
         name="X",
         lat=NEAR_LAT,
         lng=NEAR_LNG,
         avg_rate=Decimal("75"),
-        deal_lat=DEAL_LAT,
-        deal_lng=DEAL_LNG,
+        acquisition_lat=ACQUISITION_LAT,
+        acquisition_lng=ACQUISITION_LNG,
         enricher=FakeEnricher(),
     )
     await session.commit()
-    cs = await service.build_comp_set(session, deal_id)
+    cs = await service.build_comp_set(session, acquisition_id)
     assert cs.visualization is not None
     assert cs.visualization.points[0].avg_rate == Decimal("75")
     assert cs.visualization.points[0].sentiment_score == Decimal("4.6")

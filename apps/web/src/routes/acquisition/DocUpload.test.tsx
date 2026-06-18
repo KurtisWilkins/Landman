@@ -12,7 +12,7 @@ function renderUpload() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <DocUpload dealId="dl_1" />
+      <DocUpload acquisitionId="dl_1" />
     </QueryClientProvider>,
   );
 }
@@ -44,7 +44,7 @@ describe("DocUpload", () => {
 
     const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
     const [url, init] = fetchMock.mock.calls.at(-1)!;
-    expect(url).toContain("/deals/dl_1/documents");
+    expect(url).toContain("/acquisitions/dl_1/documents");
     expect((init as RequestInit).method).toBe("POST");
     // Multipart: body is FormData and no JSON content-type was forced.
     expect((init as RequestInit).body).toBeInstanceOf(FormData);

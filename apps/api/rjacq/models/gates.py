@@ -18,11 +18,13 @@ from .enums import (
 )
 
 
-class DealGateItem(Base):
-    __tablename__ = "deal_gate_items"
+class AcquisitionGateItem(Base):
+    __tablename__ = "acquisition_gate_items"
 
     item_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     question_id: Mapped[str] = mapped_column(ForeignKey("gate_questions.question_id"))
     status: Mapped[GateItemStatus] = mapped_column(pg_enum(GateItemStatus, "gate_item_status"))
     blocking: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

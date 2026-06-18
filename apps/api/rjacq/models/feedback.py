@@ -32,7 +32,7 @@ class FeedbackItem(Base):
     submitted_by: Mapped[str | None] = mapped_column(String)
     role: Mapped[str | None] = mapped_column(String)
     page_route: Mapped[str | None] = mapped_column(String)
-    deal_id: Mapped[str | None] = mapped_column(ForeignKey("deals.deal_id"))
+    acquisition_id: Mapped[str | None] = mapped_column(ForeignKey("acquisitions.acquisition_id"))
     app_version: Mapped[str | None] = mapped_column(String)
     browser: Mapped[str | None] = mapped_column(String)
     os: Mapped[str | None] = mapped_column(String)

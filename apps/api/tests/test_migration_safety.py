@@ -1,6 +1,6 @@
 """Guardrail: migrations must not silently destroy production data (CLAUDE.md, data-safety).
 
-Now that production carries live deal data, a forward migration (``upgrade()``) must never drop a
+Now that production carries live acquisition data, a forward migration must never drop a
 table/column/type or otherwise destroy data unless a human has *explicitly* acknowledged it with
 an ``# allow-destructive: <reason>`` marker. ``downgrade()`` bodies are exempt — they're expected
 to undo a migration and are never run against prod. This test fails CI if an un-acknowledged

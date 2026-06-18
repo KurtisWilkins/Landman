@@ -1,7 +1,7 @@
 """Pure underwriting math (design doc §5.5). Decimal only — never float for money/rates.
 
 Nothing here decides a business value: thresholds, splits, financing terms, and the
-waterfall structure are passed in (the caller reads them from per-deal data + config). The
+waterfall structure are passed in (the caller reads them from per-acquisition data + config). The
 functions are deterministic and unit-tested with worked examples.
 """
 
@@ -87,7 +87,7 @@ def irr(cashflows: Sequence[Decimal], *, tol: Decimal = Decimal("1e-9")) -> Deci
     """Internal rate of return for a cashflow stream (index 0 = t0), via bisection.
 
     Returns None when there is no sign change (no real IRR in range). Bisection keeps this
-    Decimal-exact and avoids float; the typical deal has one outflow then inflows.
+    Decimal-exact and avoids float; the typical acquisition has one outflow then inflows.
     """
     if not cashflows or all(cf >= 0 for cf in cashflows) or all(cf <= 0 for cf in cashflows):
         return None
@@ -193,7 +193,7 @@ def distribute_waterfall(
     has no ceiling. Catch-up and return-of-capital structural variants are unresolved
     (§14 A-2) and are NOT assumed here — they are added as explicit parameters when decided.
 
-    Interim-cashflow waterfalls are a later refinement; the deal-level levered IRR/equity
+    Interim-cashflow waterfalls are a later refinement; the acquisition-level levered IRR/equity
     multiple above already use the full cashflow timeline.
     """
     remaining = total_distribution
@@ -281,7 +281,7 @@ def build_proforma(
 ) -> ProformaOutput:
     """Assemble the 5-yr levered cash flow and metrics from explicit yearly inputs + an exit.
 
-    All inputs are supplied by the caller (built from the deal's assumptions/financials and
+    All inputs are supplied by the caller (built from the acquisition's assumptions/financials and
     config-provided financing terms); this function decides nothing.
     """
     if not years:

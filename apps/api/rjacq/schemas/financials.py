@@ -61,7 +61,7 @@ class FinancialsDoc(BaseModel):
     noi_bridge: NoiBridge | None = None
 
 
-# ── GL mapping review (§9: GET /deals/{id}/mapping, POST …/mapping/confirm) ──
+# ── GL mapping review (§9: GET /acquisitions/{id}/mapping, POST …/mapping/confirm) ──
 
 
 class MappingCandidate(BaseModel):
@@ -83,7 +83,7 @@ class MappingReviewLine(BaseModel):
 
 
 class MappingReview(BaseModel):
-    deal_id: str
+    acquisition_id: str
     lines: list[MappingReviewLine] = Field(default_factory=list)
 
 

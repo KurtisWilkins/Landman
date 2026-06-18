@@ -1,18 +1,18 @@
 /**
- * Promote tab — the deal-by-deal JV promote waterfall, living inside a deal beside its pro
- * forma (not a standalone page). It consumes THIS deal's pro forma cash flows: the deal-level
+ * Promote tab — the acquisition-by-acquisition JV promote waterfall, living inside a acquisition beside its pro
+ * forma (not a standalone page). It consumes THIS acquisition's pro forma cash flows: the acquisition-level
  * equity stream ([-equity_basis, levered CF…, +net exit]) is derived from the pro forma and fed
  * to the pure waterfall engine via `cashflow_override`. Only promote-specific assumptions
  * (hurdles, promote %s, RJourney co-invest, fees) are entered here.
  *
- * Until a deal has a computed pro forma (the projection engine is deferred — §14 A-1..A-4), the
- * tab falls back to editable return-case assumptions so the promote is still usable per deal;
+ * Until a acquisition has a computed pro forma (the projection engine is deferred — §14 A-1..A-4), the
+ * tab falls back to editable return-case assumptions so the promote is still usable per acquisition;
  * it switches to pro-forma-fed automatically once the pro forma produces cash flows.
  *
  * Presentational; the calculation lives server-side (usePromoteWaterfall). No browser storage.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDeal, useProforma, usePromoteWaterfall } from "../../api/hooks";
+import { useAcquisition, useProforma, usePromoteWaterfall } from "../../api/hooks";
 import type { Schemas } from "../../api/client";
 import { fmtMult, fmtPct, fmtUsd } from "../../lib/format";
 
@@ -62,7 +62,7 @@ function num(v: unknown): number {
 }
 
 /**
- * Derive the deal-level equity cash-flow stream from a pro forma:
+ * Derive the acquisition-level equity cash-flow stream from a pro forma:
  * `[-equity_basis, levered_cf₁ … levered_cfₙ]`, with the net exit proceeds added to the final
  * year. Returns null when the pro forma has no usable cash flows yet (so we fall back).
  */
@@ -122,15 +122,15 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-export function PromoteTab({ dealId }: { dealId: string }) {
-  const { data: deal } = useDeal(dealId);
-  const { data: proforma, isLoading: pfLoading } = useProforma(dealId);
+export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
+  const { data: acquisition } = useAcquisition(acquisitionId);
+  const { data: proforma, isLoading: pfLoading } = useProforma(acquisitionId);
   const [inputs, setInputs] = useState<PromoteInputs>(PROMOTE_DEFAULTS);
   const [returnCase, setReturnCase] = useState<ReturnCase>(RETURN_CASE_DEFAULTS);
   const calc = usePromoteWaterfall();
   const timer = useRef<ReturnType<typeof setTimeout>>();
 
-  const dealName = deal?.metadata.name ?? dealId;
+  const dealName = acquisition?.metadata.name ?? acquisitionId;
   const sourcedStream = useMemo(() => streamFromProforma(proforma), [proforma]);
   const sourced = sourcedStream != null;
   const holdYears = sourcedStream ? sourcedStream.length - 1 : DEFAULT_HOLD_YEARS;
@@ -139,7 +139,7 @@ export function PromoteTab({ dealId }: { dealId: string }) {
   // when present (cashflow_override), else from the editable return case.
   const request = useMemo<PromoteRequest>(() => {
     const base: PromoteRequest = {
-      deal_name: dealName,
+      acquisition_name: dealName,
       start_date: inputs.start_date,
       hold_years: holdYears,
       ltv: inputs.ltv,
@@ -177,28 +177,28 @@ export function PromoteTab({ dealId }: { dealId: string }) {
   return (
     <div className="space-y-4">
       <p className="text-sm opacity-70">
-        Deal-by-deal JV returns for <span className="font-medium">{dealName}</span> — IRR hurdles
-        &amp; promote splits. Edit any input; results recalculate live.
+        Acquisition-by-acquisition JV returns for <span className="font-medium">{dealName}</span> —
+        IRR hurdles &amp; promote splits. Edit any input; results recalculate live.
       </p>
 
       {/* Source-of-cash-flows banner: pro-forma-fed vs. interim return case. */}
       {sourced ? (
         <p className="rounded border border-brand/20 bg-brand/5 p-2 text-xs">
-          Cash flows are sourced from this deal&apos;s <span className="font-medium">pro forma</span>{" "}
-          ({holdYears}-year hold). Edit the pro forma to change them; only promote assumptions are
-          entered here.
+          Cash flows are sourced from this acquisition&apos;s{" "}
+          <span className="font-medium">pro forma</span> ({holdYears}-year hold). Edit the pro forma
+          to change them; only promote assumptions are entered here.
         </p>
       ) : (
         <p className="rounded border border-accent/40 bg-accent/10 p-2 text-xs text-accent-ink">
-          No pro forma for this deal yet — using editable return-case assumptions. Once the pro
-          forma produces cash flows, this tab switches to them automatically.
+          No pro forma for this acquisition yet — using editable return-case assumptions. Once the
+          pro forma produces cash flows, this tab switches to them automatically.
         </p>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
         {/* ── Inputs ───────────────────────────────────────── */}
         <div className="space-y-3">
-          <Panel title="Deal setup">
+          <Panel title="Acquisition setup">
             <label className="flex flex-col gap-1 text-xs">
               <span className="opacity-70">Start date</span>
               <input
@@ -352,7 +352,7 @@ function ReturnsSummary({ result }: { result: Result }) {
   const cols: [string, Schemas["PositionOut"]][] = [
     ["Partner Equity", result.partner],
     ["RJourney Equity", result.rjourney],
-    ["Deal-Level", result.deal],
+    ["Acquisition-Level", result.acquisition],
   ];
   return (
     <div className="rounded-lg border border-brand/15 p-4">

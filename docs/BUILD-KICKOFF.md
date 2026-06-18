@@ -45,7 +45,7 @@ keep going. Show me the plan and the [DECISION] list before writing code.
 
 Step 2 — Phase 0 only (the gate). Build the foundation on a branch and open ONE PR:
 monorepo layout (apps/api, apps/web, migrations), Postgres+pgvector, Alembic migrations for
-the FULL §8 schema (deals, financials, property/ops, underwriting, comps, gates, feedback),
+the FULL §8 schema (acquisitions, financials, property/ops, underwriting, comps, gates, feedback),
 seed gl_accounts from the chart in §8.5 and the gate_questions, core/ (config, structured
 logging w/ correlation IDs, auth skeleton via Entra OIDC + external fallback, RBAC, S3
 client, Sentry init), Redis/Arq queue wiring, the Makefile and docker-compose so
@@ -93,12 +93,12 @@ Follow CLAUDE.md. Open a focused PR.
 ```
 Build Phase 2 (design doc §5.4–5.5) against the frozen §8 schema. Scope:
 - SHIELD connector: READ-ONLY SQL Server access; a scheduled job pulls portfolio actuals and
-  aggregates baseline metrics to seed each deal's assumptions; keep a SHIELD schema snapshot
+  aggregates baseline metrics to seed each acquisition's assumptions; keep a SHIELD schema snapshot
   and flag drift. Which metrics is [DECISION C-15] — read keys from config.
 - Pro forma engine: 5-yr levered cash flow (Revenue → OpEx → NOI → Debt Service → CapEx →
   Levered CF) + Year-5 exit on an exit cap; metrics: levered IRR, equity multiple, going-in
   cap, Yr-1 cash-on-cash; 3-hurdle equity waterfall with per-tier LP/GP splits; assumptions
-  carry baseline + override + author + note; hurdle thresholds from config with per-deal
+  carry baseline + override + author + note; hurdle thresholds from config with per-acquisition
   override and pass/fail. Default thresholds/splits are [DECISION A-1/A-2] — config, not
   literals.
 - Recalculate on assumption change; expose §9 proforma + assumptions endpoints.
@@ -111,7 +111,7 @@ Follow CLAUDE.md. Open a focused PR.
 
 ```
 Build Phase 3 (design doc §5.6) against the frozen §8 schema. Scope:
-- Discovery: RV parks/campgrounds within a 50-mile radius of the deal address (Google Places).
+- Discovery: RV parks/campgrounds within a 50-mile radius of the acquisition address (Google Places).
 - Source connectors behind one interface: official APIs where available (Google, Yelp,
   TripAdvisor), Playwright scrapers for niche sites (Campendium/Camp Media, The Dirt). API vs
   scraping per source is [DECISION D-22]; gate scrapers behind a config flag and log
@@ -131,14 +131,14 @@ Follow CLAUDE.md. Open a focused PR.
 Build Phase 4 (design doc §5.7–5.12, §6, §7) against the frozen §9 contract and §8 schema. Scope:
 - Responsive shell: left rail (desktop) ↔ bottom tab bar (mobile), identical destinations;
   match the wireframe design tokens; mobile-first. No browser storage.
-- Screens: Pipeline dashboard (phase buckets + rolled-up $), Deal detail (Pro forma / Comps /
+- Screens: Pipeline dashboard (phase buckets + rolled-up $), Acquisition detail (Pro forma / Comps /
   Gates / GL-Docs tabs), GL mapping queue, Approvals, Feedback triage. Charts via Recharts.
   Pro forma renders on mobile ([DECISION A-5]: implement horizontal-scroll now, leave a hook
   for a condensed card view).
 - Gates: configurable gate_questions, suggest→approve queue (admin approves), blocking logic
   that prevents phase skips, email routing internal/external with an RMS placeholder.
 - Feedback: floating "?" widget on every page → feature/bug/question with silent context
-  capture (route, deal, role, version, browser, breadcrumbs, console + last API error,
+  capture (route, acquisition, role, version, browser, breadcrumbs, console + last API error,
   optional screenshot); triage queue; "Dispatch to Claude Code" → create a GitHub issue with
   the enriched brief + @claude; webhook syncs PR/issue status back. No auto-merge.
 - Observability: wire Sentry (front) tagged by release; ensure the breadcrumb buffer feeds bug

@@ -18,9 +18,9 @@ const ACTIONS: { type: FeedbackType; label: string }[] = [
   { type: "question", label: "Ask a question" },
 ];
 
-/** Extract a deal id from a `/deals/:id...` route, if present. */
-function dealIdFromRoute(pathname: string): string | null {
-  const m = /^\/deals\/([^/]+)/.exec(pathname);
+/** Extract a acquisition id from a `/acquisitions/:id...` route, if present. */
+function acquisitionIdFromRoute(pathname: string): string | null {
+  const m = /^\/acquisitions\/([^/]+)/.exec(pathname);
   return m ? m[1] : null;
 }
 
@@ -41,7 +41,7 @@ export function FeedbackWidget() {
   function onSubmit() {
     const context = captureContext({
       route: location.pathname,
-      dealId: dealIdFromRoute(location.pathname),
+      acquisitionId: acquisitionIdFromRoute(location.pathname),
       includeBugDetail: type === "bug",
     });
     submit.mutate({ type, description, context }, { onSuccess: () => reset() });

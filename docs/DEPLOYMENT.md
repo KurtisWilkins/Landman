@@ -102,7 +102,7 @@ az postgres flexible-server parameter set -g $RG -s $PGSERVER \
 ```
 
 `--backup-retention 21` gives 21 days of automated backups **and point-in-time restore** —
-this is the primary safety net for underwritten-deal data.
+this is the primary safety net for underwritten-acquisition data.
 
 ### 2.2 Redis (job queue) and object storage (Azure Blob + s3proxy, ADR-0010)
 
@@ -339,7 +339,7 @@ approval click.
 
 ## 5. Data safety & migrations (read before any schema change)
 
-This is what protects underwritten-deal data across frequent deploys.
+This is what protects underwritten-acquisition data across frequent deploys.
 
 1. **App redeploys never touch data.** Containers are stateless; all state is in managed
    Postgres / Redis / object storage. Rolling revisions = no data impact.

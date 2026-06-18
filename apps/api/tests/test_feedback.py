@@ -10,8 +10,8 @@ import pytest_asyncio
 from rjacq.feedback import service
 from rjacq.feedback.github import CreatedIssue, verify_signature
 from rjacq.feedback.service import FeedbackError
-from rjacq.models.deals import Deal
-from rjacq.models.enums import DealStatus, FeedbackStatus, FeedbackType, Phase, PropertyType
+from rjacq.models.acquisitions import Acquisition
+from rjacq.models.enums import AcquisitionStatus, FeedbackStatus, FeedbackType, Phase, PropertyType
 from rjacq.models.feedback import FeedbackItem
 from rjacq.schemas.feedback import FeedbackContext
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -29,18 +29,18 @@ class FakeGitHubClient:
         return CreatedIssue(number=n, url=f"https://github.com/o/r/issues/{uuid.uuid4().hex[:8]}")
 
 
-async def _make_deal(session: AsyncSession) -> Deal:
+async def _make_acquisition(session: AsyncSession) -> Acquisition:
     # Unique id: the test DB is shared across the session, so avoid PK collisions.
-    deal = Deal(
-        deal_id=f"dl_{uuid.uuid4().hex[:12]}",
+    acquisition = Acquisition(
+        acquisition_id=f"dl_{uuid.uuid4().hex[:12]}",
         name="Test Park",
         property_type=PropertyType.RV_RESORT,
         current_phase=Phase.INITIAL_UW,
-        status=DealStatus.ACTIVE,
+        status=AcquisitionStatus.ACTIVE,
     )
-    session.add(deal)
+    session.add(acquisition)
     await session.flush()
-    return deal
+    return acquisition
 
 
 @pytest_asyncio.fixture
@@ -71,10 +71,10 @@ async def _submit_ready(session: AsyncSession, **kw: object) -> FeedbackItem:
 
 
 async def test_submit_captures_context_and_trusted_role(session: AsyncSession) -> None:
-    deal = await _make_deal(session)  # deal_id is a FK → deals
+    acquisition = await _make_acquisition(session)  # acquisition_id is a FK → acquisitions
     ctx = FeedbackContext(
-        page_route=f"/deals/{deal.deal_id}/proforma",
-        deal_id=deal.deal_id,
+        page_route=f"/acquisitions/{acquisition.acquisition_id}/proforma",
+        acquisition_id=acquisition.acquisition_id,
         app_version="abc123",
         browser="Chrome",
         breadcrumbs=[{"e": "click"}],
@@ -91,8 +91,8 @@ async def test_submit_captures_context_and_trusted_role(session: AsyncSession) -
     )
     await session.commit()
     assert item.status == FeedbackStatus.NEW
-    assert item.page_route == f"/deals/{deal.deal_id}/proforma"
-    assert item.deal_id == deal.deal_id
+    assert item.page_route == f"/acquisitions/{acquisition.acquisition_id}/proforma"
+    assert item.acquisition_id == acquisition.acquisition_id
     assert item.breadcrumbs == [{"e": "click"}]
     assert item.last_api_error == {"status": 500}
     assert item.role == "admin"  # from the principal, not the client
@@ -127,13 +127,13 @@ def test_build_brief_mentions_claude_and_context() -> None:
         type=FeedbackType.BUG,
         description="Crash on save.",
         status=FeedbackStatus.READY,
-        page_route="/deals/dl_9/gates",
+        page_route="/acquisitions/dl_9/gates",
         role="analyst",
     )
     title, body, labels = service.build_brief(item, [])
     assert labels == ["bug"]
     assert "@claude" in body
-    assert "/deals/dl_9/gates" in body
+    assert "/acquisitions/dl_9/gates" in body
     assert "Do not merge" in body
     assert title
 

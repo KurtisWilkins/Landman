@@ -28,8 +28,8 @@ class Principal:
     user_id: str
     email: str
     role: Role
-    # For external PE partners, deal access is scoped — populated once D-24 is resolved.
-    scoped_deal_ids: frozenset[str] | None = None
+    # For external PE partners, acquisition access is scoped — populated once D-24 is resolved.
+    scoped_acquisition_ids: frozenset[str] | None = None
 
 
 def _principal_from_proxy(proxy_auth: str | None, email: str | None) -> Principal:

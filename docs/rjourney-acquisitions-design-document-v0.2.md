@@ -2,7 +2,7 @@
 
 **Audience:** Claude Code (build agent) and the RJourney engineering team.
 **Purpose:** Single, self-contained source of truth to build a web application that ingests
-acquisition documents, normalizes them, underwrites deals, scrapes a competitive set, tracks
+acquisition documents, normalizes them, underwrites acquisitions, scrapes a competitive set, tracks
 a phase-gated pipeline, and carries its own in-app feedback loop and observability.
 
 This document supersedes v0.1 and the separate schema/addendum/checklist files; everything is
@@ -24,11 +24,11 @@ RJourney evaluates dozens of RV-resort / campground acquisitions per week (3–3
 material arrives as messy PDFs, Excel files, and CSVs with no common format. The team needs
 to extract and normalize that material into one schema, underwrite against RJourney's own
 operating actuals (from the SHIELD database), benchmark each target against its local market,
-and move each deal through a gated pipeline (Initial UW → LOI → Contract → Due Diligence →
+and move each acquisition through a gated pipeline (Initial UW → LOI → Contract → Due Diligence →
 Close) with a configurable question framework and human-in-the-loop review.
 
-**Success looks like:** a deal lands by email, gets parsed and mapped automatically, a
-first-pass normalized pro forma and comp set are generated for human review, and the deal is
+**Success looks like:** a acquisition lands by email, gets parsed and mapped automatically, a
+first-pass normalized pro forma and comp set are generated for human review, and the acquisition is
 trackable from a phone at 2 a.m. through to close or kill — with a feedback widget and logging
 that flag problems before users hit them.
 
@@ -36,9 +36,9 @@ that flag problems before users hit them.
 
 | Role | Who | Capabilities |
 |---|---|---|
-| Admin / Operator | Kurtis (President of Operations) | Everything; approves gate-question changes; overrides assumptions; advances/kills deals; triages & dispatches feedback |
+| Admin / Operator | Kurtis (President of Operations) | Everything; approves gate-question changes; overrides assumptions; advances/kills acquisitions; triages & dispatches feedback |
 | Executive | CEO | Full read; advance/kill; comment |
-| Equity partner | Private-equity reviewers | Scoped read on shared deals; comment; answer routed questions |
+| Equity partner | Private-equity reviewers | Scoped read on shared acquisitions; comment; answer routed questions |
 | Analyst / staff | Smaller internal users | Upload, answer questions, suggest gate items, submit feedback |
 
 - **Auth:** Microsoft Entra ID (Azure AD) SSO via OIDC for internal users ("Windows login"); a secondary method (email magic-link or password) for external PE partners. Role-based access control (RBAC). **[DECISION]** confirm IdP + external method.
@@ -66,7 +66,7 @@ that flag problems before users hit them.
                                      │ HTTPS / JSON
                         ┌────────────┴─────────────┐
                         │  API  (FastAPI, Python)   │
-                        │ auth·deals·proforma·gates │
+                        │ auth·acquisitions·proforma·gates │
                         │ comps·mapping·feedback     │
                         └──┬─────┬─────┬─────┬───────┘
                            │     │     │     │
@@ -86,7 +86,7 @@ that flag problems before users hit them.
    ┌────────────┼───────────────┬─────────────────────────────┐
 ┌──┴──────────┐ ┌───────────────┴───┐ ┌──────────────────┐ ┌──┴────────────────┐
 │ Email intake│ │ SHIELD connector  │ │ Observability    │ │ GitHub + Claude    │
-│ deal mailbox│ │ read-only SQLSrvr │ │ logs·Sentry·     │ │ Code Action        │
+│ acquisition mailbox│ │ read-only SQLSrvr │ │ logs·Sentry·     │ │ Code Action        │
 └─────────────┘ │ → baseline sync   │ │ metrics·alerts   │ │ (feedback dispatch)│
                 └───────────────────┘ └──────────────────┘ └────────────────────┘
 ```
@@ -110,10 +110,10 @@ that flag problems before users hit them.
 
 ## 5. Feature modules
 
-### 5.1 Deal intake & email ingestion
-A dedicated deal mailbox is monitored; new mail creates a `deals` record in `initial_uw` with
+### 5.1 Acquisition intake & email ingestion
+A dedicated acquisition mailbox is monitored; new mail creates a `acquisitions` record in `initial_uw` with
 attachments stored to object storage and queued for parsing. Manual upload from the UI does
-the same. A deal can accept more documents at any phase.
+the same. A acquisition can accept more documents at any phase.
 
 ### 5.2 Document parsing
 - **Primary path: Excel/CSV.** Parse with pandas/openpyxl. Detect sheet type (P&L, unit mix, rent roll, booking export) via header heuristics + a Claude classification pass when ambiguous.
@@ -131,19 +131,19 @@ the same. A deal can accept more documents at any phase.
 
 ### 5.4 SHIELD assumptions layer
 - Scheduled read-only query of SHIELD pulls RJourney portfolio actuals (occupancy, ADR, OpEx ratio, RevPAU, etc. — **[DECISION]** exact set) at transaction-level detail, aggregated to baseline metrics.
-- Baselines seed each deal's `assumptions`; the operator may override per deal, with the override, author, and note retained.
+- Baselines seed each acquisition's `assumptions`; the operator may override per acquisition, with the override, author, and note retained.
 - Maintain a schema snapshot of SHIELD so the connector flags drift if SHIELD changes.
 
 ### 5.5 Underwriting / pro forma engine
 - 5-year levered cash flow: Revenue → OpEx → **NOI** → Debt Service → CapEx reserve → Levered CF, plus a Year-5 exit on an exit-cap assumption.
 - Metrics: levered IRR, equity multiple, going-in cap, Year-1 cash-on-cash.
 - **3-hurdle equity waterfall** with LP/GP promote splits per tier (`waterfall_tiers`).
-- **Hurdles:** default thresholds (config) with per-deal override; each renders pass/fail.
+- **Hurdles:** default thresholds (config) with per-acquisition override; each renders pass/fail.
 - Recalculates live when an assumption changes; flags which inputs were overridden from the SHIELD baseline. **[DECISION]** real default hurdle values and promote splits.
 - **Population rings (market sizing).** Estimated population within **25 / 50 / 100 / 150 miles** of the property, part of the Initial UW specs. Auto-pulled from a demographics provider when a property is entered, and overridable by the underwriter (baseline + override + author + note retained, like assumptions). Stored in `population_rings` (§8.4). The wired provider is **US Census ACS** (county-grain, **ADR-0009**): each ring sums ACS 5-year population for counties whose centroid falls within the radius, configured via `POPULATION_PROVIDER=census` + a free Census key. With no provider, rings are entered manually — never fabricated; a ring capturing no county centroid is left unestimated rather than zeroed.
 
 ### 5.6 Comp intelligence
-- On a deal's address, discover RV parks / campgrounds within a **50-mile radius**.
+- On a acquisition's address, discover RV parks / campgrounds within a **50-mile radius**.
 - Pull rate, amenities, and review sentiment from Google, TripAdvisor, Yelp, Campendium/Camp Media, The Dirt (official APIs + scraping).
 - **Sentiment:** capture best and worst representative snippets per comp, plus a score.
 - **Amenities:** Claude generates a per-comp description and an amenity score + market rank, each explained.
@@ -151,20 +151,20 @@ the same. A deal can accept more documents at any phase.
 - Visuals: rate × sentiment scatter (toggle to rate × amenities), rate bar chart, ranked amenity list, target highlighted.
 
 ### 5.7 Phase gates & question framework
-- Phases: `initial_uw` → `loi` → `contract` → `due_diligence` → `close`. A deal cannot skip; it advances only when all blocking items for the current phase are green, after AI pre-check then human review.
-- Gate questions live in `gate_questions` (config), grouped by category. Seed Initial UW (P&L + unit mix), LOI (attorneys looped, deal points), Due Diligence (the RV-remastered checklist — **[DECISION]**), Close (operational "can we run it better?").
-- **Suggest → approve:** anyone submits to `question_suggestions`; Admin approves/declines; approved items join the live set going forward without disturbing historical deals.
+- Phases: `initial_uw` → `loi` → `contract` → `due_diligence` → `close`. A acquisition cannot skip; it advances only when all blocking items for the current phase are green, after AI pre-check then human review.
+- Gate questions live in `gate_questions` (config), grouped by category. Seed Initial UW (P&L + unit mix), LOI (attorneys looped, acquisition points), Due Diligence (the RV-remastered checklist — **[DECISION]**), Close (operational "can we run it better?").
+- **Suggest → approve:** anyone submits to `question_suggestions`; Admin approves/declines; approved items join the live set going forward without disturbing historical acquisitions.
 - **Routing:** an item can be routed internal or external (e.g. tax person, environmental firm) — initially via **email**, with a **placeholder integration point for the RMS ticketing system**.
-- Failed deals drop to a `failed` / `on_ice` queue and remain retrievable.
+- Failed acquisitions drop to a `failed` / `on_ice` queue and remain retrievable.
 
-### 5.8 Pipeline dashboard & deal detail
-- Mobile landing = pipeline: phase buckets with deal counts and rolled-up acquisition dollars, then deal lists with blocker chips.
-- Deal detail: header with phase progress, then tabs — Pro forma, Comps, Gates, GL/Docs.
+### 5.8 Pipeline dashboard & acquisition detail
+- Mobile landing = pipeline: phase buckets with acquisition counts and rolled-up acquisition dollars, then acquisition lists with blocker chips.
+- Acquisition detail: header with phase progress, then tabs — Pro forma, Comps, Gates, GL/Docs.
 - Visual reference: the approved wireframe (`rjourney-acquisitions-wireframes.html`).
 
 ### 5.9 Media gallery
 Photos auto-pulled from the park website and Google (customer photos with review snippet),
-plus seller-provided and manual uploads, displayed as a gallery on the deal — primarily to
+plus seller-provided and manual uploads, displayed as a gallery on the acquisition — primarily to
 orient equity reviewers.
 
 ### 5.10 Floating feedback widget
@@ -172,11 +172,11 @@ A persistent **"?" floating button** on every authenticated page (bottom-right d
 thumb-reachable mobile), part of the responsive shell so it never blocks content. Three
 actions: **Request a feature**, **Report a bug**, **Ask a question**.
 
-Context auto-captured silently on every submission: current route + `deal_id` if on a deal,
+Context auto-captured silently on every submission: current route + `acquisition_id` if on a acquisition,
 user, role, timestamp, app version/build hash, browser, OS, viewport. For bugs additionally:
 optional screenshot, recent **client breadcrumbs**, captured **console errors**, and the
 **last API error**. The user types only a short description. Writes a `feedback_items` record.
-**[DECISION]** screenshots may contain deal financials — confirm capture/redaction policy.
+**[DECISION]** screenshots may contain acquisition financials — confirm capture/redaction policy.
 
 ### 5.11 Triage & review queue (Admin)
 A queue where the Admin reviews every submission.
@@ -189,7 +189,7 @@ A queue where the Admin reviews every submission.
 From a `ready` item, **"Dispatch to Claude Code"** packages context and hands it to the build
 agent via GitHub.
 
-1. Backend assembles a structured brief: title, type, description, page route + deal context, repro steps, attached logs / Sentry link / screenshot URLs, enrichment notes, affected-area hints.
+1. Backend assembles a structured brief: title, type, description, page route + acquisition context, repro steps, attached logs / Sentry link / screenshot URLs, enrichment notes, affected-area hints.
 2. Backend creates a **GitHub issue** via the API with the brief, the right label, and an **`@claude`** mention with scoped instructions.
 3. The official **`anthropics/claude-code-action@v1`** workflow picks up the mention, reads the repo and `CLAUDE.md` standards, implements on a branch, and opens a **PR referencing the issue**.
 4. A GitHub webhook syncs issue/PR state back to `feedback_dispatch` (issue URL, PR URL, status); the queue reflects `in_progress → pr_open → merged → deployed` automatically.
@@ -230,7 +230,7 @@ Reference: Claude Code GitHub Actions — https://code.claude.com/docs/en/github
 ## 6. Frontend spec
 - Responsive shell: left rail (desktop) ↔ bottom tab bar (mobile); identical destinations. The "?" feedback button lives in the shell on all pages.
 - Design tokens from the wireframe (forest ink, bone paper, brass accent, mono for figures). Match it.
-- Screens: Pipeline, Deal detail (Pro forma / Comps / Gates / GL-Docs tabs), GL mapping queue, Approvals, Feedback triage. Charts via Recharts.
+- Screens: Pipeline, Acquisition detail (Pro forma / Comps / Gates / GL-Docs tabs), GL mapping queue, Approvals, Feedback triage. Charts via Recharts.
 - Accessibility floor: visible keyboard focus, reduced-motion respected, mobile-sized tap targets.
 
 ## 7. Observability, logging & alerting
@@ -241,7 +241,7 @@ audit/provenance trail.
 - **Client breadcrumbs feed the widget.** The same breadcrumb buffer powering Sentry is what the bug-report path attaches automatically.
 - **Metrics & dashboards.** Request latency, error rate, background-job success/failure, queue depth, **scrape success rate per source**, ingest failure rate, **SHIELD sync health** (Prometheus + Grafana, or hosted APM).
 - **Proactive alerts.** Notify the team (Slack / email) on error-rate spikes, repeated job failures, a broken scrape source, or a failed SHIELD sync. **[DECISION]** alert channel.
-- **Synthetic checks.** Uptime probes on critical flows (login, deal load, pro forma calc).
+- **Synthetic checks.** Uptime probes on critical flows (login, acquisition load, pro forma calc).
 - **Trace the loop.** Link Sentry issue ↔ `feedback_item` ↔ GitHub issue/PR so a runtime error, the user report, and the fix are one thread.
 
 ---
@@ -262,7 +262,7 @@ audit/provenance trail.
 |---|---|
 | `property_type` | `rv_resort`, `campground`, `glamping`, `cabin_resort`, `marina`, `mobile_home`, `hybrid` |
 | `current_phase` | `initial_uw`, `loi`, `contract`, `due_diligence`, `close` |
-| `status` (deal) | `active`, `failed`, `on_ice`, `closed` |
+| `status` (acquisition) | `active`, `failed`, `on_ice`, `closed` |
 | `photo.source` | `website`, `google`, `seller`, `manual` |
 | `account_level` | `section`, `major_group`, `subgroup`, `leaf` |
 | `map_confidence` | `leaf`, `coarse`, `unmapped` |
@@ -278,11 +278,11 @@ audit/provenance trail.
 | `feedback.type` | `feature`, `bug`, `question` |
 | `feedback.status` | `new`, `triaged`, `needs_detail`, `ready`, `dispatched`, `in_progress`, `deployed`, `closed`, `declined` |
 
-### 8.3 Canonical JSON deal document
+### 8.3 Canonical JSON acquisition document
 
 ```jsonc
 {
-  "deal_id": "dl_cedarhollow_0425",
+  "acquisition_id": "dl_cedarhollow_0425",
   "schema_version": "0.2",
 
   "metadata": {
@@ -411,12 +411,12 @@ ingest-fed tables preserves the original parsed file.
 
 ```sql
 -- ── Core ────────────────────────────────────────────
-deals( deal_id PK, name, property_type, address_line1, city, state, zip, lat, lng,
+acquisitions( acquisition_id PK, name, property_type, address_line1, city, state, zip, lat, lng,
   site_count int, ask_price numeric, price_per_site numeric, seller_name,
   date_received date, current_phase, status, thesis, notes, created_at, updated_at )
-deal_photos( photo_id PK, deal_id FK→deals, source, url, caption, review_snippet, sort int )
+acquisition_photos( photo_id PK, acquisition_id FK→acquisitions, source, url, caption, review_snippet, sort int )
 
--- ── Reference / config (not per-deal) ───────────────
+-- ── Reference / config (not per-acquisition) ───────────────
 gl_accounts( account_code PK, parent_code FK→gl_accounts, level, name, section,
   normal_balance, sort int, active bool )
 gl_mappings_learned( mapping_id PK, seller_phrase, source_seller,
@@ -425,50 +425,50 @@ gate_questions( question_id PK, phase, category, text, blocking bool,
   default_route_type, active bool, created_by, approved_by, created_at )
 
 -- ── Financials ──────────────────────────────────────
-financial_periods( period_id PK, deal_id FK→deals, label, period_start date,
+financial_periods( period_id PK, acquisition_id FK→acquisitions, label, period_start date,
   period_end date, granularity, source_filename, ingested_at timestamptz,
   is_current bool )  -- each upload is a dated, retained version; is_current feeds the GL view
-financial_lines( line_id PK, deal_id FK→deals, period_id FK→financial_periods,
+financial_lines( line_id PK, acquisition_id FK→acquisitions, period_id FK→financial_periods,
   account_code FK→gl_accounts NULL, account_level, amount numeric, seller_source_line,
   map_confidence, map_confidence_score numeric, noi_placement, is_addback bool,
   addback_amount numeric, reviewed_by, reviewed_at, raw_payload jsonb )
 
 -- ── Property & operations ───────────────────────────
-units( unit_id PK, deal_id FK→deals, unit_type, hookup_level, amp_rating int NULL,
+units( unit_id PK, acquisition_id FK→acquisitions, unit_type, hookup_level, amp_rating int NULL,
   count int, occupancy_status )
-amenities( amenity_id PK, deal_id FK→deals, name, category, present bool, condition, notes )
-bookings( booking_id PK, deal_id FK→deals, site_id, unit_type, check_in date, check_out date,
+amenities( amenity_id PK, acquisition_id FK→acquisitions, name, category, present bool, condition, notes )
+bookings( booking_id PK, acquisition_id FK→acquisitions, site_id, unit_type, check_in date, check_out date,
   nights int, gross_revenue numeric, adr numeric, channel, booking_date date,
   lead_time_days int, raw_payload jsonb )
-weekly_summary( summary_id PK, deal_id FK→deals, week_start date, available_unit_nights int,
+weekly_summary( summary_id PK, acquisition_id FK→acquisitions, week_start date, available_unit_nights int,
   occupied_unit_nights int, occupancy_pct numeric, adr numeric, revpau numeric,
   gross_revenue numeric, source )
 
 -- ── Underwriting ────────────────────────────────────
-assumptions( assumption_id PK, deal_id FK→deals, key, label, baseline_value numeric,
+assumptions( assumption_id PK, acquisition_id FK→acquisitions, key, label, baseline_value numeric,
   shield_source, override_value numeric NULL, is_overridden bool, overridden_by, note )
-hurdles( hurdle_id PK, deal_id FK→deals, metric, default_threshold numeric,
+hurdles( hurdle_id PK, acquisition_id FK→acquisitions, metric, default_threshold numeric,
   deal_threshold numeric, actual_value numeric, passes bool )
-waterfall_tiers( tier_id PK, deal_id FK→deals, tier int, irr_floor numeric,
+waterfall_tiers( tier_id PK, acquisition_id FK→acquisitions, tier int, irr_floor numeric,
   irr_ceiling numeric NULL, lp_split numeric, gp_split numeric )
-proforma_results( result_id PK, deal_id FK→deals, yr int, revenue numeric, opex numeric,
+proforma_results( result_id PK, acquisition_id FK→acquisitions, yr int, revenue numeric, opex numeric,
   noi numeric, debt_service numeric, capex numeric, levered_cf numeric )
-proforma_summary( deal_id PK FK→deals, levered_irr numeric, equity_multiple numeric,
+proforma_summary( acquisition_id PK FK→acquisitions, levered_irr numeric, equity_multiple numeric,
   equity_basis numeric, exit_year int, exit_cap numeric, exit_gross_value numeric,
   exit_net_proceeds numeric )
 
 -- ── Market (population rings) ────────────────────────
-population_rings( ring_id PK, deal_id FK→deals, radius_mi int (25|50|100|150),
+population_rings( ring_id PK, acquisition_id FK→acquisitions, radius_mi int (25|50|100|150),
   baseline_population int NULL, override_population int NULL, is_override bool,
   overridden_by, note, source, as_of date NULL, created_at, updated_at )
 
 -- ── Comps ───────────────────────────────────────────
-comps( comp_id PK, deal_id FK→deals, name, lat, lng, distance_mi numeric, avg_rate numeric,
+comps( comp_id PK, acquisition_id FK→acquisitions, name, lat, lng, distance_mi numeric, avg_rate numeric,
   sentiment_score numeric, amenity_rank int, amenity_score int, ai_summary, best_snippet,
   worst_snippet, source, is_manual bool, scraped_at, raw_payload jsonb )
 
 -- ── Workflow / gates ────────────────────────────────
-deal_gate_items( item_id PK, deal_id FK→deals, question_id FK→gate_questions, status,
+acquisition_gate_items( item_id PK, acquisition_id FK→acquisitions, question_id FK→gate_questions, status,
   blocking bool, route_type, routed_to, date_requested date, date_received date,
   acceptable bool NULL, comments )
 question_suggestions( suggestion_id PK, phase, type, text, suggested_by, rationale,
@@ -476,7 +476,7 @@ question_suggestions( suggestion_id PK, phase, type, text, suggested_by, rationa
 
 -- ── Feedback loop ───────────────────────────────────
 feedback_items( feedback_id PK, type, title, description, status, priority, submitted_by,
-  role, page_route, deal_id FK→deals NULL, app_version, browser, os, device, viewport,
+  role, page_route, acquisition_id FK→acquisitions NULL, app_version, browser, os, device, viewport,
   console_errors jsonb, breadcrumbs jsonb, last_api_error jsonb, created_at, updated_at )
 feedback_attachments( attachment_id PK, feedback_id FK→feedback_items, kind, url )
 feedback_comments( comment_id PK, feedback_id FK→feedback_items, author, body, created_at )
@@ -484,7 +484,7 @@ feedback_dispatch( dispatch_id PK, feedback_id FK→feedback_items, target, brie
   github_issue_url, github_pr_url, status, dispatched_by, dispatched_at, updated_at )
 ```
 
-**Relationship notes.** One `deals` row fans out to all per-deal tables via `deal_id`.
+**Relationship notes.** One `acquisitions` row fans out to all per-acquisition tables via `acquisition_id`.
 `gl_accounts`, `gate_questions` are shared config edited via admin UI (gate changes go through
 `question_suggestions`). `financial_lines.account_code` is nullable so unmapped lines persist.
 `bookings` (grain) and `weekly_summary` (rollup) coexist; rollup is recomputed from bookings
@@ -528,17 +528,17 @@ auto-treated as a below-the-line add-back during normalization.
 ## 9. API surface (representative)
 ```
 POST  /auth/callback                 OIDC
-GET   /deals                         pipeline list (filter phase/status)
-POST  /deals                         create (manual)
-GET   /deals/{id}                    full assembled document
-PATCH /deals/{id}/phase              advance/kill (gated)
-POST  /deals/{id}/documents          upload → queue parse
-GET   /deals/{id}/proforma           results
-PATCH /deals/{id}/assumptions        override (records author/note)
-GET   /deals/{id}/mapping            mapping queue for review
-POST  /deals/{id}/mapping/confirm    accept → write learned mapping
-GET   /deals/{id}/comps              comp set
-POST  /deals/{id}/comps              manual add (url|fields)
+GET   /acquisitions                         pipeline list (filter phase/status)
+POST  /acquisitions                         create (manual)
+GET   /acquisitions/{id}                    full assembled document
+PATCH /acquisitions/{id}/phase              advance/kill (gated)
+POST  /acquisitions/{id}/documents          upload → queue parse
+GET   /acquisitions/{id}/proforma           results
+PATCH /acquisitions/{id}/assumptions        override (records author/note)
+GET   /acquisitions/{id}/mapping            mapping queue for review
+POST  /acquisitions/{id}/mapping/confirm    accept → write learned mapping
+GET   /acquisitions/{id}/comps              comp set
+POST  /acquisitions/{id}/comps              manual add (url|fields)
 GET   /gate-questions?phase=         config
 POST  /question-suggestions          suggest
 PATCH /question-suggestions/{id}     approve/decline (admin)
@@ -548,13 +548,13 @@ PATCH /feedback/{id}                 status/priority/type/tags
 POST  /feedback/{id}/comments        add context / enrichment
 POST  /feedback/{id}/attachments     screenshot/file
 POST  /feedback/{id}/dispatch        → create GitHub issue w/ @claude brief
-POST  /webhooks/email-intake         inbound deal mail
+POST  /webhooks/email-intake         inbound acquisition mail
 POST  /webhooks/github               sync issue/PR state back to dispatch
 ```
 
 ## 10. Auth & security
 - Entra ID OIDC (internal) + secondary external method; RBAC enforced server-side.
-- Least-privilege SHIELD read-only credentials; scoped external-partner access per shared deal.
+- Least-privilege SHIELD read-only credentials; scoped external-partner access per shared acquisition.
 - Secrets in a vault/key service; `ANTHROPIC_API_KEY` for the GitHub Action in repo secrets.
 - Branch protection + human PR approval on all Claude-authored changes (§5.12).
 
@@ -565,22 +565,22 @@ The data model (§8) is the shared contract, so modules can be built largely in 
 - **Phase 1 — Ingestion & mapping:** Excel/CSV/PDF parsing, GL mapping engine, mapping review UI, NOI bridge.
 - **Phase 2 — Underwriting:** SHIELD connector + baseline sync, pro forma engine, waterfall, hurdles, assumption overrides.
 - **Phase 3 — Comp intelligence:** discovery, scrapers/API connectors, sentiment + amenity scoring, manual add, visualizations.
-- **Phase 4 — Pipeline, gates & feedback:** dashboard, deal-detail tabs, gate logic, suggest→approve, email routing + RMS placeholder, gallery, feedback widget + triage + Claude Code dispatch, full observability dashboards/alerts.
+- **Phase 4 — Pipeline, gates & feedback:** dashboard, acquisition-detail tabs, gate logic, suggest→approve, email routing + RMS placeholder, gallery, feedback widget + triage + Claude Code dispatch, full observability dashboards/alerts.
 
 Suggested parallel sessions: (a) ingestion/mapping, (b) SHIELD + pro forma, (c) scrapers/comps,
 (d) frontend + gates + feedback — all coding against §8, with Phase 0 landed first.
 
 ## 12. Non-functional requirements
-- Throughput: comfortably handle 30 new deals/week with parsing + comp scraping.
+- Throughput: comfortably handle 30 new acquisitions/week with parsing + comp scraping.
 - Auditability: retain raw payloads and every mapping/override/feedback decision with author + timestamp.
-- Resilience: ingest, scraping, and dispatch run as retried background jobs; one bad file never blocks a deal.
+- Resilience: ingest, scraping, and dispatch run as retried background jobs; one bad file never blocks a acquisition.
 - Security: least-privilege credentials; scoped external access; secrets vaulted.
 - Observability: §7 telemetry live from Phase 0 onward.
 
 ## 13. Assumptions made (verify)
 - PostgreSQL/FastAPI/React stack chosen for fit; substitutable if the team has a standard.
 - SHIELD is SQL Server, queryable read-only from the app's network.
-- Cloud hosting acceptable for deal data (login + RBAC). Confirm data-sensitivity posture.
+- Cloud hosting acceptable for acquisition data (login + RBAC). Confirm data-sensitivity posture.
 - Scraping target sites permissible pending ToS/legal review; official APIs preferred where they exist.
 - GitHub is the code host and the feedback-dispatch target.
 
@@ -599,8 +599,8 @@ Grouped by owner. **Phase-0 blockers** (answer before build starts): A-defaults 
 - **A-6.** Unit mix: per-site rows when a site map exists, or always aggregate to type.
 - **A-7.** Financial period grain: T12 + monthly when available?
 - **A-8.** Re-master the DD checklist for RV (utilities/electrical incl. 50-amp, water source & rights, septic capacity, detailed unit mix, booking-system data, amenity equipment, franchise/membership transfer, insurance loss runs, flood zone, zoning/density, ADA). Confirm full 50+ and which are blocking.
-- **A-9.** Seed Initial UW (P&L + unit mix) and LOI (attorneys looped, deal points) gate sets.
-- **A-10.** Failed-deal retention before archive; "circle back" trigger.
+- **A-9.** Seed Initial UW (P&L + unit mix) and LOI (attorneys looped, acquisition points) gate sets.
+- **A-10.** Failed-acquisition retention before archive; "circle back" trigger.
 - **A-33.** Who, besides you, can triage and dispatch feedback; turnaround targets (bug vs. feature).
 - **A-34.** Notify the original submitter when their item ships?
 
@@ -613,8 +613,8 @@ Grouped by owner. **Phase-0 blockers** (answer before build starts): A-defaults 
 - **C-14.** SHIELD read-only connection details, network reachability, relevant tables/views. *(Phase-0)*
 - **C-15.** Which SHIELD baseline metrics to pull and at what grain.
 - **C-16.** Confirm Entra ID for internal SSO + external method (magic-link vs. password). *(Phase-0)*
-- **C-17.** Cloud provider/region; any environment constraint on deal data. *(Phase-0)*
-- **C-18.** Deal intake email address and read mechanism (Graph vs. inbound-parse).
+- **C-17.** Cloud provider/region; any environment constraint on acquisition data. *(Phase-0)*
+- **C-18.** Acquisition intake email address and read mechanism (Graph vs. inbound-parse).
 - **C-19.** RMS ticketing: confirm placeholder now; obtain eventual API contract.
 - **C-20.** Approve Claude + embeddings provider; key ownership + budget. *(Phase-0)*
 - **C-21.** Secrets management location.
@@ -626,8 +626,8 @@ Grouped by owner. **Phase-0 blockers** (answer before build starts): A-defaults 
 ### D. Legal / compliance
 - **D-22.** Scraping ToS review (Google, TripAdvisor, Yelp, Campendium/Camp Media, The Dirt); official APIs + budget where available.
 - **D-23.** Rights to display website/Google customer photos in the gallery.
-- **D-24.** What deal data PE partners may see; NDA/confidentiality gating per deal.
-- **D-32.** Screenshot/PII policy: bug screenshots may contain deal financials — capture, redaction, retention, viewers.
+- **D-24.** What acquisition data PE partners may see; NDA/confidentiality gating per acquisition.
+- **D-32.** Screenshot/PII policy: bug screenshots may contain acquisition financials — capture, redaction, retention, viewers.
 
 ### E. Scope & sequencing
 - **E-25.** Confirm Phase 0→1→2 as first usable release; comps and full gate/feedback follow.

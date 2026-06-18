@@ -18,33 +18,65 @@ const pos = (label: string, irr: string, moic: string, equity: string, profit: s
 });
 
 const RESULT = {
-  deal_name: "Horseshoe Bend RV Resort",
+  acquisition_name: "Horseshoe Bend RV Resort",
   dates: ["2025-12-31", "2026-12-31", "2027-12-31", "2028-12-31", "2029-12-31", "2030-12-31"],
   purchase_price: "428571429",
   acquisition_fee: "0",
-  deal_cashflows: ["-150000000", "7500000", "7875000", "8268750", "8682188", "302760047"],
+  acquisition_cashflows: ["-150000000", "7500000", "7875000", "8268750", "8682188", "302760047"],
   combined_equity_distributions: ["0", "0", "0", "0", "0", "169070867"],
   rjourney_carried_interest: ["0", "0", "0", "0", "0", "16015117"],
   total_promote: "16015117",
   tiers: [
-    { tier: 1, hurdle_rate: "0.08", promote_pct: "0", equity_total: "63622050", carry_total: "0", irr_check: "0.08", binds: true },
-    { tier: 2, hurdle_rate: "0.15", promote_pct: "0.10", equity_total: "74499027", carry_total: "8277670", irr_check: "0.15", binds: true },
-    { tier: 3, hurdle_rate: "0.20", promote_pct: "0.20", equity_total: "30949790", carry_total: "7737448", irr_check: "0.1745", binds: false },
-    { tier: 4, hurdle_rate: "0.20", promote_pct: "0.30", equity_total: "0", carry_total: "0", irr_check: "0.1745", binds: false },
+    {
+      tier: 1,
+      hurdle_rate: "0.08",
+      promote_pct: "0",
+      equity_total: "63622050",
+      carry_total: "0",
+      irr_check: "0.08",
+      binds: true,
+    },
+    {
+      tier: 2,
+      hurdle_rate: "0.15",
+      promote_pct: "0.10",
+      equity_total: "74499027",
+      carry_total: "8277670",
+      irr_check: "0.15",
+      binds: true,
+    },
+    {
+      tier: 3,
+      hurdle_rate: "0.20",
+      promote_pct: "0.20",
+      equity_total: "30949790",
+      carry_total: "7737448",
+      irr_check: "0.1745",
+      binds: false,
+    },
+    {
+      tier: 4,
+      hurdle_rate: "0.20",
+      promote_pct: "0.30",
+      equity_total: "0",
+      carry_total: "0",
+      irr_check: "0.1745",
+      binds: false,
+    },
   ],
-  deal: pos("Deal-Level", "0.18639", "2.2339", "150000000", "185085984"),
+  acquisition: pos("Acquisition-Level", "0.18639", "2.2339", "150000000", "185085984"),
   partner: pos("Partner Equity", "0.17450", "2.1271", "135000000", "152163780"),
   rjourney: pos("RJourney Equity", "0.27599", "3.1948", "15000000", "32922204"),
   cashflow_ties_out: true,
 };
 
 const DEAL = {
-  deal_id: "dl_1",
+  acquisition_id: "dl_1",
   metadata: { name: "Horseshoe Bend RV Resort", current_phase: "initial_uw", status: "active" },
   market: { rings: [] },
 };
 
-// A pro forma that yields the same deal-level stream as RESULT.deal_cashflows.
+// A pro forma that yields the same acquisition-level stream as RESULT.acquisition_cashflows.
 const PROFORMA = {
   years: [
     { yr: 1, levered_cf: "7500000" },
@@ -66,7 +98,7 @@ function mockFetch(proforma: unknown) {
     const u = String(url);
     if (u.includes("/promote/waterfall")) return jsonResponse(RESULT);
     if (u.includes("/proforma")) return jsonResponse(proforma);
-    if (u.includes("/deals/")) return jsonResponse(DEAL);
+    if (u.includes("/acquisitions/")) return jsonResponse(DEAL);
     return jsonResponse({}, 404);
   });
 }
@@ -75,7 +107,7 @@ function renderTab() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <PromoteTab dealId="dl_1" />
+      <PromoteTab acquisitionId="dl_1" />
     </QueryClientProvider>,
   );
 }
@@ -93,7 +125,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("PromoteTab — pro-forma-fed", () => {
   beforeEach(() => vi.stubGlobal("fetch", mockFetch(PROFORMA)));
 
-  it("derives the deal stream from the pro forma and shows genericized positions", async () => {
+  it("derives the acquisition stream from the pro forma and shows genericized positions", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByText("27.6%")).toBeInTheDocument()); // RJourney IRR
     expect(screen.getByText("3.19x")).toBeInTheDocument();
@@ -113,7 +145,7 @@ describe("PromoteTab — pro-forma-fed", () => {
     ]);
     expect(body.equity).toBe(150000000);
     expect(body.hold_years).toBe(5);
-    expect(body.deal_name).toBe("Horseshoe Bend RV Resort");
+    expect(body.acquisition_name).toBe("Horseshoe Bend RV Resort");
   });
 
   it("recalculates when a promote-specific input changes", async () => {
@@ -137,7 +169,7 @@ describe("PromoteTab — interim fallback (no pro forma)", () => {
   it("uses editable return-case assumptions and sends no cashflow_override", async () => {
     renderTab();
     await waitFor(() => expect(screen.getByText("27.6%")).toBeInTheDocument());
-    expect(screen.getByText(/No pro forma for this deal yet/)).toBeInTheDocument();
+    expect(screen.getByText(/No pro forma for this acquisition yet/)).toBeInTheDocument();
     // The return-case equity field is available in fallback mode.
     expect(screen.getByLabelText("Total equity")).toBeInTheDocument();
 

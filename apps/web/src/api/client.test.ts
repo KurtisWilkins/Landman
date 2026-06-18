@@ -12,11 +12,11 @@ describe("apiFetch", () => {
           }),
       ),
     );
-    await expect(apiFetch("/deals")).rejects.toMatchObject({
+    await expect(apiFetch("/acquisitions")).rejects.toMatchObject({
       status: 501,
       code: "not_implemented",
     });
-    await expect(apiFetch("/deals")).rejects.toBeInstanceOf(ApiError);
+    await expect(apiFetch("/acquisitions")).rejects.toBeInstanceOf(ApiError);
   });
 
   it("returns parsed JSON on success", async () => {

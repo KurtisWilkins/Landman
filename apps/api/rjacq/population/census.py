@@ -2,7 +2,7 @@
 
 Estimates population within each ring radius by aggregating **county-level** ACS 5-year
 population (table ``B01003``) for every county whose internal-point centroid falls within the
-radius of the deal. County centroids are bundled (US Census 2023 Gazetteer, ``data/``);
+radius of the acquisition. County centroids are bundled (US Census 2023 Gazetteer, ``data/``);
 population is pulled live from the free Census Data API in a single nationwide call.
 
 This is a coarse, county-grain estimate by design — it travels with its vintage (``as_of``)
@@ -95,7 +95,7 @@ class CensusACSProvider:
             # Graceful: a provider hiccup leaves rings unestimated, never fabricated or zeroed.
             log.warning("population.census_fetch_failed", error=str(exc), year=self._year)
             return []
-        # Distance from the deal to every county centroid, computed once.
+        # Distance from the acquisition to every county centroid, computed once.
         distances = [
             (geoid, _haversine_mi(lat, lng, clat, clng))
             for geoid, clat, clng in _county_centroids()

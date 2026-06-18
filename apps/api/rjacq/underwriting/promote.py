@@ -1,9 +1,9 @@
-"""Deal-by-deal promote waterfall engine (pure, testable).
+"""Acquisition-by-acquisition promote waterfall engine (pure, testable).
 
-Reconstructs the "Waterfall Template" spreadsheet's JV promote math: a deal-level cash-flow
+Reconstructs the "Waterfall Template" spreadsheet's JV promote math: a acquisition-level cash-flow
 stream is run through return-of-capital, then four sequential IRR-hurdle tiers with a promote
 "tier-shift" split, and finally split into the two equity positions — **Partner Equity** and
-**RJourney Equity** — plus a deal-level reference return.
+**RJourney Equity** — plus a acquisition-level reference return.
 
 Money is ``Decimal`` throughout (CLAUDE.md: never float for financial values). Dates are annual
 (EOMONTH +12 from the start); preferred return accrues actual/365 and returns are date-based
@@ -43,7 +43,7 @@ class ExitAssumptions:
 
 @dataclass(frozen=True)
 class PromoteInputs:
-    deal_name: str = "Deal 1"
+    acquisition_name: str = "Acquisition 1"
     start_date: date = field(default_factory=lambda: date(2025, 12, 31))
     hold_years: int = 5
     equity: Decimal = Decimal("150000000")
@@ -66,7 +66,7 @@ class PromoteInputs:
         Decimal("0.30"),
         Decimal("0.30"),
     )
-    # Optional manual override of the deal-level cash-flow stream (len hold_years+1); when set,
+    # Optional manual override of the acquisition cash-flow stream (len hold_years+1); when set,
     # the generator (yr1%/growth/exit) is bypassed entirely.
     cashflow_override: tuple[Decimal, ...] | None = None
 
@@ -99,19 +99,19 @@ class PositionReturn:
 
 @dataclass(frozen=True)
 class PromoteResult:
-    deal_name: str
+    acquisition_name: str
     dates: list[date]
     purchase_price: Decimal
     acquisition_fee: Decimal
-    deal_cashflows: list[Decimal]
+    acquisition_cashflows: list[Decimal]
     combined_equity_distributions: list[Decimal]
     rjourney_carried_interest: list[Decimal]
     total_promote: Decimal
     tiers: list[TierResult]
-    deal: PositionReturn
+    acquisition: PositionReturn
     partner: PositionReturn
     rjourney: PositionReturn
-    cashflow_ties_out: bool  # combined equity + carry reconciles to deal profit
+    cashflow_ties_out: bool  # combined equity + carry reconciles to acquisition profit
 
 
 # ── primitives ──────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ def moic(cashflows: list[Decimal]) -> Decimal | None:
 
 
 def generate_cashflows(inp: PromoteInputs) -> list[Decimal]:
-    """Deal-level CF[0..hold_years]: −equity, then growing distributions, then exit + final."""
+    """Acquisition CF[0..hold_years]: −equity, then growing distributions, then exit + final."""
     if inp.cashflow_override is not None:
         return list(inp.cashflow_override)
     g = inp.distribution_growth
@@ -201,7 +201,7 @@ def run_promote_waterfall(inp: PromoteInputs) -> PromoteResult:  # noqa: PLR0915
     purchase_price = inp.equity / (_ONE - inp.ltv)
     acq_fee = purchase_price * inp.acquisition_fee_pct
 
-    dist = [max(x, _ZERO) for x in cf]  # distributions out of the deal (>=0)
+    dist = [max(x, _ZERO) for x in cf]  # distributions out of the acquisition (>=0)
     invested = [min(x, _ZERO) for x in cf]  # capital in (<=0)
     contribution = [-x for x in invested]  # (>=0)
 
@@ -299,24 +299,24 @@ def run_promote_waterfall(inp: PromoteInputs) -> PromoteResult:  # noqa: PLR0915
         for k in range(n + 1)
     ]
 
-    deal = _position("Deal-Level", cf, dates)
+    acquisition = _position("Acquisition-Level", cf, dates)
     partner = _position("Partner Equity", partner_cf, dates)
     rjourney = _position("RJourney Equity", rjourney_cf, dates)
 
-    deal_profit_check = sum(combined_equity, _ZERO) + total_promote
-    ties = abs(deal_profit_check - sum(cf, _ZERO)) < Decimal("1")
+    acquisition_profit_check = sum(combined_equity, _ZERO) + total_promote
+    ties = abs(acquisition_profit_check - sum(cf, _ZERO)) < Decimal("1")
 
     return PromoteResult(
-        deal_name=inp.deal_name,
+        acquisition_name=inp.acquisition_name,
         dates=dates,
         purchase_price=purchase_price,
         acquisition_fee=acq_fee,
-        deal_cashflows=cf,
+        acquisition_cashflows=cf,
         combined_equity_distributions=combined_equity,
         rjourney_carried_interest=rjourney_carry,
         total_promote=total_promote,
         tiers=tiers,
-        deal=deal,
+        acquisition=acquisition,
         partner=partner,
         rjourney=rjourney,
         cashflow_ties_out=ties,

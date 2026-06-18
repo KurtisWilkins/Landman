@@ -38,9 +38,9 @@ class CompError(Exception):
 async def discover_comps(
     session: AsyncSession,
     *,
-    deal_id: str,
-    deal_lat: float,
-    deal_lng: float,
+    acquisition_id: str,
+    acquisition_lat: float,
+    acquisition_lng: float,
     sources: Sequence[CompSource],
     enricher: Enricher | None,
     radius_miles: float = COMP_RADIUS_MILES,
@@ -49,7 +49,7 @@ async def discover_comps(
     inserted = 0
     for source in sources:
         try:
-            found = source.discover(deal_lat, deal_lng, radius_miles)
+            found = source.discover(acquisition_lat, acquisition_lng, radius_miles)
         except Exception:  # one bad source never blocks the rest (§12 resilience)
             log.warning("comps.source_failed", source=source.name)
             continue
@@ -58,27 +58,35 @@ async def discover_comps(
             for c in found
             if c.lat is not None
             and c.lng is not None
-            and within_radius(deal_lat, deal_lng, c.lat, c.lng, radius_miles)
+            and within_radius(acquisition_lat, acquisition_lng, c.lat, c.lng, radius_miles)
         ]
         for raw in kept:
-            await _persist(session, deal_id, raw, deal_lat, deal_lng, enricher, is_manual=False)
+            await _persist(
+                session,
+                acquisition_id,
+                raw,
+                acquisition_lat,
+                acquisition_lng,
+                enricher,
+                is_manual=False,
+            )
             inserted += 1
         log.info("comps.source_done", source=source.name, found=len(found), kept=len(kept))
-    await repo.assign_amenity_ranks(session, deal_id)
+    await repo.assign_amenity_ranks(session, acquisition_id)
     return inserted
 
 
 async def add_manual(
     session: AsyncSession,
     *,
-    deal_id: str,
+    acquisition_id: str,
     url: str | None,
     name: str | None,
     lat: float | None,
     lng: float | None,
     avg_rate: Decimal | None,
-    deal_lat: float | None,
-    deal_lng: float | None,
+    acquisition_lat: float | None,
+    acquisition_lng: float | None,
     enricher: Enricher | None,
 ) -> CompOut:
     """Operator adds a competitor by URL or direct fields; system enriches it (§5.6)."""
@@ -92,33 +100,37 @@ async def add_manual(
         source="manual",
         raw={"url": url} if url else {},
     )
-    comp = await _persist(session, deal_id, raw, deal_lat, deal_lng, enricher, is_manual=True)
-    await repo.assign_amenity_ranks(session, deal_id)
+    comp = await _persist(
+        session, acquisition_id, raw, acquisition_lat, acquisition_lng, enricher, is_manual=True
+    )
+    await repo.assign_amenity_ranks(session, acquisition_id)
     return CompOut.model_validate(comp)
 
 
 async def _persist(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     raw: RawComp,
-    deal_lat: float | None,
-    deal_lng: float | None,
+    acquisition_lat: float | None,
+    acquisition_lng: float | None,
     enricher: Enricher | None,
     *,
     is_manual: bool,
 ) -> Comp:
     distance = None
     if (
-        deal_lat is not None
-        and deal_lng is not None
+        acquisition_lat is not None
+        and acquisition_lng is not None
         and raw.lat is not None
         and raw.lng is not None
     ):
-        distance = Decimal(str(round(haversine_miles(deal_lat, deal_lng, raw.lat, raw.lng), 2)))
+        distance = Decimal(
+            str(round(haversine_miles(acquisition_lat, acquisition_lng, raw.lat, raw.lng), 2))
+        )
     enrichment = enricher.enrich(raw) if enricher is not None else None
     return await repo.insert_comp(
         session,
-        deal_id,
+        acquisition_id,
         name=raw.name,
         lat=raw.lat,
         lng=raw.lng,
@@ -131,9 +143,9 @@ async def _persist(
     )
 
 
-async def build_comp_set(session: AsyncSession, deal_id: str) -> CompSet:
+async def build_comp_set(session: AsyncSession, acquisition_id: str) -> CompSet:
     """Assemble the comp set + visualization (rate×sentiment / rate×amenities scatter)."""
-    comps = await repo.list_comps(session, deal_id)
+    comps = await repo.list_comps(session, acquisition_id)
     points = [
         CompScatterPoint(
             comp_id=c.comp_id,

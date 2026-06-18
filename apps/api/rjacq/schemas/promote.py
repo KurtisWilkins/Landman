@@ -22,7 +22,7 @@ class ExitAssumptionsIn(BaseModel):
 
 
 class PromoteRequest(BaseModel):
-    deal_name: str = "Deal 1"
+    acquisition_name: str = "Acquisition 1"
     start_date: date = date(2025, 12, 31)
     hold_years: int = Field(default=5, ge=2, le=10)
     equity: Decimal = Field(default=Decimal("150000000"), gt=0)
@@ -39,7 +39,7 @@ class PromoteRequest(BaseModel):
     promotes: list[Decimal] = Field(
         default=[Decimal("0.10"), Decimal("0.20"), Decimal("0.30"), Decimal("0.30")],
     )
-    # When set, bypasses the generator and uses these deal-level cash flows directly.
+    # When set, bypasses the generator and uses these acquisition-level cash flows directly.
     cashflow_override: list[Decimal] | None = None
 
     @model_validator(mode="after")
@@ -77,16 +77,16 @@ class PositionOut(ApiModel):
 
 
 class PromoteResponse(ApiModel):
-    deal_name: str
+    acquisition_name: str
     dates: list[date]
     purchase_price: Decimal
     acquisition_fee: Decimal
-    deal_cashflows: list[Decimal]
+    acquisition_cashflows: list[Decimal]
     combined_equity_distributions: list[Decimal]
     rjourney_carried_interest: list[Decimal]
     total_promote: Decimal
     tiers: list[TierOut]
-    deal: PositionOut
+    acquisition: PositionOut
     partner: PositionOut
     rjourney: PositionOut
     cashflow_ties_out: bool

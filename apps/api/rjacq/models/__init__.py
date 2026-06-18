@@ -4,10 +4,10 @@ Column names match §8 exactly. ``raw_payload`` (jsonb) is retained on ingest-fe
 ``financial_lines.account_code`` is nullable on purpose so unmapped lines persist.
 """
 
+from .acquisitions import Acquisition, AcquisitionPhoto
 from .app_secret import AppSecret
 from .base import Base
 from .comps import Comp
-from .deals import Deal, DealPhoto
 from .feedback import (
     FeedbackAttachment,
     FeedbackComment,
@@ -15,7 +15,7 @@ from .feedback import (
     FeedbackItem,
 )
 from .financials import FinancialLine, FinancialPeriod
-from .gates import DealGateItem, QuestionSuggestion
+from .gates import AcquisitionGateItem, QuestionSuggestion
 from .market import PopulationRing
 from .property import Amenity, Booking, Unit, WeeklySummary
 from .reference import GateQuestion, GLAccount, GLMappingLearned
@@ -30,8 +30,8 @@ from .underwriting import (
 __all__ = [
     "Base",
     "AppSecret",
-    "Deal",
-    "DealPhoto",
+    "Acquisition",
+    "AcquisitionPhoto",
     "GLAccount",
     "GLMappingLearned",
     "GateQuestion",
@@ -47,7 +47,7 @@ __all__ = [
     "ProformaResult",
     "ProformaSummary",
     "Comp",
-    "DealGateItem",
+    "AcquisitionGateItem",
     "QuestionSuggestion",
     "PopulationRing",
     "FeedbackItem",

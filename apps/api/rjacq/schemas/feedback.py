@@ -15,7 +15,7 @@ class FeedbackContext(BaseModel):
     """Silently auto-captured on every submission (§5.10)."""
 
     page_route: str | None = None
-    deal_id: str | None = None
+    acquisition_id: str | None = None
     app_version: str | None = None
     browser: str | None = None
     os: str | None = None
@@ -45,7 +45,7 @@ class FeedbackOut(ApiModel):
     submitted_by: str | None = None
     role: str | None = None
     page_route: str | None = None
-    deal_id: str | None = None
+    acquisition_id: str | None = None
     app_version: str | None = None
     created_at: datetime | None = None
 

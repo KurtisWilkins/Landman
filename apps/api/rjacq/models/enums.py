@@ -27,7 +27,7 @@ class Phase(str, enum.Enum):
     CLOSE = "close"
 
 
-class DealStatus(str, enum.Enum):
+class AcquisitionStatus(str, enum.Enum):
     ACTIVE = "active"
     FAILED = "failed"
     ON_ICE = "on_ice"

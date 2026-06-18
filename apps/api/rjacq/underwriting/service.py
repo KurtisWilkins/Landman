@@ -2,7 +2,7 @@
 
 Recompute-on-change uses the pure engine. The projection from assumptions to yearly lines
 and the default financing terms are unresolved decisions (§14 A-1..A-4) and are NOT invented
-here; until a deal carries a stored pro forma (computed by ingestion/SHIELD once those land),
+here; until a acquisition carries a stored pro forma (computed by ingestion/SHIELD once those land),
 an override records provenance and returns the current pro forma without fabricating numbers.
 """
 
@@ -31,10 +31,10 @@ class UnderwritingError(Exception):
         self.message = message
 
 
-async def get_proforma(session: AsyncSession, deal_id: str) -> ProformaResults:
+async def get_proforma(session: AsyncSession, acquisition_id: str) -> ProformaResults:
     """Assemble the §9 ProformaResults from persisted results + summary (read-only)."""
-    rows = await repo.get_results(session, deal_id)
-    summary = await repo.get_summary(session, deal_id)
+    rows = await repo.get_results(session, acquisition_id)
+    summary = await repo.get_summary(session, acquisition_id)
     years = [
         ProformaYear(
             yr=r.yr,
@@ -64,15 +64,17 @@ async def get_proforma(session: AsyncSession, deal_id: str) -> ProformaResults:
     )
 
 
-async def store_proforma(session: AsyncSession, deal_id: str, output: ProformaOutput) -> None:
+async def store_proforma(
+    session: AsyncSession, acquisition_id: str, output: ProformaOutput
+) -> None:
     """Persist a computed pro forma (used by ingestion/SHIELD recompute paths and tests)."""
-    await repo.replace_proforma(session, deal_id, output)
-    log.info("underwriting.proforma_stored", deal_id=deal_id)
+    await repo.replace_proforma(session, acquisition_id, output)
+    log.info("underwriting.proforma_stored", acquisition_id=acquisition_id)
 
 
 async def override_assumption(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     *,
     key: str,
     override_value: Decimal,
@@ -80,17 +82,21 @@ async def override_assumption(
     author: str,
 ) -> ProformaResults:
     """Record an assumption override with provenance (baseline retained), then return the
-    current pro forma. A full recompute runs once the deal carries the inputs needed to
+    current pro forma. A full recompute runs once the acquisition carries the inputs needed to
     project yearly lines (unresolved A-1..A-4); we never fabricate them here.
     """
-    assumption = await repo.get_assumption(session, deal_id, key)
+    assumption = await repo.get_assumption(session, acquisition_id, key)
     if assumption is None:
-        raise UnderwritingError("assumption_not_found", f"No assumption '{key}' for this deal.")
+        raise UnderwritingError(
+            "assumption_not_found", f"No assumption '{key}' for this acquisition."
+        )
     # Provenance: baseline_value is untouched; the override + author + note are recorded.
     assumption.override_value = override_value
     assumption.is_overridden = True
     assumption.overridden_by = author
     assumption.note = note
     await session.flush()
-    log.info("underwriting.assumption_overridden", deal_id=deal_id, key=key, by=author)
-    return await get_proforma(session, deal_id)
+    log.info(
+        "underwriting.assumption_overridden", acquisition_id=acquisition_id, key=key, by=author
+    )
+    return await get_proforma(session, acquisition_id)
