@@ -173,8 +173,11 @@ Build the first images **server-side in ACR** (no local Docker — works in Azur
 
 ```bash
 SHA=$(git rev-parse --short=12 HEAD)
-az acr build --registry $ACR -f apps/api/Dockerfile     -t rjacq-api:$SHA .
-( cd apps/web && az acr build --registry $ACR -f Dockerfile.prod -t rjacq-web:$SHA . )
+# Pull base images from Google's Docker Hub mirror (no anonymous pull-rate limit) — the same
+# BASE_REGISTRY the deploy.yml pipeline passes. Omit it and an `az acr build` can fail with
+# Docker Hub "toomanyrequests: unauthenticated pull rate limit".
+az acr build --registry $ACR -f apps/api/Dockerfile --build-arg BASE_REGISTRY=mirror.gcr.io/library/ -t rjacq-api:$SHA .
+( cd apps/web && az acr build --registry $ACR -f Dockerfile.prod --build-arg BASE_REGISTRY=mirror.gcr.io/library/ -t rjacq-web:$SHA . )
 ```
 
 Create the apps. The **API is internal**; the **web is the only public ingress**:

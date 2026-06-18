@@ -184,9 +184,9 @@ export function PromoteTab({ dealId }: { dealId: string }) {
       {/* Source-of-cash-flows banner: pro-forma-fed vs. interim return case. */}
       {sourced ? (
         <p className="rounded border border-brand/20 bg-brand/5 p-2 text-xs">
-          Cash flows are sourced from this deal&apos;s <span className="font-medium">pro forma</span>{" "}
-          ({holdYears}-year hold). Edit the pro forma to change them; only promote assumptions are
-          entered here.
+          Cash flows are sourced from this deal&apos;s{" "}
+          <span className="font-medium">pro forma</span> ({holdYears}-year hold). Edit the pro forma
+          to change them; only promote assumptions are entered here.
         </p>
       ) : (
         <p className="rounded border border-accent/40 bg-accent/10 p-2 text-xs text-accent-ink">

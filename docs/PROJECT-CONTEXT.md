@@ -84,8 +84,11 @@ is unit-tested against the spreadsheet's worked example. Each deal feeds the sam
 its own inputs and is computed **independently (deal-by-deal)**.
 - Engine: `apps/api/rjacq/underwriting/promote.py` (`run_promote_waterfall(PromoteInputs)`)
 - API: `apps/api/rjacq/api/promote.py` · schemas `schemas/promote.py`
-- UI: `apps/web/src/routes/Promote.tsx`
-- Tests / regression: `apps/api/tests/test_promote.py`, `tests/test_promote_api.py`
+- UI: `apps/web/src/routes/deal/PromoteTab.tsx` — a **per-deal tab beside the pro forma** (PR #30),
+  fed by that deal's pro forma cash flows (interim return-case fallback until the pro forma
+  projection lands)
+- Tests / regression: `apps/api/tests/test_promote.py`, `tests/test_promote_api.py`,
+  `apps/web/src/routes/deal/PromoteTab.test.tsx`
 
 **Engine logic** — reconstructs the **promote spreadsheet, sheet "Waterfall Template"** (the
 worked example is pinned in `test_promote.py`; the source `.xlsx` itself is not committed):
@@ -104,10 +107,11 @@ worked example is pinned in `test_promote.py`; the source `.xlsx` itself is not 
 - **Regression (default scenario, asserted in `test_promote.py`):** Deal-Level **18.6% / 2.23x**;
   Partner **17.5% / 2.13x**; RJourney **27.6% / 3.19x**.
 
-**Views status:** the engine + API + a `Promote` route exist. Wiring the pipeline-overview
-columns (per-deal Partner/RJourney/Deal-Level IRR & MOIC) and fully live editable deal-detail
-inputs is the remaining product surface to confirm — check `routes/Pipeline.tsx` and
-`routes/Promote.tsx` against the "Views" intent before assuming it's all wired.
+**Views status:** the engine + API + the per-deal **Promote tab** (`routes/deal/PromoteTab.tsx`,
+beside Pro forma) are live (PR #30). The pipeline-overview promote columns (per-deal
+Partner/RJourney/Deal-Level IRR & MOIC) are **deferred** — tracked in issue #29 — until deals
+carry a computed pro forma to surface; true edit-pro-forma→promote flow-through also waits on the
+pro-forma projection engine (§14 A-1..A-4).
 
 ## Naming rules (strict)
 
