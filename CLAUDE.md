@@ -4,8 +4,8 @@ Operating rules for any Claude Code session (interactive or GitHub Action) worki
 repository. Keep this file the single, concise source of *how we build*; the **what** lives in
 `docs/rjourney-acquisitions-design-document-v0.2.md` (the design doc).
 
-> **Get up to speed first:** read @docs/PROJECT-CONTEXT.md — current state, the active rebrand to
-> rjourney.com, and the re-spec of the promote waterfall (Partner Equity / RJourney Equity).
+> **Get up to speed first:** read @docs/PROJECT-CONTEXT.md — current state, the rjourney.com brand
+> system, and the deal-by-deal promote waterfall (Partner Equity / RJourney Equity).
 > Where it and the older design doc disagree, PROJECT-CONTEXT.md is the newer intent.
 
 ---
@@ -82,7 +82,7 @@ A PR must pass `make lint` and `make test` before it is opened.
 - `strict` on; no `any` without a `// eslint-disable` justification.
 - Server state via TanStack Query; local UI state via hooks. No global mutable singletons.
 - Components are presentational where possible; data-fetching lives in hooks.
-- Tailwind utility classes; match the design tokens (forest ink, bone paper, brass accent, mono for figures) from the wireframe. Mobile-first, then `md:`/`lg:`.
+- Tailwind utility classes; use the brand tokens (`brand` navy, `accent` gold, `ink`, `paper`/`surface`, `figure` mono) defined in `apps/web/tailwind.config.ts` — the single theme source, extracted from rjourney.com. Mobile-first, then `md:`/`lg:`.
 - **No browser storage** (`localStorage`/`sessionStorage`) for app state; use query cache + server.
 
 **API design**
