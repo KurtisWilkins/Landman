@@ -44,7 +44,7 @@ describe("FinancialVersions", () => {
   it("lists retained versions and activates an older one (never deletes)", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string, init?: RequestInit) => {
+      vi.fn(async (_url: string, init?: RequestInit) => {
         if ((init?.method ?? "GET") === "POST") return jsonResponse(VERSIONS);
         return jsonResponse(VERSIONS);
       }),
