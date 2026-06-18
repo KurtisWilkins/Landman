@@ -33,7 +33,7 @@ function renderVersions() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <FinancialVersions dealId="dl_1" />
+      <FinancialVersions acquisitionId="dl_1" />
     </QueryClientProvider>,
   );
 }
@@ -61,7 +61,7 @@ describe("FinancialVersions", () => {
     const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(([, i]) => (i as RequestInit)?.method === "POST");
-      expect(post?.[0]).toContain("/deals/dl_1/financial-periods/fp_old/activate");
+      expect(post?.[0]).toContain("/acquisitions/dl_1/financial-periods/fp_old/activate");
     });
   });
 
@@ -74,7 +74,7 @@ describe("FinancialVersions", () => {
       const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       return render(
         <QueryClientProvider client={qc}>
-          <FinancialVersions dealId="dl_1" />
+          <FinancialVersions acquisitionId="dl_1" />
         </QueryClientProvider>,
       );
     })();

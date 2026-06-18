@@ -1,7 +1,7 @@
 """Underwriting tables (§8.4 — Underwriting).
 
 Assumptions record SHIELD baseline + override + author + note (provenance). Hurdle
-thresholds and waterfall splits are per-deal data; their *defaults* are config, never
+thresholds and waterfall splits are per-acquisition data; their *defaults* are config, never
 literals baked into code ([DECISION] A-1/A-2).
 """
 
@@ -19,7 +19,9 @@ class Assumption(Base):
     __tablename__ = "assumptions"
 
     assumption_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     key: Mapped[str] = mapped_column(String, nullable=False)
     label: Mapped[str | None] = mapped_column(String)
     baseline_value: Mapped[Decimal | None] = mapped_column(Numeric)
@@ -34,10 +36,12 @@ class Hurdle(Base):
     __tablename__ = "hurdles"
 
     hurdle_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     metric: Mapped[str] = mapped_column(String, nullable=False)
     default_threshold: Mapped[Decimal | None] = mapped_column(Numeric)
-    deal_threshold: Mapped[Decimal | None] = mapped_column(Numeric)
+    acquisition_threshold: Mapped[Decimal | None] = mapped_column(Numeric)
     actual_value: Mapped[Decimal | None] = mapped_column(Numeric)
     passes: Mapped[bool | None] = mapped_column(Boolean)
 
@@ -46,7 +50,9 @@ class WaterfallTier(Base):
     __tablename__ = "waterfall_tiers"
 
     tier_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     tier: Mapped[int] = mapped_column(Integer, nullable=False)
     irr_floor: Mapped[Decimal | None] = mapped_column(Numeric)
     irr_ceiling: Mapped[Decimal | None] = mapped_column(Numeric)  # null = top tier
@@ -58,7 +64,9 @@ class ProformaResult(Base):
     __tablename__ = "proforma_results"
 
     result_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     yr: Mapped[int] = mapped_column(Integer, nullable=False)
     revenue: Mapped[Decimal | None] = mapped_column(Numeric)
     opex: Mapped[Decimal | None] = mapped_column(Numeric)
@@ -71,7 +79,9 @@ class ProformaResult(Base):
 class ProformaSummary(Base):
     __tablename__ = "proforma_summary"
 
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), primary_key=True)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), primary_key=True
+    )
     levered_irr: Mapped[Decimal | None] = mapped_column(Numeric)
     equity_multiple: Mapped[Decimal | None] = mapped_column(Numeric)
     equity_basis: Mapped[Decimal | None] = mapped_column(Numeric)

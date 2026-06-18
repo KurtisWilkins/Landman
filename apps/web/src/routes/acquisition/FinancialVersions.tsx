@@ -11,9 +11,9 @@ function formatWhen(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
-export function FinancialVersions({ dealId }: { dealId: string }) {
-  const { data, isLoading } = useFinancialPeriods(dealId);
-  const activate = useActivateFinancialPeriod(dealId);
+export function FinancialVersions({ acquisitionId }: { acquisitionId: string }) {
+  const { data, isLoading } = useFinancialPeriods(acquisitionId);
+  const activate = useActivateFinancialPeriod(acquisitionId);
 
   if (isLoading) return null;
   const versions = data ?? [];

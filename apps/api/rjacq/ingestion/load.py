@@ -52,7 +52,7 @@ def _match_unit_type(label: str) -> UnitType | None:
 
 async def load_pnl(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     *,
     period_label: str,
     lines: Sequence[ParsedLine],
@@ -60,21 +60,23 @@ async def load_pnl(
 ) -> tuple[str, int]:
     """Create a financial period and load lines unmapped with raw_payload retained.
 
-    Each upload is a new, dated version: prior versions for the deal are demoted to
+    Each upload is a new, dated version: prior versions for the acquisition are demoted to
     ``is_current=False`` (retained, never deleted) and the new one becomes current (§5.2,
     append-never-overwrite). An operator can re-activate an older version later.
     """
-    # Demote any existing current version for this deal — an UPDATE, not a delete (history kept).
+    # Demote any existing current version for this acquisition — an UPDATE, not a delete.
     await session.execute(
         update(FinancialPeriod)
-        .where(FinancialPeriod.deal_id == deal_id, FinancialPeriod.is_current.is_(True))
+        .where(
+            FinancialPeriod.acquisition_id == acquisition_id, FinancialPeriod.is_current.is_(True)
+        )
         .values(is_current=False)
     )
     period_id = _new_id("fp")
     session.add(
         FinancialPeriod(
             period_id=period_id,
-            deal_id=deal_id,
+            acquisition_id=acquisition_id,
             label=period_label,
             granularity="t12",
             source_filename=source_filename,
@@ -86,7 +88,7 @@ async def load_pnl(
         session.add(
             FinancialLine(
                 line_id=_new_id("fl"),
-                deal_id=deal_id,
+                acquisition_id=acquisition_id,
                 period_id=period_id,
                 account_code=None,  # unmapped — mapping engine proposes later (§5.3)
                 map_confidence=MapConfidence.UNMAPPED,
@@ -101,7 +103,7 @@ async def load_pnl(
 
 
 async def load_units(
-    session: AsyncSession, deal_id: str, units: Sequence[ParsedUnit]
+    session: AsyncSession, acquisition_id: str, units: Sequence[ParsedUnit]
 ) -> tuple[int, int]:
     """Load unit-mix rows; returns (loaded, skipped_unknown_types)."""
     loaded = skipped = 0
@@ -110,7 +112,9 @@ async def load_units(
         if ut is None:
             skipped += 1
             continue
-        session.add(Unit(unit_id=_new_id("un"), deal_id=deal_id, unit_type=ut, count=u.count))
+        session.add(
+            Unit(unit_id=_new_id("un"), acquisition_id=acquisition_id, unit_type=ut, count=u.count)
+        )
         loaded += 1
     await session.flush()
     return loaded, skipped

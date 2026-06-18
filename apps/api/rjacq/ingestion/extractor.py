@@ -35,7 +35,7 @@ class OmFinancialLine:
 
 @dataclass(frozen=True)
 class OmProposal:
-    """AI-proposed deal header + financial lines from an OM. A human reviews before accepting."""
+    """AI-proposed acquisition header + financial lines from an OM (human-reviewed)."""
 
     name: str | None = None
     property_type: PropertyType | None = None
@@ -58,7 +58,7 @@ _OM_TOOL: dict[str, Any] = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "name": {"type": "string", "description": "Property / deal name."},
+            "name": {"type": "string", "description": "Property / acquisition name."},
             "property_type": {
                 "type": "string",
                 "enum": _PROPERTY_TYPES,
@@ -95,7 +95,8 @@ _OM_TOOL: dict[str, Any] = {
 
 _PROMPT = (
     "You are extracting structured acquisition data from an RV-resort / campground offering "
-    "memorandum (OM). Read the document and call record_offering_memorandum with the deal header "
+    "memorandum (OM). Read the document and call record_offering_memorandum with the "
+    "acquisition header "
     "and the income/expense line items from its financial summary (trailing-12, pro forma, or "
     "operating statement). Use only values the OM states; omit any field you cannot find. Do not "
     "fabricate financials."

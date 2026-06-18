@@ -14,8 +14,8 @@ from rjacq.ingestion.detect import detect_sheet_type
 from rjacq.ingestion.parse import parse_csv, parse_xlsx
 from rjacq.ingestion.records import pnl_to_lines, to_decimal
 from rjacq.ingestion.service import IngestError
-from rjacq.models.deals import Deal
-from rjacq.models.enums import DealStatus, MapConfidence, Phase, PropertyType
+from rjacq.models.acquisitions import Acquisition
+from rjacq.models.enums import AcquisitionStatus, MapConfidence, Phase, PropertyType
 from rjacq.models.financials import FinancialLine
 from rjacq.models.property import Unit
 from sqlalchemy import select
@@ -138,32 +138,36 @@ async def session(migrated_db: str) -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
-async def _deal(session: AsyncSession) -> str:
-    deal_id = f"dl_{uuid.uuid4().hex[:12]}"
+async def _acquisition(session: AsyncSession) -> str:
+    acquisition_id = f"dl_{uuid.uuid4().hex[:12]}"
     session.add(
-        Deal(
-            deal_id=deal_id,
+        Acquisition(
+            acquisition_id=acquisition_id,
             name="Ingestion Test Park",
             property_type=PropertyType.RV_RESORT,
             current_phase=Phase.INITIAL_UW,
-            status=DealStatus.ACTIVE,
+            status=AcquisitionStatus.ACTIVE,
         )
     )
     await session.flush()
-    return deal_id
+    return acquisition_id
 
 
 async def test_ingest_pnl_loads_unmapped_with_raw_payload(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     csv = b"Account,Amount\nSite Rental Income,2680000\nMarketing,96000\n"
     result = await ingest.ingest_document(
-        session, deal_id, filename="pnl.csv", content_type="text/csv", data=csv
+        session, acquisition_id, filename="pnl.csv", content_type="text/csv", data=csv
     )
     assert result.sheet_type == "pnl"
     assert result.financial_lines_loaded == 2
 
     lines = (
-        (await session.execute(select(FinancialLine).where(FinancialLine.deal_id == deal_id)))
+        (
+            await session.execute(
+                select(FinancialLine).where(FinancialLine.acquisition_id == acquisition_id)
+            )
+        )
         .scalars()
         .all()
     )
@@ -176,15 +180,19 @@ async def test_ingest_pnl_loads_unmapped_with_raw_payload(session: AsyncSession)
 
 
 async def test_ingest_quickbooks_recap_pnl(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     result = await ingest.ingest_document(
-        session, deal_id, filename="recap.csv", content_type="text/csv", data=_recap_csv()
+        session, acquisition_id, filename="recap.csv", content_type="text/csv", data=_recap_csv()
     )
     assert result.sheet_type == "pnl"
     assert result.financial_lines_loaded == 3  # leaves only; subtotals/sections excluded
 
     lines = (
-        (await session.execute(select(FinancialLine).where(FinancialLine.deal_id == deal_id)))
+        (
+            await session.execute(
+                select(FinancialLine).where(FinancialLine.acquisition_id == acquisition_id)
+            )
+        )
         .scalars()
         .all()
     )
@@ -199,66 +207,78 @@ async def test_reupload_versions_keep_history_and_switch_active(session: AsyncSe
     from rjacq.ingestion import periods
     from rjacq.mapping.repository import list_lines
 
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     v1 = b"Account,Amount\nSite Rental Income,2680000\n"
     v2 = b"Account,Amount\nSite Rental Income,2750000\nLaundry,4200\n"
     r1 = await ingest.ingest_document(
-        session, deal_id, filename="pnl-2023.csv", content_type="text/csv", data=v1
+        session, acquisition_id, filename="pnl-2023.csv", content_type="text/csv", data=v1
     )
     r2 = await ingest.ingest_document(
-        session, deal_id, filename="pnl-2024.csv", content_type="text/csv", data=v2
+        session, acquisition_id, filename="pnl-2024.csv", content_type="text/csv", data=v2
     )
     assert r1.period_id != r2.period_id  # each upload is its own dated version
 
     # Both versions are retained; exactly one is current (the newest), nothing deleted.
-    versions = await periods.list_periods(session, deal_id)
+    versions = await periods.list_periods(session, acquisition_id)
     assert len(versions) == 2
     current = [p for p, _ in versions if p.is_current]
     assert len(current) == 1 and current[0].period_id == r2.period_id
     assert {p.source_filename for p, _ in versions} == {"pnl-2023.csv", "pnl-2024.csv"}
 
     # The GL view shows only the active version's lines (no bleed across versions).
-    active_lines = await list_lines(session, deal_id)
+    active_lines = await list_lines(session, acquisition_id)
     assert {line_.seller_source_line for line_ in active_lines} == {"Site Rental Income", "Laundry"}
 
     # Re-activating the older version switches the view back — and keeps the newer one on disk.
-    ok = await periods.activate_period(session, deal_id, r1.period_id)
+    ok = await periods.activate_period(session, acquisition_id, r1.period_id)
     assert ok
-    active_lines = await list_lines(session, deal_id)
+    active_lines = await list_lines(session, acquisition_id)
     assert {line_.seller_source_line for line_ in active_lines} == {"Site Rental Income"}
-    assert len(await periods.list_periods(session, deal_id)) == 2  # nothing dropped
+    assert len(await periods.list_periods(session, acquisition_id)) == 2  # nothing dropped
 
-    # Activating a period from another deal is rejected (no cross-deal mutation).
-    other = await _deal(session)
+    # Activating a period from another acquisition is rejected (no cross-acquisition mutation).
+    other = await _acquisition(session)
     assert await periods.activate_period(session, other, r1.period_id) is False
 
 
 async def test_ingest_unit_mix_maps_known_skips_unknown(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     csv = b"Unit Type,Count\nRV Pull-Through,96\nUFO Pad,3\n"
     result = await ingest.ingest_document(
-        session, deal_id, filename="units.csv", content_type="text/csv", data=csv
+        session, acquisition_id, filename="units.csv", content_type="text/csv", data=csv
     )
     assert result.sheet_type == "unit_mix"
     assert result.units_loaded == 1  # RV Pull-Through mapped
     assert result.units_skipped == 1  # UFO Pad unknown — skipped, not failed
-    units = (await session.execute(select(Unit).where(Unit.deal_id == deal_id))).scalars().all()
+    units = (
+        (await session.execute(select(Unit).where(Unit.acquisition_id == acquisition_id)))
+        .scalars()
+        .all()
+    )
     assert len(units) == 1
 
 
 async def test_ingest_pdf_without_extractor_raises(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     with pytest.raises(IngestError) as ei:
         await ingest.ingest_document(
-            session, deal_id, filename="deal.pdf", content_type="application/pdf", data=b"%PDF-1.4"
+            session,
+            acquisition_id,
+            filename="acquisition.pdf",
+            content_type="application/pdf",
+            data=b"%PDF-1.4",
         )
     assert ei.value.code == "pdf_extractor_not_configured"
 
 
 async def test_ingest_unknown_sheet_is_reported_not_failed(session: AsyncSession) -> None:
-    deal_id = await _deal(session)
+    acquisition_id = await _acquisition(session)
     result = await ingest.ingest_document(
-        session, deal_id, filename="misc.csv", content_type="text/csv", data=b"Foo,Bar\n1,2\n"
+        session,
+        acquisition_id,
+        filename="misc.csv",
+        content_type="text/csv",
+        data=b"Foo,Bar\n1,2\n",
     )
     assert result.sheet_type == "unknown"
     assert result.financial_lines_loaded == 0

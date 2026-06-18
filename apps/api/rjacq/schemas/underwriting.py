@@ -23,7 +23,7 @@ class Assumption(ApiModel):
 class Hurdle(ApiModel):
     metric: str
     default_threshold: Decimal | None = None
-    deal_threshold: Decimal | None = None
+    acquisition_threshold: Decimal | None = None
     actual: Decimal | None = Field(default=None, alias="actual_value")
     passes: bool | None = None
 
@@ -71,7 +71,7 @@ class UnderwritingDoc(BaseModel):
 
 
 class AssumptionOverride(BaseModel):
-    """PATCH /deals/{id}/assumptions — records author + note (provenance)."""
+    """PATCH /acquisitions/{id}/assumptions — records author + note (provenance)."""
 
     key: str
     override_value: Decimal

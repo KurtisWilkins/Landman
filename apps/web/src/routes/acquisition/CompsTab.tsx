@@ -18,8 +18,8 @@ function n(v: unknown): number {
   return Number(v ?? 0);
 }
 
-export function CompsTab({ dealId }: { dealId: string }) {
-  const { data, isLoading, error } = useComps(dealId);
+export function CompsTab({ acquisitionId }: { acquisitionId: string }) {
+  const { data, isLoading, error } = useComps(acquisitionId);
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)

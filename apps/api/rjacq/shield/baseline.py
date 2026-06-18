@@ -19,7 +19,7 @@ class MetricSpec:
     """A baseline metric to derive from SHIELD portfolio actuals.
 
     ``column`` is the source field on each row; ``aggregation`` ∈ {avg, sum, min, max}.
-    ``key``/``label`` map onto a deal assumption.
+    ``key``/``label`` map onto a acquisition assumption.
     """
 
     key: str

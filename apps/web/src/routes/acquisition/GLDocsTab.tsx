@@ -1,5 +1,5 @@
 /**
- * GL / Docs tab (design doc §5.3): the GL mapping review for the deal — each seller line
+ * GL / Docs tab (design doc §5.3): the GL mapping review for the acquisition — each seller line
  * with its proposed account, level, and confidence. Live data arrives with the ingestion /
  * mapping backend; until then the tab degrades gracefully.
  */
@@ -7,18 +7,18 @@ import { useMapping } from "../../api/hooks";
 import { DocUpload } from "./DocUpload";
 import { FinancialVersions } from "./FinancialVersions";
 
-export function GLDocsTab({ dealId }: { dealId: string }) {
+export function GLDocsTab({ acquisitionId }: { acquisitionId: string }) {
   return (
     <div className="space-y-4">
-      <DocUpload dealId={dealId} />
-      <FinancialVersions dealId={dealId} />
-      <MappingReview dealId={dealId} />
+      <DocUpload acquisitionId={acquisitionId} />
+      <FinancialVersions acquisitionId={acquisitionId} />
+      <MappingReview acquisitionId={acquisitionId} />
     </div>
   );
 }
 
-function MappingReview({ dealId }: { dealId: string }) {
-  const { data, isLoading, error } = useMapping(dealId);
+function MappingReview({ acquisitionId }: { acquisitionId: string }) {
+  const { data, isLoading, error } = useMapping(acquisitionId);
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)

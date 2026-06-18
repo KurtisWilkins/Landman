@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.enums import Phase, RouteType, SuggestionStatus, SuggestionType
-from ..models.gates import DealGateItem, QuestionSuggestion
+from ..models.gates import AcquisitionGateItem, QuestionSuggestion
 from ..models.reference import GateQuestion
 
 
@@ -117,9 +117,11 @@ async def set_suggestion_decision(
     return suggestion
 
 
-# ── deal_gate_items (per-deal) ──────────────────────────────────────────────
+# ── acquisition_gate_items (per-acquisition) ──────────────────────────────────────────────
 
 
-async def list_deal_gate_items(session: AsyncSession, deal_id: str) -> Sequence[DealGateItem]:
-    stmt = select(DealGateItem).where(DealGateItem.deal_id == deal_id)
+async def list_acquisition_gate_items(
+    session: AsyncSession, acquisition_id: str
+) -> Sequence[AcquisitionGateItem]:
+    stmt = select(AcquisitionGateItem).where(AcquisitionGateItem.acquisition_id == acquisition_id)
     return (await session.execute(stmt)).scalars().all()

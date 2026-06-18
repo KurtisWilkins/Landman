@@ -8,8 +8,8 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from rjacq.models.deals import Deal
-from rjacq.models.enums import DealStatus, Phase, PropertyType
+from rjacq.models.acquisitions import Acquisition
+from rjacq.models.enums import AcquisitionStatus, Phase, PropertyType
 from rjacq.models.underwriting import Assumption
 from rjacq.underwriting import engine as e
 from rjacq.underwriting import repository as repo
@@ -166,23 +166,23 @@ async def session(migrated_db: str) -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
-async def _make_deal(session: AsyncSession) -> str:
-    deal_id = f"dl_{uuid.uuid4().hex[:12]}"
+async def _make_acquisition(session: AsyncSession) -> str:
+    acquisition_id = f"dl_{uuid.uuid4().hex[:12]}"
     session.add(
-        Deal(
-            deal_id=deal_id,
+        Acquisition(
+            acquisition_id=acquisition_id,
             name="Underwriting Test Park",
             property_type=PropertyType.RV_RESORT,
             current_phase=Phase.INITIAL_UW,
-            status=DealStatus.ACTIVE,
+            status=AcquisitionStatus.ACTIVE,
         )
     )
     await session.flush()
-    return deal_id
+    return acquisition_id
 
 
 async def test_store_and_get_proforma_roundtrip(session: AsyncSession) -> None:
-    deal_id = await _make_deal(session)
+    acquisition_id = await _make_acquisition(session)
     years = [e.YearInput(Decimal("300"), Decimal("100"), Decimal("50"), Decimal("10"))] * 5
     output = e.build_proforma(
         years=years,
@@ -191,10 +191,10 @@ async def test_store_and_get_proforma_roundtrip(session: AsyncSession) -> None:
         exit_cap=Decimal("0.08"),
         debt_payoff=Decimal("1000"),
     )
-    await svc.store_proforma(session, deal_id, output)
+    await svc.store_proforma(session, acquisition_id, output)
     await session.commit()
 
-    results = await svc.get_proforma(session, deal_id)
+    results = await svc.get_proforma(session, acquisition_id)
     assert len(results.years) == 5
     assert results.years[0].noi == Decimal("200")
     assert results.equity_multiple == Decimal("4.4")
@@ -203,11 +203,11 @@ async def test_store_and_get_proforma_roundtrip(session: AsyncSession) -> None:
 
 
 async def test_override_assumption_records_provenance(session: AsyncSession) -> None:
-    deal_id = await _make_deal(session)
+    acquisition_id = await _make_acquisition(session)
     session.add(
         Assumption(
             assumption_id=f"as_{uuid.uuid4().hex[:12]}",
-            deal_id=deal_id,
+            acquisition_id=acquisition_id,
             key="stabilized_occupancy",
             label="Stabilized occupancy",
             baseline_value=Decimal("0.60"),
@@ -219,7 +219,7 @@ async def test_override_assumption_records_provenance(session: AsyncSession) -> 
 
     await svc.override_assumption(
         session,
-        deal_id,
+        acquisition_id,
         key="stabilized_occupancy",
         override_value=Decimal("0.55"),
         note="Tougher shoulder season here",
@@ -227,7 +227,7 @@ async def test_override_assumption_records_provenance(session: AsyncSession) -> 
     )
     await session.commit()
 
-    a = await repo.get_assumption(session, deal_id, "stabilized_occupancy")
+    a = await repo.get_assumption(session, acquisition_id, "stabilized_occupancy")
     assert a is not None
     assert a.baseline_value == Decimal("0.60")  # baseline retained (provenance)
     assert a.override_value == Decimal("0.55")
@@ -237,9 +237,14 @@ async def test_override_assumption_records_provenance(session: AsyncSession) -> 
 
 
 async def test_override_missing_assumption_raises(session: AsyncSession) -> None:
-    deal_id = await _make_deal(session)
+    acquisition_id = await _make_acquisition(session)
     with pytest.raises(svc.UnderwritingError) as ei:
         await svc.override_assumption(
-            session, deal_id, key="nope", override_value=Decimal("1"), note=None, author="kurtis"
+            session,
+            acquisition_id,
+            key="nope",
+            override_value=Decimal("1"),
+            note=None,
+            author="kurtis",
         )
     assert ei.value.code == "assumption_not_found"

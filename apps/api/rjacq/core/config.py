@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     ms_graph_tenant_id: str | None = None
     ms_graph_client_id: str | None = None
     ms_graph_client_secret: str | None = None
-    deal_intake_mailbox: str | None = None
+    acquisition_intake_mailbox: str | None = None
     inbound_parse_signing_secret: str | None = None
 
     # ── Feedback → Claude Code dispatch (GitHub) ──  TODO(decision: §14 C-28/C-29)

@@ -6,10 +6,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "./types";
 import { apiFetch, apiUpload, type Schemas } from "./client";
 
-type DealSummary = Schemas["DealSummary"];
-type DealDocument = Schemas["DealDocument"];
-type DealCreate = Schemas["DealCreate"];
-/** Result of POST /deals/{id}/documents (endpoint returns an untyped dict, so typed here). */
+type AcquisitionSummary = Schemas["AcquisitionSummary"];
+type AcquisitionDocument = Schemas["AcquisitionDocument"];
+type AcquisitionCreate = Schemas["AcquisitionCreate"];
+/** Result of POST /acquisitions/{id}/documents (endpoint returns an untyped dict, so typed here). */
 export type UploadResult = {
   status: string;
   sheet_type: string;
@@ -34,17 +34,20 @@ type SuggestionStatus = components["schemas"]["SuggestionStatus"];
 export function usePipeline(filters?: { phase?: Phase }) {
   const qs = filters?.phase ? `?phase=${filters.phase}` : "";
   return useQuery({
-    queryKey: ["deals", filters ?? {}],
-    queryFn: () => apiFetch<DealSummary[]>(`/deals${qs}`),
+    queryKey: ["acquisitions", filters ?? {}],
+    queryFn: () => apiFetch<AcquisitionSummary[]>(`/acquisitions${qs}`),
   });
 }
 
-export function useCreateDeal() {
+export function useCreateAcquisition() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: DealCreate) =>
-      apiFetch<DealDocument>("/deals", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["deals"] }),
+    mutationFn: (body: AcquisitionCreate) =>
+      apiFetch<AcquisitionDocument>("/acquisitions", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisitions"] }),
   });
 }
 
@@ -53,45 +56,47 @@ type OmProposal = Schemas["OmProposal"];
 export function useExtractOm() {
   // Extracts a reviewable proposal from an OM PDF (nothing is persisted server-side).
   return useMutation({
-    mutationFn: (file: File) => apiUpload<OmProposal>("/deals/extract-om", file),
+    mutationFn: (file: File) => apiUpload<OmProposal>("/acquisitions/extract-om", file),
   });
 }
 
-export function useUploadDocument(dealId: string) {
+export function useUploadDocument(acquisitionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => apiUpload<UploadResult>(`/deals/${dealId}/documents`, file),
+    mutationFn: (file: File) =>
+      apiUpload<UploadResult>(`/acquisitions/${acquisitionId}/documents`, file),
     onSuccess: () => {
       // The upload adds a new financials version + refreshes the mapping queue.
-      qc.invalidateQueries({ queryKey: ["deal", dealId] });
-      qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
-      qc.invalidateQueries({ queryKey: ["deal", dealId, "financial-periods"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "mapping"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "financial-periods"] });
     },
   });
 }
 
 type FinancialPeriodVersion = Schemas["FinancialPeriodVersion"];
 
-export function useFinancialPeriods(dealId: string) {
+export function useFinancialPeriods(acquisitionId: string) {
   // Dated, retained upload versions; the current one feeds the GL view.
   return useQuery({
-    queryKey: ["deal", dealId, "financial-periods"],
-    queryFn: () => apiFetch<FinancialPeriodVersion[]>(`/deals/${dealId}/financial-periods`),
+    queryKey: ["acquisition", acquisitionId, "financial-periods"],
+    queryFn: () =>
+      apiFetch<FinancialPeriodVersion[]>(`/acquisitions/${acquisitionId}/financial-periods`),
   });
 }
 
-export function useActivateFinancialPeriod(dealId: string) {
+export function useActivateFinancialPeriod(acquisitionId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (periodId: string) =>
       apiFetch<FinancialPeriodVersion[]>(
-        `/deals/${dealId}/financial-periods/${periodId}/activate`,
+        `/acquisitions/${acquisitionId}/financial-periods/${periodId}/activate`,
         { method: "POST" },
       ),
     onSuccess: () => {
       // Switching the active version changes which lines the GL view shows.
-      qc.invalidateQueries({ queryKey: ["deal", dealId, "financial-periods"] });
-      qc.invalidateQueries({ queryKey: ["deal", dealId, "mapping"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "financial-periods"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "mapping"] });
     },
   });
 }
@@ -100,7 +105,7 @@ type PromoteRequest = Schemas["PromoteRequest"];
 type PromoteResponse = Schemas["PromoteResponse"];
 
 export function usePromoteWaterfall() {
-  // Stateless calculator: POST the inputs, get the full deal-by-deal promote result back.
+  // Stateless calculator: POST the inputs, get the full acquisition-by-acquisition promote result back.
   return useMutation({
     mutationFn: (body: PromoteRequest) =>
       apiFetch<PromoteResponse>("/promote/waterfall", {
@@ -132,38 +137,38 @@ export function useSetIntegration() {
   });
 }
 
-export function useDeal(dealId: string) {
+export function useAcquisition(acquisitionId: string) {
   return useQuery({
-    queryKey: ["deal", dealId],
-    queryFn: () => apiFetch<DealDocument>(`/deals/${dealId}`),
+    queryKey: ["acquisition", acquisitionId],
+    queryFn: () => apiFetch<AcquisitionDocument>(`/acquisitions/${acquisitionId}`),
   });
 }
 
-export function useProforma(dealId: string) {
+export function useProforma(acquisitionId: string) {
   return useQuery({
-    queryKey: ["deal", dealId, "proforma"],
-    queryFn: () => apiFetch<ProformaResults>(`/deals/${dealId}/proforma`),
+    queryKey: ["acquisition", acquisitionId, "proforma"],
+    queryFn: () => apiFetch<ProformaResults>(`/acquisitions/${acquisitionId}/proforma`),
   });
 }
 
-export function useComps(dealId: string) {
+export function useComps(acquisitionId: string) {
   return useQuery({
-    queryKey: ["deal", dealId, "comps"],
-    queryFn: () => apiFetch<CompSet>(`/deals/${dealId}/comps`),
+    queryKey: ["acquisition", acquisitionId, "comps"],
+    queryFn: () => apiFetch<CompSet>(`/acquisitions/${acquisitionId}/comps`),
   });
 }
 
-export function useMapping(dealId: string) {
+export function useMapping(acquisitionId: string) {
   return useQuery({
-    queryKey: ["deal", dealId, "mapping"],
-    queryFn: () => apiFetch<MappingReview>(`/deals/${dealId}/mapping`),
+    queryKey: ["acquisition", acquisitionId, "mapping"],
+    queryFn: () => apiFetch<MappingReview>(`/acquisitions/${acquisitionId}/mapping`),
   });
 }
 
-export function usePopulationRings(dealId: string) {
+export function usePopulationRings(acquisitionId: string) {
   return useQuery({
-    queryKey: ["deal", dealId, "population-rings"],
-    queryFn: () => apiFetch<PopulationRingsDoc>(`/deals/${dealId}/population-rings`),
+    queryKey: ["acquisition", acquisitionId, "population-rings"],
+    queryFn: () => apiFetch<PopulationRingsDoc>(`/acquisitions/${acquisitionId}/population-rings`),
   });
 }
 

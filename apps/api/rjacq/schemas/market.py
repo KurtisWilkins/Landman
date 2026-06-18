@@ -25,7 +25,7 @@ class PopulationRingsDoc(BaseModel):
 
 
 class PopulationRingOverride(BaseModel):
-    """PATCH /deals/{id}/population-rings — override one ring (records author + note)."""
+    """PATCH /acquisitions/{id}/population-rings — override one ring (records author + note)."""
 
     radius_mi: int
     population: int

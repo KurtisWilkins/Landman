@@ -1,5 +1,5 @@
 """Population-rings service (design doc §5.5): auto-pull on property entry, manual override,
-and assemble the rings for the deal document. Baseline (provider) + override + author + note
+and assemble the rings for the acquisition document. Baseline (provider) + override + author + note
 are kept side by side (provenance); an override is never clobbered by a refresh.
 """
 
@@ -27,7 +27,7 @@ class PopulationError(Exception):
 
 async def refresh_rings(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     *,
     lat: float | None,
     lng: float | None,
@@ -36,7 +36,11 @@ async def refresh_rings(
     """Auto-pull baseline ring populations. No-op (0) when there's no geocode or no provider
     (graceful — rings stay empty/operator-entered, never fabricated). Overrides preserved."""
     if lat is None or lng is None or provider is None:
-        log.info("population.refresh_skipped", deal_id=deal_id, has_provider=provider is not None)
+        log.info(
+            "population.refresh_skipped",
+            acquisition_id=acquisition_id,
+            has_provider=provider is not None,
+        )
         return 0
     # A real provider does network I/O; run it off the event loop so requests don't block.
     ring_estimates = await asyncio.to_thread(provider.estimate_rings, lat, lng, RING_RADII_MILES)
@@ -46,19 +50,21 @@ async def refresh_rings(
         est = estimates.get(radius)
         if est is None:
             continue
-        ring = await repo.upsert_ring(session, deal_id, radius)
+        ring = await repo.upsert_ring(session, acquisition_id, radius)
         ring.baseline_population = est.population  # refresh baseline; override untouched
         ring.source = provider.name
         ring.as_of = est.as_of
         updated += 1
     await session.flush()
-    log.info("population.refreshed", deal_id=deal_id, rings=updated, source=provider.name)
+    log.info(
+        "population.refreshed", acquisition_id=acquisition_id, rings=updated, source=provider.name
+    )
     return updated
 
 
 async def override_ring(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     *,
     radius_mi: int,
     population: int,
@@ -68,17 +74,17 @@ async def override_ring(
     """Record an operator override for one ring (baseline retained — provenance)."""
     if radius_mi not in RING_RADII_MILES:
         raise PopulationError("invalid_radius", f"radius_mi must be one of {RING_RADII_MILES}.")
-    ring = await repo.upsert_ring(session, deal_id, radius_mi)
+    ring = await repo.upsert_ring(session, acquisition_id, radius_mi)
     ring.override_population = population
     ring.is_override = True
     ring.overridden_by = author
     ring.note = note
     await session.flush()
-    log.info("population.overridden", deal_id=deal_id, radius_mi=radius_mi, by=author)
+    log.info("population.overridden", acquisition_id=acquisition_id, radius_mi=radius_mi, by=author)
 
 
-async def get_rings(session: AsyncSession, deal_id: str) -> PopulationRingsDoc:
-    rings = await repo.list_rings(session, deal_id)
+async def get_rings(session: AsyncSession, acquisition_id: str) -> PopulationRingsDoc:
+    rings = await repo.list_rings(session, acquisition_id)
     out = [
         PopulationRingOut(
             radius_mi=r.radius_mi,

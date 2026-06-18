@@ -1,13 +1,13 @@
 /**
- * New-deal intake (design doc §5.1, §5.2). Two paths into the same reviewable form:
+ * New-acquisition intake (design doc §5.1, §5.2). Two paths into the same reviewable form:
  *  • Upload an Offering Memorandum (PDF) → Claude extracts a proposal → the fields below are
  *    pre-filled for the operator to review/correct (AI proposes, a person accepts — CLAUDE.md).
  *  • Enter everything by hand.
- * On create, if an OM was used it's also uploaded to the new deal so its financials load.
+ * On create, if an OM was used it's also uploaded to the new acquisition so its financials load.
  * Presentational — data-fetching lives in hooks. No browser storage.
  */
 import { useState } from "react";
-import { useCreateDeal, useExtractOm } from "../api/hooks";
+import { useCreateAcquisition, useExtractOm } from "../api/hooks";
 import { ApiError, apiUpload } from "../api/client";
 import type { components } from "../api/types";
 
@@ -28,14 +28,14 @@ const labelCls = "block text-xs uppercase tracking-wide opacity-70";
 const inputCls =
   "mt-1 w-full rounded border border-brand/20 bg-surface px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
 
-export function NewDealForm({
+export function NewAcquisitionForm({
   onCreated,
   onCancel,
 }: {
-  onCreated: (dealId: string) => void;
+  onCreated: (acquisitionId: string) => void;
   onCancel: () => void;
 }) {
-  const create = useCreateDeal();
+  const create = useCreateAcquisition();
   const extract = useExtractOm();
   const [mode, setMode] = useState<"manual" | "om">("manual");
   const [omFile, setOmFile] = useState<File | null>(null);
@@ -79,17 +79,17 @@ export function NewDealForm({
         seller_name: sellerName || null,
       },
       {
-        onSuccess: async (deal) => {
-          // If this came from an OM, attach the PDF so its financials load on the new deal.
-          // Best-effort: a failed attachment shouldn't block landing on the created deal.
+        onSuccess: async (acquisition) => {
+          // If this came from an OM, attach the PDF so its financials load on the new acquisition.
+          // Best-effort: a failed attachment shouldn't block landing on the created acquisition.
           if (omFile) {
             try {
-              await apiUpload(`/deals/${deal.deal_id}/documents`, omFile);
+              await apiUpload(`/acquisitions/${acquisition.acquisition_id}/documents`, omFile);
             } catch {
-              /* deal exists; the OM can be re-uploaded from the GL/Docs tab */
+              /* acquisition exists; the OM can be re-uploaded from the GL/Docs tab */
             }
           }
-          onCreated(deal.deal_id);
+          onCreated(acquisition.acquisition_id);
         },
       },
     );
@@ -139,13 +139,13 @@ export function NewDealForm({
             <p role="alert" className="mt-2 text-sm text-danger">
               {extract.error instanceof ApiError &&
               extract.error.code === "extractor_not_configured"
-                ? "OM extraction isn’t configured yet (needs the AI provider key). Enter the deal manually for now."
-                : "Couldn’t read that OM. Try another file or enter the deal manually."}
+                ? "OM extraction isn’t configured yet (needs the AI provider key). Enter the acquisition manually for now."
+                : "Couldn’t read that OM. Try another file or enter the acquisition manually."}
             </p>
           )}
           {extract.isSuccess && (
             <p className="mt-2 text-sm opacity-70">
-              Extracted — review and correct the fields below before creating the deal.
+              Extracted — review and correct the fields below before creating the acquisition.
             </p>
           )}
         </div>
@@ -260,7 +260,9 @@ export function NewDealForm({
 
       {create.isError && (
         <p role="alert" className="mt-3 text-sm text-danger">
-          {create.error instanceof ApiError ? create.error.message : "Could not create the deal."}
+          {create.error instanceof ApiError
+            ? create.error.message
+            : "Could not create the acquisition."}
         </p>
       )}
 
@@ -270,7 +272,7 @@ export function NewDealForm({
           disabled={!name.trim() || busy}
           className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
         >
-          {create.isPending ? "Creating…" : "Create deal"}
+          {create.isPending ? "Creating…" : "Create acquisition"}
         </button>
         <button
           type="button"

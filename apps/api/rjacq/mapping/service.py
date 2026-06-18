@@ -108,13 +108,13 @@ async def propose_for_line(
 
 async def build_review(
     session: AsyncSession,
-    deal_id: str,
+    acquisition_id: str,
     *,
     embedder: Embedder | None = None,
 ) -> MappingReview:
     """Assemble the mapping-review queue from each line's stored proposal + (optionally) a
     fresh candidate shortlist."""
-    lines = await repo.list_lines(session, deal_id)
+    lines = await repo.list_lines(session, acquisition_id)
     review_lines: list[MappingReviewLine] = []
     for line in lines:
         candidates: list[MappingCandidate] = []
@@ -139,7 +139,7 @@ async def build_review(
                 candidates=candidates,
             )
         )
-    return MappingReview(deal_id=deal_id, lines=review_lines)
+    return MappingReview(acquisition_id=acquisition_id, lines=review_lines)
 
 
 async def confirm(

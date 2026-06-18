@@ -18,10 +18,10 @@ def haversine_miles(lat1: float, lng1: float, lat2: float, lng2: float) -> float
 
 
 def within_radius(
-    deal_lat: float,
-    deal_lng: float,
+    acquisition_lat: float,
+    acquisition_lng: float,
     lat: float,
     lng: float,
     radius_miles: float = COMP_RADIUS_MILES,
 ) -> bool:
-    return haversine_miles(deal_lat, deal_lng, lat, lng) <= radius_miles
+    return haversine_miles(acquisition_lat, acquisition_lng, lat, lng) <= radius_miles

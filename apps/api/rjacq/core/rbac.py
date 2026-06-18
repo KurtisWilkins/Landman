@@ -24,9 +24,9 @@ class Role(str, enum.Enum):
 
 # Coarse capabilities used by Phase-0 stubs; expanded per phase.
 class Capability(str, enum.Enum):
-    DEAL_READ = "deal:read"
-    DEAL_WRITE = "deal:write"
-    PHASE_ADVANCE = "phase:advance"  # advance/kill a deal (gated)
+    ACQUISITION_READ = "acquisition:read"
+    ACQUISITION_WRITE = "acquisition:write"
+    PHASE_ADVANCE = "phase:advance"  # advance/kill a acquisition (gated)
     ASSUMPTION_OVERRIDE = "assumption:override"
     GATE_APPROVE = "gate:approve"  # approve gate-question suggestions (admin only)
     FEEDBACK_SUBMIT = "feedback:submit"
@@ -38,17 +38,17 @@ class Capability(str, enum.Enum):
 _MATRIX: dict[Role, set[Capability]] = {
     Role.ADMIN: set(Capability),
     Role.EXECUTIVE: {
-        Capability.DEAL_READ,
+        Capability.ACQUISITION_READ,
         Capability.PHASE_ADVANCE,
         Capability.FEEDBACK_SUBMIT,
     },
     Role.EQUITY_PARTNER: {
-        Capability.DEAL_READ,  # scoped to shared deals — D-24 narrows this
+        Capability.ACQUISITION_READ,  # scoped to shared acquisitions — D-24 narrows this
         Capability.FEEDBACK_SUBMIT,
     },
     Role.ANALYST: {
-        Capability.DEAL_READ,
-        Capability.DEAL_WRITE,
+        Capability.ACQUISITION_READ,
+        Capability.ACQUISITION_WRITE,
         Capability.MAPPING_CONFIRM,
         Capability.FEEDBACK_SUBMIT,
     },

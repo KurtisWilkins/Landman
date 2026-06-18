@@ -5,7 +5,7 @@ repository. Keep this file the single, concise source of *how we build*; the **w
 `docs/rjourney-acquisitions-design-document-v0.2.md` (the design doc).
 
 > **Get up to speed first:** read @docs/PROJECT-CONTEXT.md — current state, the rjourney.com brand
-> system, and the deal-by-deal promote waterfall (Partner Equity / RJourney Equity).
+> system, and the acquisition-by-acquisition promote waterfall (Partner Equity / RJourney Equity).
 > Where it and the older design doc disagree, PROJECT-CONTEXT.md is the newer intent.
 
 ---
@@ -13,7 +13,7 @@ repository. Keep this file the single, concise source of *how we build*; the **w
 ## What this is
 
 RJourney Acquisitions Platform — a web app that ingests RV-resort acquisition documents,
-normalizes them to one schema, underwrites deals (5-yr levered cash flow, IRR, 3-hurdle
+normalizes them to one schema, underwrites acquisitions (5-yr levered cash flow, IRR, 3-hurdle
 waterfall), scrapes a local competitive set, and tracks a phase-gated pipeline. It carries an
 in-app feedback widget that dispatches fixes back through this same GitHub Action.
 
@@ -21,7 +21,7 @@ in-app feedback widget that dispatches fixes back through this same GitHub Actio
 
 1. **The design doc's §8 data model is the contract.** Conform to it. If a change needs a schema change, call it out explicitly in the PR and update the doc in the same PR.
 2. **Never invent a `[DECISION]` value.** Anything the design doc marks `[DECISION]` is unresolved. Read it from config/env with a clearly-named placeholder and a `# TODO(decision): …` comment. Do not bake a guessed number (hurdle rates, splits, thresholds) into logic.
-3. **Human-in-the-loop, always.** AI proposes; a person accepts. Never auto-merge, never auto-advance a deal phase, never auto-lock a pro forma or GL mapping.
+3. **Human-in-the-loop, always.** AI proposes; a person accepts. Never auto-merge, never auto-advance a acquisition phase, never auto-lock a pro forma or GL mapping.
 4. **Provenance is sacred.** Every financial line keeps its original seller text, mapped account, confidence, and NOI placement. Every assumption keeps baseline + override + author + note. Don't drop or overwrite provenance to simplify.
 5. **Secrets and PII.** Never commit secrets. Never log secrets, credentials, full financials, or raw feedback screenshots. SHIELD access is **read-only**.
 6. **Small, reviewable PRs.** One concern per PR, linked to its issue. If a task balloons, stop and split it.
@@ -48,7 +48,7 @@ docker-compose.yml
 CLAUDE.md  README.md  CONTRIBUTING.md  .env.example
 ```
 
-Backend is organized by domain, not by layer: `deals/`, `ingestion/`, `mapping/`,
+Backend is organized by domain, not by layer: `acquisitions/`, `ingestion/`, `mapping/`,
 `underwriting/`, `comps/`, `gates/`, `feedback/`, `shield/`, plus shared `core/` (config,
 logging, auth, db).
 
@@ -125,7 +125,7 @@ A PR must pass `make lint` and `make test` before it is opened.
 - Secrets only via env/secret store; `.env` is git-ignored; keep `.env.example` current when adding a variable.
 - RBAC enforced server-side on every endpoint; never trust the client for role.
 - SHIELD credentials are least-privilege read-only; the app must never attempt a write to SHIELD.
-- Feedback screenshots may contain deal financials: store in access-scoped object storage, never log their contents, follow the redaction policy once set (`[DECISION]` D-32).
+- Feedback screenshots may contain acquisition financials: store in access-scoped object storage, never log their contents, follow the redaction policy once set (`[DECISION]` D-32).
 - Validate and size-limit all uploads; treat seller files as untrusted.
 
 ## Git, commits, PRs
@@ -137,7 +137,7 @@ A PR must pass `make lint` and `make test` before it is opened.
 
 ## Domain glossary (use these terms exactly)
 
-- **Phase / gate:** the five pipeline stages; a gate is the set of blocking questions a deal must clear to advance. Deals cannot skip phases.
+- **Phase / gate:** the five pipeline stages; a gate is the set of blocking questions a acquisition must clear to advance. Acquisitions cannot skip phases.
 - **NOI bridge:** normalization that strips owner debt service, non-operating items, and add-backs to produce a comparable NOI.
 - **Leaf / coarse / unmapped:** GL mapping confidence — exact account, rolled-up subgroup, or no confident match.
 - **SHIELD:** RJourney's existing (read-only) operations database; source of baseline underwriting assumptions.

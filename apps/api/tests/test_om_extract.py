@@ -1,4 +1,4 @@
-"""OM (offering-memorandum) extraction (§5.2): the pure mapping + the /deals/extract-om endpoint.
+"""OM extraction (§5.2): the pure mapping + the /acquisitions/extract-om endpoint.
 
 The Claude call is mocked — these tests never hit the network. The endpoint returns a *proposal*
 for human review and persists nothing.
@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from rjacq.api import deals as deals_api
+from rjacq.api import acquisitions as acquisitions_api
 from rjacq.core import app_config
 from rjacq.ingestion.extractor import (
     OmFinancialLine,
@@ -57,7 +57,7 @@ def test_extract_om_not_configured_returns_503(
     monkeypatch.setattr(app_config.settings, "anthropic_api_key", None)
     client.delete("/admin/integrations/anthropic_api_key", headers=DEV_ADMIN)  # clear any override
     r = client.post(
-        "/deals/extract-om",
+        "/acquisitions/extract-om",
         files={"file": ("om.pdf", b"%PDF-1.4 test", "application/pdf")},
         headers=DEV_ADMIN,
     )
@@ -70,7 +70,7 @@ def test_extract_om_rejects_non_pdf(
 ) -> None:
     monkeypatch.setattr(app_config.settings, "anthropic_api_key", "sk-test")
     r = client.post(
-        "/deals/extract-om",
+        "/acquisitions/extract-om",
         files={"file": ("books.xlsx", b"PK\x03\x04", "application/vnd.ms-excel")},
         headers=DEV_ADMIN,
     )
@@ -95,10 +95,10 @@ def test_extract_om_returns_reviewable_proposal(
             ],
         )
 
-    monkeypatch.setattr(deals_api, "extract_offering_memorandum", fake_extract)
+    monkeypatch.setattr(acquisitions_api, "extract_offering_memorandum", fake_extract)
 
     r = client.post(
-        "/deals/extract-om",
+        "/acquisitions/extract-om",
         files={"file": ("om.pdf", b"%PDF-1.4 test", "application/pdf")},
         headers=DEV_ADMIN,
     )

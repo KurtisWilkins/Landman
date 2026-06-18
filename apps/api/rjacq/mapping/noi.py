@@ -1,4 +1,4 @@
-"""NOI bridge over a deal's mapped financial lines (design doc §5.3.7).
+"""NOI bridge over a acquisition's mapped financial lines (design doc §5.3.7).
 
 Reuses the pure ``underwriting.engine.normalized_noi``: above-the-line revenue minus
 above-the-line operating expense, excluding below-the-line (700000) / non-operating (800000)
@@ -16,8 +16,8 @@ from ..underwriting.engine import NoiBridge, NoiLine, normalized_noi
 from . import repository as repo
 
 
-async def noi_bridge_for_deal(session: AsyncSession, deal_id: str) -> NoiBridge:
-    lines = await repo.list_lines(session, deal_id)
+async def noi_bridge_for_acquisition(session: AsyncSession, acquisition_id: str) -> NoiBridge:
+    lines = await repo.list_lines(session, acquisition_id)
     noi_lines: list[NoiLine] = []
     for line in lines:
         if line.account_code is None:

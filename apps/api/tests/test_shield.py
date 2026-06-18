@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from rjacq.models.deals import Deal
-from rjacq.models.enums import DealStatus, Phase, PropertyType
+from rjacq.models.acquisitions import Acquisition
+from rjacq.models.enums import AcquisitionStatus, Phase, PropertyType
 from rjacq.models.underwriting import Assumption
 from rjacq.shield import service as svc
 from rjacq.shield.baseline import MetricSpec, aggregate_baselines, parse_metric_specs
@@ -25,11 +25,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
-async def _get_assumption(session: AsyncSession, deal_id: str, key: str) -> Assumption:
+async def _get_assumption(session: AsyncSession, acquisition_id: str, key: str) -> Assumption:
     row = (
         (
             await session.execute(
-                select(Assumption).where(Assumption.deal_id == deal_id, Assumption.key == key)
+                select(Assumption).where(
+                    Assumption.acquisition_id == acquisition_id, Assumption.key == key
+                )
             )
         )
         .scalars()
@@ -127,23 +129,23 @@ async def session(migrated_db: str) -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
-async def _make_deal(session: AsyncSession) -> str:
-    deal_id = f"dl_{uuid.uuid4().hex[:12]}"
+async def _make_acquisition(session: AsyncSession) -> str:
+    acquisition_id = f"dl_{uuid.uuid4().hex[:12]}"
     session.add(
-        Deal(
-            deal_id=deal_id,
+        Acquisition(
+            acquisition_id=acquisition_id,
             name="SHIELD Test Park",
             property_type=PropertyType.RV_RESORT,
             current_phase=Phase.INITIAL_UW,
-            status=DealStatus.ACTIVE,
+            status=AcquisitionStatus.ACTIVE,
         )
     )
     await session.flush()
-    return deal_id
+    return acquisition_id
 
 
 async def test_sync_seeds_baselines_and_preserves_override(session: AsyncSession) -> None:
-    deal_id = await _make_deal(session)
+    acquisition_id = await _make_acquisition(session)
     specs = [MetricSpec("opex_ratio", "OpEx ratio", "opex_ratio", "avg", "portfolio_rv_t12")]
     conn = FakeConnector([{"opex_ratio": "0.48"}, {"opex_ratio": "0.50"}])
 
@@ -152,12 +154,12 @@ async def test_sync_seeds_baselines_and_preserves_override(session: AsyncSession
         connector=conn,
         query="SELECT opex_ratio FROM portfolio",
         specs=specs,
-        deal_ids=[deal_id],
+        acquisition_ids=[acquisition_id],
     )
     await session.commit()
     assert baselines["opex_ratio"] == Decimal("0.49")
 
-    a = await _get_assumption(session, deal_id, "opex_ratio")
+    a = await _get_assumption(session, acquisition_id, "opex_ratio")
     assert a.baseline_value == Decimal("0.49")
     assert a.shield_source == "portfolio_rv_t12"
     assert a.is_overridden is False
@@ -174,10 +176,10 @@ async def test_sync_seeds_baselines_and_preserves_override(session: AsyncSession
         connector=conn2,
         query="SELECT opex_ratio FROM portfolio",
         specs=specs,
-        deal_ids=[deal_id],
+        acquisition_ids=[acquisition_id],
     )
     await session.commit()
-    a2 = await _get_assumption(session, deal_id, "opex_ratio")
+    a2 = await _get_assumption(session, acquisition_id, "opex_ratio")
     assert a2.baseline_value == Decimal("0.52")  # baseline refreshed
     assert a2.override_value == Decimal("0.55")  # override preserved (provenance)
     assert a2.is_overridden is True

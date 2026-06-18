@@ -19,13 +19,15 @@ class FinancialPeriod(Base):
     __tablename__ = "financial_periods"
 
     period_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     label: Mapped[str | None] = mapped_column(String)
     period_start: Mapped[date | None] = mapped_column(Date)
     period_end: Mapped[date | None] = mapped_column(Date)
     granularity: Mapped[str | None] = mapped_column(String)  # t12 | monthly | …
     # Versioning: each upload is a dated, retained version (never overwritten). The active one
-    # for a deal is is_current=True; the rest stay queryable as history (provenance is sacred).
+    # for an acquisition is is_current=True; the rest stay queryable as history.
     source_filename: Mapped[str | None] = mapped_column(String)
     ingested_at: Mapped[datetime] = created_at_column()
     is_current: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -35,7 +37,9 @@ class FinancialLine(Base):
     __tablename__ = "financial_lines"
 
     line_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     period_id: Mapped[str] = mapped_column(
         ForeignKey("financial_periods.period_id"), nullable=False
     )

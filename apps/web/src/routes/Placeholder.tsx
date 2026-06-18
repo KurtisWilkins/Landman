@@ -1,6 +1,6 @@
 /**
  * Placeholder for screens landing in the next frontend slice (3b): GL mapping queue,
- * Approvals, Feedback triage, and Deal detail tabs. Keeps navigation whole today.
+ * Approvals, Feedback triage, and Acquisition detail tabs. Keeps navigation whole today.
  */
 export function Placeholder({ title, note }: { title: string; note: string }) {
   return (

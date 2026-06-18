@@ -1,6 +1,6 @@
 /**
- * Gates tab (design doc §5.7): the gate checklist for the deal's phase. The gate-question
- * config is live; per-deal item statuses arrive with the assembled deal document. Until
+ * Gates tab (design doc §5.7): the gate checklist for the acquisition's phase. The gate-question
+ * config is live; per-acquisition item statuses arrive with the assembled acquisition document. Until
  * then we show the active questions grouped by phase.
  */
 import { useGateQuestions } from "../../api/hooks";

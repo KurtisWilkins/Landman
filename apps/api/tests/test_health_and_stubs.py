@@ -22,14 +22,14 @@ def test_correlation_id_echoed(client: TestClient) -> None:
 
 
 def test_protected_endpoint_requires_auth(client: TestClient) -> None:
-    r = client.get("/deals")
+    r = client.get("/acquisitions")
     assert r.status_code == 401
     assert r.json()["error"]["code"] == "unauthorized"
 
 
 def test_stub_returns_501_with_envelope(client: TestClient) -> None:
-    # PATCH /phase is still a stub (admin holds phase:advance); /deals is now implemented.
-    r = client.patch("/deals/dl_x/phase", json={}, headers=DEV_ADMIN)
+    # PATCH /phase is still a stub (admin holds phase:advance); /acquisitions is now implemented.
+    r = client.patch("/acquisitions/dl_x/phase", json={}, headers=DEV_ADMIN)
     assert r.status_code == 501
     body = r.json()
     assert body["error"]["code"] == "not_implemented"
@@ -46,7 +46,7 @@ def test_rbac_forbids_insufficient_role(client: TestClient) -> None:
 def test_rbac_allows_admin_to_reach_stub(client: TestClient) -> None:
     # Phase advance is still a stub; admin holds phase:advance, so RBAC passes and the
     # request reaches the not-yet-implemented body. (/documents is implemented now.)
-    r = client.patch("/deals/dl_x/phase", json={}, headers=DEV_ADMIN)
+    r = client.patch("/acquisitions/dl_x/phase", json={}, headers=DEV_ADMIN)
     assert r.status_code == 501  # passed RBAC, hit the not-yet-implemented body
 
 
@@ -59,15 +59,15 @@ def test_full_api_surface_present(client: TestClient) -> None:
     paths = set(client.get("/openapi.json").json()["paths"])
     expected = {
         "/auth/callback",
-        "/deals",
-        "/deals/{deal_id}",
-        "/deals/{deal_id}/phase",
-        "/deals/{deal_id}/documents",
-        "/deals/{deal_id}/proforma",
-        "/deals/{deal_id}/assumptions",
-        "/deals/{deal_id}/mapping",
-        "/deals/{deal_id}/mapping/confirm",
-        "/deals/{deal_id}/comps",
+        "/acquisitions",
+        "/acquisitions/{acquisition_id}",
+        "/acquisitions/{acquisition_id}/phase",
+        "/acquisitions/{acquisition_id}/documents",
+        "/acquisitions/{acquisition_id}/proforma",
+        "/acquisitions/{acquisition_id}/assumptions",
+        "/acquisitions/{acquisition_id}/mapping",
+        "/acquisitions/{acquisition_id}/mapping/confirm",
+        "/acquisitions/{acquisition_id}/comps",
         "/gate-questions",
         "/question-suggestions",
         "/question-suggestions/{suggestion_id}",

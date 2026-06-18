@@ -1,16 +1,16 @@
 /**
- * Pipeline dashboard (design doc §5.8, §6): phase buckets with deal counts and rolled-up
- * acquisition dollars, then deal lists with blocker chips. Mobile-first.
+ * Pipeline dashboard (design doc §5.8, §6): phase buckets with acquisition counts and rolled-up
+ * acquisition dollars, then acquisition lists with blocker chips. Mobile-first.
  */
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { usePipeline } from "../api/hooks";
-import { NewDealForm } from "./NewDealForm";
+import { NewAcquisitionForm } from "./NewAcquisitionForm";
 import type { components } from "../api/types";
 import type { Schemas } from "../api/client";
 
 type Phase = components["schemas"]["Phase"];
-type DealSummary = Schemas["DealSummary"];
+type AcquisitionSummary = Schemas["AcquisitionSummary"];
 
 const PHASES: { key: Phase; label: string }[] = [
   { key: "initial_uw", label: "Initial UW" },
@@ -27,15 +27,18 @@ const usd = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
 });
 
-function rollup(deals: DealSummary[], phase: Phase): { count: number; dollars: number } {
-  const inPhase = deals.filter((d) => d.current_phase === phase);
+function rollup(
+  acquisitions: AcquisitionSummary[],
+  phase: Phase,
+): { count: number; dollars: number } {
+  const inPhase = acquisitions.filter((d) => d.current_phase === phase);
   const dollars = inPhase.reduce((acc, d) => acc + Number(d.ask_price ?? 0), 0);
   return { count: inPhase.length, dollars };
 }
 
 export function Pipeline() {
   const { data, isLoading, error } = usePipeline();
-  const deals = data ?? [];
+  const acquisitions = data ?? [];
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
 
@@ -47,15 +50,15 @@ export function Pipeline() {
           onClick={() => setShowForm((v) => !v)}
           className="rounded bg-brand px-3 py-1.5 text-sm text-surface"
         >
-          {showForm ? "Close" : "New deal"}
+          {showForm ? "Close" : "New acquisition"}
         </button>
       </div>
 
       {showForm && (
-        <NewDealForm
-          onCreated={(dealId) => {
+        <NewAcquisitionForm
+          onCreated={(acquisitionId) => {
             setShowForm(false);
-            navigate(`/deals/${dealId}`);
+            navigate(`/acquisitions/${acquisitionId}`);
           }}
           onCancel={() => setShowForm(false)}
         />
@@ -64,9 +67,9 @@ export function Pipeline() {
       {isLoading && <p className="mt-4 text-sm opacity-70">Loading…</p>}
       {error && (
         <p className="mt-4 rounded border border-brand/20 p-3 text-sm opacity-80">
-          The pipeline list isn’t available yet (the <code>/deals</code> endpoint lands with the
-          deals/pipeline backend). The screen is wired to the contract and will populate once it’s
-          implemented.
+          The pipeline list isn’t available yet (the <code>/acquisitions</code> endpoint lands with
+          the acquisitions/pipeline backend). The screen is wired to the contract and will populate
+          once it’s implemented.
         </p>
       )}
 
@@ -75,7 +78,7 @@ export function Pipeline() {
           {/* Phase buckets */}
           <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
             {PHASES.map((p) => {
-              const { count, dollars } = rollup(deals, p.key);
+              const { count, dollars } = rollup(acquisitions, p.key);
               return (
                 <div key={p.key} className="rounded-lg border border-brand/15 p-3">
                   <div className="text-xs uppercase tracking-wide opacity-70">{p.label}</div>
@@ -86,15 +89,15 @@ export function Pipeline() {
             })}
           </div>
 
-          {/* Deal lists */}
-          {deals.length === 0 ? (
-            <p className="mt-6 text-sm opacity-70">No deals yet.</p>
+          {/* Acquisition lists */}
+          {acquisitions.length === 0 ? (
+            <p className="mt-6 text-sm opacity-70">No acquisitions yet.</p>
           ) : (
             <ul className="mt-6 divide-y divide-brand/10">
-              {deals.map((d) => (
-                <li key={d.deal_id}>
+              {acquisitions.map((d) => (
+                <li key={d.acquisition_id}>
                   <Link
-                    to={`/deals/${d.deal_id}`}
+                    to={`/acquisitions/${d.acquisition_id}`}
                     className="flex items-center justify-between py-3 hover:bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <div>

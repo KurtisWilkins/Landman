@@ -1,7 +1,7 @@
 """Census ACS provider tests (ADR-0009): radius aggregation, omission, fetch fallback, factory.
 
 These exercise the pure aggregation logic with a controlled centroid set and a stubbed Census
-fetch — no network. The deal sits at (35.6, -82.6); fixtures share that longitude so distance
+fetch — no network. The acquisition sits at (35.6, -82.6); fixtures share that longitude so distance
 reduces to ~69.05 mi per degree of latitude, making the expected ring membership obvious.
 """
 
@@ -13,9 +13,9 @@ from rjacq.core.config import settings
 from rjacq.population import census, provider
 from rjacq.population.census import CensusACSProvider
 
-DEAL_LAT, DEAL_LNG = 35.6, -82.6
+ACQUISITION_LAT, ACQUISITION_LNG = 35.6, -82.6
 
-# (geoid, lat, lng): same longitude as the deal → distance ≈ |Δlat| * 69.05 mi.
+# (geoid, lat, lng): same longitude as the acquisition → distance ≈ |Δlat| * 69.05 mi.
 FIXTURE_CENTROIDS = [
     ("11111", 35.60, -82.60),  # ~0 mi   → every ring
     ("22222", 35.90, -82.60),  # ~20.7mi → 25/50/100/150
@@ -34,7 +34,7 @@ def stub_provider(monkeypatch: pytest.MonkeyPatch) -> CensusACSProvider:
 
 
 def test_aggregates_population_by_radius(stub_provider: CensusACSProvider) -> None:
-    out = stub_provider.estimate_rings(DEAL_LAT, DEAL_LNG, [25, 50, 100])
+    out = stub_provider.estimate_rings(ACQUISITION_LAT, ACQUISITION_LNG, [25, 50, 100])
     rings = {e.radius_mi: e for e in out}
     assert rings[25].population == 3000  # 11111 + 22222
     assert rings[50].population == 6000  # + 33333
@@ -43,7 +43,7 @@ def test_aggregates_population_by_radius(stub_provider: CensusACSProvider) -> No
 
 
 def test_omits_ring_with_no_county_centroid(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Move the deal south so nothing falls within 25 mi: the inner ring is omitted, not zeroed.
+    # Move the acquisition south so nothing falls within 25 mi: the inner ring is omitted.
     monkeypatch.setattr(census, "_county_centroids", lambda: list(FIXTURE_CENTROIDS))
     p = CensusACSProvider("test-key")
     monkeypatch.setattr(p, "_fetch_county_populations", lambda: dict(FIXTURE_POPS))
@@ -62,7 +62,7 @@ def test_fetch_failure_returns_no_rings(monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr(p, "_fetch_county_populations", boom)
     # Graceful degradation: rings stay unestimated rather than fabricated/zeroed.
-    assert p.estimate_rings(DEAL_LAT, DEAL_LNG, [25, 50]) == []
+    assert p.estimate_rings(ACQUISITION_LAT, ACQUISITION_LNG, [25, 50]) == []
 
 
 def test_bundled_centroids_load() -> None:

@@ -1,6 +1,6 @@
 # RJourney Acquisitions Platform
 
-Ingest RV-resort acquisition documents, normalize them to one schema, underwrite each deal,
+Ingest RV-resort acquisition documents, normalize them to one schema, underwrite each acquisition,
 benchmark it against a local competitive set, and track it through a phase-gated pipeline —
 mobile-first, with an in-app feedback loop and built-in observability.
 

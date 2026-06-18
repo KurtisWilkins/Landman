@@ -13,8 +13,8 @@ def _sync_engine(url: str):
 def test_full_schema_present(migrated_db: str) -> None:
     """All 23 §8 tables exist after ``alembic upgrade head``."""
     expected = {
-        "deals",
-        "deal_photos",
+        "acquisitions",
+        "acquisition_photos",
         "gl_accounts",
         "gl_mappings_learned",
         "gate_questions",
@@ -30,7 +30,7 @@ def test_full_schema_present(migrated_db: str) -> None:
         "proforma_results",
         "proforma_summary",
         "comps",
-        "deal_gate_items",
+        "acquisition_gate_items",
         "question_suggestions",
         "feedback_items",
         "feedback_attachments",

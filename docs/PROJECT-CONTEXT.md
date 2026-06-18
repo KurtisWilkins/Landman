@@ -10,8 +10,8 @@
 ## What this project is
 
 A web app for RJourney's **RV-resort acquisitions**: ingest seller documents, normalize them to
-one schema, underwrite each deal (5-yr levered cash flow, IRR, equity multiple, promote
-waterfall), benchmark against a local competitive set, and track deals through a phase-gated
+one schema, underwrite each acquisition (5-yr levered cash flow, IRR, equity multiple, promote
+waterfall), benchmark against a local competitive set, and track acquisitions through a phase-gated
 pipeline. An in-app **"?" feedback widget** files items that dispatch back through a GitHub Action.
 
 - **Names:** GitHub repo is **`Landman`**; the product / internal codename is **"RJourney
@@ -51,13 +51,13 @@ make test | make lint | make format | make e2e | make migration m="msg"
 
 ```
 apps/api/rjacq/   FastAPI app, organized by domain (not by layer):
-    deals/ ingestion/ mapping/ underwriting/ comps/ gates/ feedback/ shield/
+    acquisitions/ ingestion/ mapping/ underwriting/ comps/ gates/ feedback/ shield/
     population/ models/ schemas/ seeds/ + shared core/ (config, db, auth, logging)
     underwriting/engine.py   ← pure, tested promote/IRR/waterfall math (the engine)
 apps/web/src/     React SPA:
     components/AppShell.tsx   ← nav + branding (currently plain "RJourney" text, no logo)
-    routes/Pipeline.tsx       ← pipeline overview (phase buckets + deal list)
-    routes/DealDetail.tsx + routes/deal/*Tab.tsx  ← deal workspace (Proforma/Comps/Gates/Market/GLDocs)
+    routes/Pipeline.tsx       ← pipeline overview (phase buckets + acquisition list)
+    routes/AcquisitionDetail.tsx + routes/acquisition/*Tab.tsx  ← acquisition workspace (Proforma/Comps/Gates/Market/GLDocs)
     api/                      ← generated contract types + TanStack Query hooks
     index.css, tailwind.config.ts  ← theme tokens (see design target below)
 migrations/  docs/  .github/
@@ -77,11 +77,11 @@ site's Breakdance `global-settings.css` and centralized in **one theme source**
   brand theme in `style(web): apply RJourney brand theme` (PR #26). The only remaining
   forest/bone/brass references are in **docs** (the design doc §6 — see gaps below), not in code.
 
-## Core feature — deal-by-deal promote waterfall  ✅ engine shipped
+## Core feature — acquisition-by-acquisition promote waterfall  ✅ engine shipped
 
 A **reusable engine**, not a one-off page — implemented as a pure, UI/DB-free module so the math
-is unit-tested against the spreadsheet's worked example. Each deal feeds the same structure with
-its own inputs and is computed **independently (deal-by-deal)**.
+is unit-tested against the spreadsheet's worked example. Each acquisition feeds the same structure with
+its own inputs and is computed **independently (acquisition-by-acquisition)**.
 - Engine: `apps/api/rjacq/underwriting/promote.py` (`run_promote_waterfall(PromoteInputs)`)
 - API: `apps/api/rjacq/api/promote.py` · schemas `schemas/promote.py`
 - UI: `apps/web/src/routes/Promote.tsx`
@@ -89,23 +89,23 @@ its own inputs and is computed **independently (deal-by-deal)**.
 
 **Engine logic** — reconstructs the **promote spreadsheet, sheet "Waterfall Template"** (the
 worked example is pinned in `test_promote.py`; the source `.xlsx` itself is not committed):
-- Per-deal inputs: start date, total equity, asset LTV, RJourney co-invest % (Partner % =
+- Per-acquisition inputs: start date, total equity, asset LTV, RJourney co-invest % (Partner % =
   1 − co-invest), four IRR hurdles (**8 / 15 / 20 / 20 %**), four promote splits
   (**10 / 20 / 30 / 30 %**), return-case assumptions (yr-1 yield, growth, bespoke exit
   reversion), optional acquisition & management fees. Dates are annual (EOMONTH +12); returns are
   date-based **XIRR** (actual/365), matching the sheet.
-- Flow: generate deal-level cash flows → return capital first → four sequential IRR-hurdle tiers
+- Flow: generate acquisition-level cash flows → return capital first → four sequential IRR-hurdle tiers
   → split residual.
 - **Promote tier-shift rule:** a hurdle's promote % applies to cash *above* it — 100% to equity
   up to 8%, then 90/10 (8→15%), 80/20 (15→20%), 70/30 above.
 - Outputs: combined investor cash flows split into **Partner Equity** (net of promote paid to
-  RJourney) and **RJourney Equity** (co-invest pari passu + 100% of carry/fees), plus Deal-Level
+  RJourney) and **RJourney Equity** (co-invest pari passu + 100% of carry/fees), plus Acquisition-Level
   (no promote) for reference; reconciliation flag `cashflow_ties_out`.
-- **Regression (default scenario, asserted in `test_promote.py`):** Deal-Level **18.6% / 2.23x**;
+- **Regression (default scenario, asserted in `test_promote.py`):** Acquisition-Level **18.6% / 2.23x**;
   Partner **17.5% / 2.13x**; RJourney **27.6% / 3.19x**.
 
 **Views status:** the engine + API + a `Promote` route exist. Wiring the pipeline-overview
-columns (per-deal Partner/RJourney/Deal-Level IRR & MOIC) and fully live editable deal-detail
+columns (per-acquisition Partner/RJourney/Acquisition-Level IRR & MOIC) and fully live editable acquisition-detail
 inputs is the remaining product surface to confirm — check `routes/Pipeline.tsx` and
 `routes/Promote.tsx` against the "Views" intent before assuming it's all wired.
 
@@ -114,7 +114,7 @@ inputs is the remaining product surface to confirm — check `routes/Pipeline.ts
 Genericized labels only — no fund/JV/brand names in the promote structure:
 - "Fund 21" / "LP" → **Partner Equity** (or "Partner")
 - "GP" → **RJourney Equity** (or "RJourney")
-- Deal name = the property name; no "JV 1" style labels.
+- Acquisition name = the property name; no "JV 1" style labels.
 
 ## Shipped vs. the older design doc (remaining reconciliation)
 
@@ -129,7 +129,7 @@ What's left is making the older **design doc** match the code, plus a couple of 
    engine is **4-hurdle (8/15/20/20), Partner/RJourney, return-of-capital first, tier-shift**.
    Reconcile §8 (and note whether the `waterfall_tiers` schema is still used).
 3. **Two waterfall modules coexist:** the older generic `underwriting/engine.py` (3-hurdle LP/GP
-   European, terminal-distribution) and the new `underwriting/promote.py` (the deal-by-deal
+   European, terminal-distribution) and the new `underwriting/promote.py` (the acquisition-by-acquisition
    Partner/RJourney engine). Confirm which is canonical for the product and whether `engine.py`
    should be retired or kept for its NOI-bridge / pro-forma helpers.
 
@@ -147,13 +147,13 @@ What's left is making the older **design doc** match the code, plus a couple of 
 
 - **Done / merged (Phases 0–3 + recent):** repo scaffold; domain backend (ingestion, GL mapping,
   underwriting, comps, gates, feedback, SHIELD connector, population rings via US Census ACS);
-  React app shell + deal workspace (Proforma/Comps/Gates/Market tabs) + feedback widget; Azure
-  Container Apps provisioning + deploy pipeline; **rjourney.com brand theme** (PR #26); **deal-by-
-  deal promote waterfall** engine + API + UI + tests (Partner/RJourney, 4-hurdle); new-deal form,
+  React app shell + acquisition workspace (Proforma/Comps/Gates/Market tabs) + feedback widget; Azure
+  Container Apps provisioning + deploy pipeline; **rjourney.com brand theme** (PR #26); **acquisition-by-
+  acquisition promote waterfall** engine + API + UI + tests (Partner/RJourney, 4-hurdle); new-acquisition form,
   O/M extraction, financial-period versioning, admin-managed integration keys, EasyAuth edge auth.
 - **Partially wired:** some screens render against the generated contract but fall back to "lands
   with backend" messaging when an endpoint isn't live yet. GL Mapping queue is still a
-  `Placeholder`. Verify the promote views (pipeline columns + live deal-detail editing) are fully
+  `Placeholder`. Verify the promote views (pipeline columns + live acquisition-detail editing) are fully
   wired before assuming so.
 - **Next up:** (1) bring the **design doc current** (§6 theme, §5.7/§8 waterfall) — see
   reconciliation above; (2) decide the fate of the older `underwriting/engine.py` vs the new

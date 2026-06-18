@@ -17,30 +17,38 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:16]}"
 
 
-async def get_results(session: AsyncSession, deal_id: str) -> Sequence[ProformaResult]:
+async def get_results(session: AsyncSession, acquisition_id: str) -> Sequence[ProformaResult]:
     stmt = (
-        select(ProformaResult).where(ProformaResult.deal_id == deal_id).order_by(ProformaResult.yr)
+        select(ProformaResult)
+        .where(ProformaResult.acquisition_id == acquisition_id)
+        .order_by(ProformaResult.yr)
     )
     return (await session.execute(stmt)).scalars().all()
 
 
-async def get_summary(session: AsyncSession, deal_id: str) -> ProformaSummary | None:
-    return await session.get(ProformaSummary, deal_id)
+async def get_summary(session: AsyncSession, acquisition_id: str) -> ProformaSummary | None:
+    return await session.get(ProformaSummary, acquisition_id)
 
 
-async def get_assumption(session: AsyncSession, deal_id: str, key: str) -> Assumption | None:
-    stmt = select(Assumption).where(Assumption.deal_id == deal_id, Assumption.key == key)
+async def get_assumption(session: AsyncSession, acquisition_id: str, key: str) -> Assumption | None:
+    stmt = select(Assumption).where(
+        Assumption.acquisition_id == acquisition_id, Assumption.key == key
+    )
     return (await session.execute(stmt)).scalars().first()
 
 
-async def replace_proforma(session: AsyncSession, deal_id: str, output: ProformaOutput) -> None:
+async def replace_proforma(
+    session: AsyncSession, acquisition_id: str, output: ProformaOutput
+) -> None:
     """Persist a freshly-computed pro forma: replace the year rows and the summary."""
-    await session.execute(delete(ProformaResult).where(ProformaResult.deal_id == deal_id))
+    await session.execute(
+        delete(ProformaResult).where(ProformaResult.acquisition_id == acquisition_id)
+    )
     for row in output.years:
         session.add(
             ProformaResult(
                 result_id=_new_id("pr"),
-                deal_id=deal_id,
+                acquisition_id=acquisition_id,
                 yr=row.yr,
                 revenue=row.revenue,
                 opex=row.opex,
@@ -50,10 +58,10 @@ async def replace_proforma(session: AsyncSession, deal_id: str, output: Proforma
                 levered_cf=row.levered_cf,
             )
         )
-    summary = await session.get(ProformaSummary, deal_id)
+    summary = await session.get(ProformaSummary, acquisition_id)
     irr_val: Decimal | None = output.levered_irr
     if summary is None:
-        summary = ProformaSummary(deal_id=deal_id)
+        summary = ProformaSummary(acquisition_id=acquisition_id)
         session.add(summary)
     summary.levered_irr = irr_val
     summary.equity_multiple = output.equity_multiple

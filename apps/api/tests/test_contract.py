@@ -23,7 +23,7 @@ def test_enum_values_match_spec() -> None:
         "due_diligence",
         "close",
     ]
-    assert [e.value for e in enums.DealStatus] == ["active", "failed", "on_ice", "closed"]
+    assert [e.value for e in enums.AcquisitionStatus] == ["active", "failed", "on_ice", "closed"]
     assert [e.value for e in enums.AccountLevel] == ["section", "major_group", "subgroup", "leaf"]
     assert [e.value for e in enums.MapConfidence] == ["leaf", "coarse", "unmapped"]
     assert [e.value for e in enums.NoiPlacement] == ["above", "below", "non_operating"]
@@ -53,16 +53,16 @@ def test_openapi_schema_generates() -> None:
 
     schema = create_app().openapi()
     assert schema["openapi"].startswith("3.")
-    # The contract must include the deal document and the structured error envelope.
-    assert "DealDocument" in schema["components"]["schemas"]
+    # The contract must include the acquisition document and the structured error envelope.
+    assert "AcquisitionDocument" in schema["components"]["schemas"]
     assert "ErrorResponse" in schema["components"]["schemas"]
 
 
 def test_no_float_for_money_in_models() -> None:
     """Money/rate columns must be Numeric (Decimal), never Float (CLAUDE.md)."""
-    from rjacq.models import Deal, ProformaResult
+    from rjacq.models import Acquisition, ProformaResult
     from sqlalchemy import Float
 
-    for model in (Deal, ProformaResult):
+    for model in (Acquisition, ProformaResult):
         for col in model.__table__.columns:
             assert not isinstance(col.type, Float), f"{model.__name__}.{col.name} is Float"

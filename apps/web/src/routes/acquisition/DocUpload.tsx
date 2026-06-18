@@ -7,8 +7,8 @@ import { useRef, useState } from "react";
 import { useUploadDocument, type UploadResult } from "../../api/hooks";
 import { ApiError } from "../../api/client";
 
-export function DocUpload({ dealId }: { dealId: string }) {
-  const upload = useUploadDocument(dealId);
+export function DocUpload({ acquisitionId }: { acquisitionId: string }) {
+  const upload = useUploadDocument(acquisitionId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);

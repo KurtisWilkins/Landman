@@ -1,7 +1,7 @@
 /**
  * Silent context capture for feedback submissions (design doc §5.10).
  *
- * Gathers route + deal, app version/build, browser, OS, viewport, and — for bug reports —
+ * Gathers route + acquisition, app version/build, browser, OS, viewport, and — for bug reports —
  * breadcrumbs, captured console errors, and the last API error. Shapes to the API's
  * `FeedbackContext`. No browser storage is read or written.
  */
@@ -39,7 +39,7 @@ function parseUserAgent(ua: string): { browser: string; os: string; device: stri
 
 export function captureContext(args: {
   route: string;
-  dealId?: string | null;
+  acquisitionId?: string | null;
   includeBugDetail: boolean;
 }): FeedbackContext {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
@@ -49,7 +49,7 @@ export function captureContext(args: {
 
   const ctx: FeedbackContext = {
     page_route: args.route,
-    deal_id: args.dealId ?? null,
+    acquisition_id: args.acquisitionId ?? null,
     app_version: APP_VERSION,
     browser,
     os,

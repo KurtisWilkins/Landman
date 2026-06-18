@@ -33,7 +33,7 @@ describe("FeedbackTriage", () => {
               type: "bug",
               title: "Pro forma blank",
               status: "ready",
-              page_route: "/deals/dl_1/proforma",
+              page_route: "/acquisitions/dl_1/proforma",
             },
           ]);
         }

@@ -16,8 +16,8 @@ function n(v: unknown): number {
   return Number(v ?? 0);
 }
 
-export function ProformaTab({ dealId }: { dealId: string }) {
-  const { data, isLoading, error } = useProforma(dealId);
+export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
+  const { data, isLoading, error } = useProforma(acquisitionId);
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)

@@ -1,6 +1,6 @@
 """Market-sizing tables (§8.4 — Market).
 
-Population rings: estimated population within 25/50/100/150-mile bands of a deal, auto-pulled
+Population rings: estimated population within 25/50/100/150-mile bands of a acquisition, auto-pulled
 when a property is entered and overridable by the underwriter. Baseline (provider) + override
 + author + note are retained side by side (provenance), mirroring `assumptions`.
 """
@@ -22,7 +22,9 @@ class PopulationRing(Base):
     __tablename__ = "population_rings"
 
     ring_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     radius_mi: Mapped[int] = mapped_column(Integer, nullable=False)  # 25 | 50 | 100 | 150
     baseline_population: Mapped[int | None] = mapped_column(Integer)  # provider estimate
     override_population: Mapped[int | None] = mapped_column(Integer)

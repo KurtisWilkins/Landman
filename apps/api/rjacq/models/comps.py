@@ -17,7 +17,9 @@ class Comp(Base):
     __tablename__ = "comps"
 
     comp_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deal_id: Mapped[str] = mapped_column(ForeignKey("deals.deal_id"), nullable=False)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     lat: Mapped[float | None] = mapped_column(Numeric)
     lng: Mapped[float | None] = mapped_column(Numeric)

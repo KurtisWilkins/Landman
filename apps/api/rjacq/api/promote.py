@@ -1,6 +1,6 @@
 """Promote-waterfall calculator endpoint (§9).
 
-Stateless what-if tool: POST the inputs, get the full deal-by-deal promote result back. No
+Stateless what-if tool: POST the inputs, get the full per-acquisition promote result back. No
 persistence — it's an interactive calculator. The math lives in ``underwriting/promote.py`` (a
 pure, unit-tested module); this router only marshals types.
 """
@@ -32,9 +32,9 @@ async def compute_promote_waterfall(
     body: PromoteRequest,
     _principal: Principal = Depends(get_current_principal),
 ) -> PromoteResponse:
-    """Run the deal-by-deal promote waterfall and return both equity positions + the breakdown."""
+    """Run the per-acquisition promote waterfall and return both positions + the breakdown."""
     inp = engine.PromoteInputs(
-        deal_name=body.deal_name,
+        acquisition_name=body.acquisition_name,
         start_date=body.start_date,
         hold_years=body.hold_years,
         equity=body.equity,
@@ -55,11 +55,11 @@ async def compute_promote_waterfall(
     )
     r = engine.run_promote_waterfall(inp)
     return PromoteResponse(
-        deal_name=r.deal_name,
+        acquisition_name=r.acquisition_name,
         dates=r.dates,
         purchase_price=r.purchase_price,
         acquisition_fee=r.acquisition_fee,
-        deal_cashflows=r.deal_cashflows,
+        acquisition_cashflows=r.acquisition_cashflows,
         combined_equity_distributions=r.combined_equity_distributions,
         rjourney_carried_interest=r.rjourney_carried_interest,
         total_promote=r.total_promote,
@@ -75,7 +75,7 @@ async def compute_promote_waterfall(
             )
             for t in r.tiers
         ],
-        deal=_position(r.deal),
+        acquisition=_position(r.acquisition),
         partner=_position(r.partner),
         rjourney=_position(r.rjourney),
         cashflow_ties_out=r.cashflow_ties_out,
