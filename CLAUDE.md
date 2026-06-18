@@ -4,6 +4,10 @@ Operating rules for any Claude Code session (interactive or GitHub Action) worki
 repository. Keep this file the single, concise source of *how we build*; the **what** lives in
 `docs/rjourney-acquisitions-design-document-v0.2.md` (the design doc).
 
+> **Get up to speed first:** read @docs/PROJECT-CONTEXT.md — current state, the active rebrand to
+> rjourney.com, and the re-spec of the promote waterfall (Partner Equity / RJourney Equity).
+> Where it and the older design doc disagree, PROJECT-CONTEXT.md is the newer intent.
+
 ---
 
 ## What this is
