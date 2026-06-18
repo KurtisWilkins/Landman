@@ -8,7 +8,6 @@ export interface Destination {
 export const DESTINATIONS: Destination[] = [
   { to: "/", label: "Pipeline", short: "Pipe" },
   { to: "/mapping", label: "GL Mapping", short: "Map" },
-  { to: "/promote", label: "Promote", short: "Promo" },
   { to: "/approvals", label: "Approvals", short: "Appr" },
   { to: "/feedback", label: "Feedback", short: "Feed" },
   { to: "/settings", label: "Settings", short: "Set" },
