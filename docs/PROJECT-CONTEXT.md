@@ -4,8 +4,8 @@
 > where it lives, the active direction, and what's true today vs. what we still want.*
 > The **how-we-build rulebook is [`CLAUDE.md`](../CLAUDE.md)**; the **what-it-does spec is the
 > design doc** ([`docs/rjourney-acquisitions-design-document-v0.2.md`](rjourney-acquisitions-design-document-v0.2.md)).
-> Where this file and those disagree, this file describes the **newer intent** — see
-> "New direction vs. current repo" and treat those as open work, not as already-shipped.
+> Where this file and the older design doc disagree, this file is current — see
+> "Shipped vs. the older design doc" for what still needs reconciling.
 
 ## What this project is
 
@@ -63,48 +63,51 @@ apps/web/src/     React SPA:
 migrations/  docs/  .github/
 ```
 
-## Design target — match rjourney.com
+## Design target — match rjourney.com  ✅ shipped
 
-The app should visually match the **RJourney brand** at https://rjourney.com.
-- Warm outdoor/RV brand; tagline **"Modern Comfort. Timeless Adventure."**
-- Brand **blue** primary. White wordmark on dark/photo backgrounds, blue/dark wordmark on light.
-- Logos: white `https://rjourney.com/wp-content/uploads/RJourneylogoWhiteBLD2.png`;
-  blue `https://rjourney.com/wp-content/uploads/RJourneylogoBlueBLD2.png`.
-- Extract brand fonts + exact palette from the live site's CSS and centralize them as tokens in
-  **one theme source** (`apps/web/tailwind.config.ts` + `index.css`). Do not hardcode hex across
-  components.
-- **Known gap (this is why it "doesn't look like rjourney.com at all"):** the current theme is a
-  *forest-green / bone-cream / brass* palette with placeholder hex values taken from an internal
-  wireframe (`tailwind.config.ts:11-13`, `TODO(stream-D)`), there is **no logo, no brand fonts,
-  and no blue**, and `index.css` carries no brand styling. The rebrand to rjourney.com has **not
-  been done yet.**
+The app matches the **RJourney brand** at https://rjourney.com — tokens extracted from the live
+site's Breakdance `global-settings.css` and centralized in **one theme source**
+(`apps/web/tailwind.config.ts`; base layer in `index.css`). Do not hardcode hex across components.
+- Brand **navy `#25314B`** (primary actions / headings / links), **gold accent `#FEBB20`**, body
+  ink `#252525`, warm paper `#FCFBFA`, white surfaces. **Gabarito** is the brand typeface;
+  figures stay monospaced (`figure`). 3px control radius; ×1.25 modular type scale.
+- Logo assets live in `apps/web/public/` (`rjourney-blue.png`, `rjourney-white.png`).
+- Earlier history: the first cut used placeholder *forest/bone/brass* wireframe tokens — that's
+  the "doesn't look like rjourney.com" complaint that prompted this work. It was replaced by the
+  brand theme in `style(web): apply RJourney brand theme` (PR #26). The only remaining
+  forest/bone/brass references are in **docs** (the design doc §6 — see gaps below), not in code.
 
-## Core feature — deal-by-deal promote waterfall
+## Core feature — deal-by-deal promote waterfall  ✅ engine shipped
 
-A **reusable engine**, not a one-off page. Each pipeline property feeds the same structure with
+A **reusable engine**, not a one-off page — implemented as a pure, UI/DB-free module so the math
+is unit-tested against the spreadsheet's worked example. Each deal feeds the same structure with
 its own inputs and is computed **independently (deal-by-deal)**.
+- Engine: `apps/api/rjacq/underwriting/promote.py` (`run_promote_waterfall(PromoteInputs)`)
+- API: `apps/api/rjacq/api/promote.py` · schemas `schemas/promote.py`
+- UI: `apps/web/src/routes/Promote.tsx`
+- Tests / regression: `apps/api/tests/test_promote.py`, `tests/test_promote_api.py`
 
-**Views**
-- *Pipeline overview:* all deals with per-deal Partner Equity / RJourney Equity / Deal-Level IRR
-  & MOIC, equity contributed, promote value.
-- *Deal detail:* the full waterfall populated by the selected deal, every input editable,
-  recalculating live; edits persist to that deal.
-
-**Engine logic** — source of truth: the **promote spreadsheet, sheet "Waterfall Template"**
-(⚠️ not in the repo yet — add it under `docs/` or reference it, and verify the numbers below):
+**Engine logic** — reconstructs the **promote spreadsheet, sheet "Waterfall Template"** (the
+worked example is pinned in `test_promote.py`; the source `.xlsx` itself is not committed):
 - Per-deal inputs: start date, total equity, asset LTV, RJourney co-invest % (Partner % =
   1 − co-invest), four IRR hurdles (**8 / 15 / 20 / 20 %**), four promote splits
-  (**10 / 20 / 30 / 30 %**), return-case cash-flow assumptions (yr-1 yield, growth, exit),
-  optional acquisition & management fees.
+  (**10 / 20 / 30 / 30 %**), return-case assumptions (yr-1 yield, growth, bespoke exit
+  reversion), optional acquisition & management fees. Dates are annual (EOMONTH +12); returns are
+  date-based **XIRR** (actual/365), matching the sheet.
 - Flow: generate deal-level cash flows → return capital first → four sequential IRR-hurdle tiers
   → split residual.
 - **Promote tier-shift rule:** a hurdle's promote % applies to cash *above* it — 100% to equity
   up to 8%, then 90/10 (8→15%), 80/20 (15→20%), 70/30 above.
 - Outputs: combined investor cash flows split into **Partner Equity** (net of promote paid to
   RJourney) and **RJourney Equity** (co-invest pari passu + 100% of carry/fees), plus Deal-Level
-  (no promote) for reference.
-- **Regression check (expected defaults):** Deal-Level **18.6% / 2.23x**; Partner
-  **17.5% / 2.13x**; RJourney **27.6% / 3.19x**.
+  (no promote) for reference; reconciliation flag `cashflow_ties_out`.
+- **Regression (default scenario, asserted in `test_promote.py`):** Deal-Level **18.6% / 2.23x**;
+  Partner **17.5% / 2.13x**; RJourney **27.6% / 3.19x**.
+
+**Views status:** the engine + API + a `Promote` route exist. Wiring the pipeline-overview
+columns (per-deal Partner/RJourney/Deal-Level IRR & MOIC) and fully live editable deal-detail
+inputs is the remaining product surface to confirm — check `routes/Pipeline.tsx` and
+`routes/Promote.tsx` against the "Views" intent before assuming it's all wired.
 
 ## Naming rules (strict)
 
@@ -113,20 +116,22 @@ Genericized labels only — no fund/JV/brand names in the promote structure:
 - "GP" → **RJourney Equity** (or "RJourney")
 - Deal name = the property name; no "JV 1" style labels.
 
-## New direction vs. current repo (the gaps to close)
+## Shipped vs. the older design doc (remaining reconciliation)
 
-The repo predates the decisions above. Concretely:
+The brand theme and the promote waterfall (both described above) have **shipped** (PRs #26/#27).
+What's left is making the older **design doc** match the code, plus a couple of cleanups:
 
-1. **Theme:** current = forest/bone/brass placeholders, no logo/fonts/blue → **rebrand to
-   rjourney.com.** Presentational only; never change calc logic to apply a style.
-2. **Waterfall engine:** current `underwriting/engine.py` is a **3-hurdle, LP/GP, European
-   terminal-distribution** waterfall (breakpoints 8%/13%, splits 100/0, 80/20, 70/30 — design
-   doc §5.7 / §8, with `waterfall_tiers.lp_split`/`gp_split`). New spec = **4-hurdle
-   (8/15/20/20), Partner/RJourney, return-of-capital first, tier-shift promote.** This is a
-   re-spec, not a tweak — it resolves design-doc `[DECISION] A-2` with new values.
-3. **Naming:** sweep LP/GP (and any "Fund 21") → **Partner Equity / RJourney Equity** across
-   schema, API, and UI. ⚠️ Per `CLAUDE.md` golden rule #1 the **design doc §8 data model is the
-   contract** — update §8 (and the Alembic migration) in the **same PR** as any rename.
+1. **Design doc §6 (theme)** still describes forest/bone/brass tokens — update it to the shipped
+   rjourney.com brand system (navy/gold/Gabarito). Per `CLAUDE.md` golden rule #1, the design doc
+   is the contract, so this should be brought current.
+2. **Design doc §5.7 / §8 (waterfall)** still describe a **3-hurdle, LP/GP** model
+   (`waterfall_tiers.lp_split`/`gp_split`, breakpoints 8%/13%) and `[DECISION] A-2`. The shipped
+   engine is **4-hurdle (8/15/20/20), Partner/RJourney, return-of-capital first, tier-shift**.
+   Reconcile §8 (and note whether the `waterfall_tiers` schema is still used).
+3. **Two waterfall modules coexist:** the older generic `underwriting/engine.py` (3-hurdle LP/GP
+   European, terminal-distribution) and the new `underwriting/promote.py` (the deal-by-deal
+   Partner/RJourney engine). Confirm which is canonical for the product and whether `engine.py`
+   should be retired or kept for its NOI-bridge / pro-forma helpers.
 
 ## Conventions & working style
 
@@ -140,17 +145,19 @@ The repo predates the decisions above. Concretely:
 
 ## Current status
 
-- **Done / merged (Phases 0–3):** repo scaffold, domain backend modules (ingestion, GL mapping,
-  underwriting engine, comps, gates, feedback, SHIELD connector, population rings via US Census
-  ACS), React app shell + deal workspace (Proforma/Comps/Gates/Market tabs), feedback widget,
-  and the Azure Container Apps provisioning + deploy pipeline.
-- **Partially wired:** several screens render against the generated contract but fall back to
-  "lands with backend" messaging when the endpoint isn't live yet (e.g. Pipeline `/deals`,
-  Proforma). GL Mapping queue is still a `Placeholder`.
-- **Broken / next up:** (1) **rebrand to rjourney.com** (the visible complaint); (2) **re-spec
-  the promote waterfall** to the 4-hurdle Partner/RJourney model above; (3) **naming sweep**
-  LP/GP → Partner/RJourney (+ design-doc §8 + migration); (4) add the promote spreadsheet
-  ("Waterfall Template") to the repo and pin the regression numbers as tests.
+- **Done / merged (Phases 0–3 + recent):** repo scaffold; domain backend (ingestion, GL mapping,
+  underwriting, comps, gates, feedback, SHIELD connector, population rings via US Census ACS);
+  React app shell + deal workspace (Proforma/Comps/Gates/Market tabs) + feedback widget; Azure
+  Container Apps provisioning + deploy pipeline; **rjourney.com brand theme** (PR #26); **deal-by-
+  deal promote waterfall** engine + API + UI + tests (Partner/RJourney, 4-hurdle); new-deal form,
+  O/M extraction, financial-period versioning, admin-managed integration keys, EasyAuth edge auth.
+- **Partially wired:** some screens render against the generated contract but fall back to "lands
+  with backend" messaging when an endpoint isn't live yet. GL Mapping queue is still a
+  `Placeholder`. Verify the promote views (pipeline columns + live deal-detail editing) are fully
+  wired before assuming so.
+- **Next up:** (1) bring the **design doc current** (§6 theme, §5.7/§8 waterfall) — see
+  reconciliation above; (2) decide the fate of the older `underwriting/engine.py` vs the new
+  `promote.py`; (3) commit (or formally reference) the source "Waterfall Template" spreadsheet.
 
 ## Reference docs
 
