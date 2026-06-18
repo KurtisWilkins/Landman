@@ -96,6 +96,20 @@ export function useActivateFinancialPeriod(dealId: string) {
   });
 }
 
+type PromoteRequest = Schemas["PromoteRequest"];
+type PromoteResponse = Schemas["PromoteResponse"];
+
+export function usePromoteWaterfall() {
+  // Stateless calculator: POST the inputs, get the full deal-by-deal promote result back.
+  return useMutation({
+    mutationFn: (body: PromoteRequest) =>
+      apiFetch<PromoteResponse>("/promote/waterfall", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+}
+
 type IntegrationStatus = Schemas["IntegrationStatus"];
 
 export function useIntegrations() {

@@ -1303,6 +1303,56 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "ExitAssumptionsIn": {
+        "properties": {
+          "base_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "300000000",
+            "title": "Base Value"
+          },
+          "cap_rate": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.05",
+            "title": "Cap Rate"
+          },
+          "income_yield": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.07",
+            "title": "Income Yield"
+          }
+        },
+        "title": "ExitAssumptionsIn",
+        "type": "object"
+      },
       "FeedbackAttachmentCreate": {
         "description": "POST /feedback/{id}/attachments \u2014 screenshot/file (access-scoped, D-32).",
         "properties": {
@@ -2954,6 +3004,66 @@
         "title": "PopulationRingsDoc",
         "type": "object"
       },
+      "PositionOut": {
+        "properties": {
+          "cashflows": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Cashflows",
+            "type": "array"
+          },
+          "equity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equity",
+            "type": "string"
+          },
+          "irr": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irr"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "moic": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moic"
+          },
+          "profit": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Profit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "cashflows",
+          "equity",
+          "profit",
+          "irr",
+          "moic"
+        ],
+        "title": "PositionOut",
+        "type": "object"
+      },
       "ProformaExit": {
         "properties": {
           "exit_cap": {
@@ -3151,6 +3261,293 @@
         "title": "ProformaYear",
         "type": "object"
       },
+      "PromoteRequest": {
+        "properties": {
+          "acquisition_fee_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Acquisition Fee Pct"
+          },
+          "cashflow_override": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cashflow Override"
+          },
+          "deal_name": {
+            "default": "Deal 1",
+            "title": "Deal Name",
+            "type": "string"
+          },
+          "distribution_growth": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": -1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.05",
+            "title": "Distribution Growth"
+          },
+          "equity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "150000000",
+            "title": "Equity"
+          },
+          "exit": {
+            "$ref": "#/components/schemas/ExitAssumptionsIn"
+          },
+          "hold_years": {
+            "default": 5,
+            "maximum": 10.0,
+            "minimum": 2.0,
+            "title": "Hold Years",
+            "type": "integer"
+          },
+          "hurdles": {
+            "default": [
+              "0.08",
+              "0.15",
+              "0.20",
+              "0.20"
+            ],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Hurdles",
+            "type": "array"
+          },
+          "ltv": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.65",
+            "title": "Ltv"
+          },
+          "mgmt_fee_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Mgmt Fee Pct"
+          },
+          "promotes": {
+            "default": [
+              "0.10",
+              "0.20",
+              "0.30",
+              "0.30"
+            ],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Promotes",
+            "type": "array"
+          },
+          "rjourney_coinvest_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.10",
+            "title": "Rjourney Coinvest Pct"
+          },
+          "start_date": {
+            "default": "2025-12-31",
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "yr1_distribution_pct": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.05",
+            "title": "Yr1 Distribution Pct"
+          }
+        },
+        "title": "PromoteRequest",
+        "type": "object"
+      },
+      "PromoteResponse": {
+        "properties": {
+          "acquisition_fee": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Acquisition Fee",
+            "type": "string"
+          },
+          "cashflow_ties_out": {
+            "title": "Cashflow Ties Out",
+            "type": "boolean"
+          },
+          "combined_equity_distributions": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Combined Equity Distributions",
+            "type": "array"
+          },
+          "dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Dates",
+            "type": "array"
+          },
+          "deal": {
+            "$ref": "#/components/schemas/PositionOut"
+          },
+          "deal_cashflows": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Deal Cashflows",
+            "type": "array"
+          },
+          "deal_name": {
+            "title": "Deal Name",
+            "type": "string"
+          },
+          "partner": {
+            "$ref": "#/components/schemas/PositionOut"
+          },
+          "purchase_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Purchase Price",
+            "type": "string"
+          },
+          "rjourney": {
+            "$ref": "#/components/schemas/PositionOut"
+          },
+          "rjourney_carried_interest": {
+            "items": {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            "title": "Rjourney Carried Interest",
+            "type": "array"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/TierOut"
+            },
+            "title": "Tiers",
+            "type": "array"
+          },
+          "total_promote": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Promote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deal_name",
+          "dates",
+          "purchase_price",
+          "acquisition_fee",
+          "deal_cashflows",
+          "combined_equity_distributions",
+          "rjourney_carried_interest",
+          "total_promote",
+          "tiers",
+          "deal",
+          "partner",
+          "rjourney",
+          "cashflow_ties_out"
+        ],
+        "title": "PromoteResponse",
+        "type": "object"
+      },
       "PropertyDoc": {
         "properties": {
           "amenities": {
@@ -3330,6 +3727,61 @@
         ],
         "title": "SuggestionType",
         "type": "string"
+      },
+      "TierOut": {
+        "properties": {
+          "binds": {
+            "title": "Binds",
+            "type": "boolean"
+          },
+          "carry_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Carry Total",
+            "type": "string"
+          },
+          "equity_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Equity Total",
+            "type": "string"
+          },
+          "hurdle_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Hurdle Rate",
+            "type": "string"
+          },
+          "irr_check": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Irr Check"
+          },
+          "promote_pct": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Promote Pct",
+            "type": "string"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tier",
+          "hurdle_rate",
+          "promote_pct",
+          "equity_total",
+          "carry_total",
+          "irr_check",
+          "binds"
+        ],
+        "title": "TierOut",
+        "type": "object"
       },
       "UnderwritingDoc": {
         "properties": {
@@ -7154,6 +7606,126 @@
         "summary": "Health",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/promote/waterfall": {
+      "post": {
+        "description": "Run the deal-by-deal promote waterfall and return both equity positions + the breakdown.",
+        "operationId": "compute_promote_waterfall_promote_waterfall_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Compute Promote Waterfall",
+        "tags": [
+          "promote"
         ]
       }
     },

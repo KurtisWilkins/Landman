@@ -508,6 +508,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/promote/waterfall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compute Promote Waterfall
+         * @description Run the deal-by-deal promote waterfall and return both equity positions + the breakdown.
+         */
+        post: operations["compute_promote_waterfall_promote_waterfall_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/question-suggestions": {
         parameters: {
             query?: never;
@@ -938,6 +958,24 @@ export interface components {
          */
         ErrorResponse: {
             error: components["schemas"]["ErrorDetail"];
+        };
+        /** ExitAssumptionsIn */
+        ExitAssumptionsIn: {
+            /**
+             * Base Value
+             * @default 300000000
+             */
+            base_value: number | string;
+            /**
+             * Cap Rate
+             * @default 0.05
+             */
+            cap_rate: number | string;
+            /**
+             * Income Yield
+             * @default 0.07
+             */
+            income_yield: number | string;
         };
         /**
          * FeedbackAttachmentCreate
@@ -1420,6 +1458,21 @@ export interface components {
              */
             rings: components["schemas"]["PopulationRingOut"][];
         };
+        /** PositionOut */
+        PositionOut: {
+            /** Cashflows */
+            cashflows: string[];
+            /** Equity */
+            equity: string;
+            /** Irr */
+            irr: string | null;
+            /** Label */
+            label: string;
+            /** Moic */
+            moic: string | null;
+            /** Profit */
+            profit: string;
+        };
         /** ProformaExit */
         ProformaExit: {
             /** Exit Cap */
@@ -1459,6 +1512,109 @@ export interface components {
             revenue?: string | null;
             /** Yr */
             yr: number;
+        };
+        /** PromoteRequest */
+        PromoteRequest: {
+            /**
+             * Acquisition Fee Pct
+             * @default 0
+             */
+            acquisition_fee_pct: number | string;
+            /** Cashflow Override */
+            cashflow_override?: (number | string)[] | null;
+            /**
+             * Deal Name
+             * @default Deal 1
+             */
+            deal_name: string;
+            /**
+             * Distribution Growth
+             * @default 0.05
+             */
+            distribution_growth: number | string;
+            /**
+             * Equity
+             * @default 150000000
+             */
+            equity: number | string;
+            exit?: components["schemas"]["ExitAssumptionsIn"];
+            /**
+             * Hold Years
+             * @default 5
+             */
+            hold_years: number;
+            /**
+             * Hurdles
+             * @default [
+             *       "0.08",
+             *       "0.15",
+             *       "0.20",
+             *       "0.20"
+             *     ]
+             */
+            hurdles: (number | string)[];
+            /**
+             * Ltv
+             * @default 0.65
+             */
+            ltv: number | string;
+            /**
+             * Mgmt Fee Pct
+             * @default 0
+             */
+            mgmt_fee_pct: number | string;
+            /**
+             * Promotes
+             * @default [
+             *       "0.10",
+             *       "0.20",
+             *       "0.30",
+             *       "0.30"
+             *     ]
+             */
+            promotes: (number | string)[];
+            /**
+             * Rjourney Coinvest Pct
+             * @default 0.10
+             */
+            rjourney_coinvest_pct: number | string;
+            /**
+             * Start Date
+             * Format: date
+             * @default 2025-12-31
+             */
+            start_date: string;
+            /**
+             * Yr1 Distribution Pct
+             * @default 0.05
+             */
+            yr1_distribution_pct: number | string;
+        };
+        /** PromoteResponse */
+        PromoteResponse: {
+            /** Acquisition Fee */
+            acquisition_fee: string;
+            /** Cashflow Ties Out */
+            cashflow_ties_out: boolean;
+            /** Combined Equity Distributions */
+            combined_equity_distributions: string[];
+            /** Dates */
+            dates: string[];
+            deal: components["schemas"]["PositionOut"];
+            /** Deal Cashflows */
+            deal_cashflows: string[];
+            /** Deal Name */
+            deal_name: string;
+            partner: components["schemas"]["PositionOut"];
+            /** Purchase Price */
+            purchase_price: string;
+            rjourney: components["schemas"]["PositionOut"];
+            /** Rjourney Carried Interest */
+            rjourney_carried_interest: string[];
+            /** Tiers */
+            tiers: components["schemas"]["TierOut"][];
+            /** Total Promote */
+            total_promote: string;
         };
         /** PropertyDoc */
         PropertyDoc: {
@@ -1529,6 +1685,23 @@ export interface components {
          * @enum {string}
          */
         SuggestionType: "add" | "retire" | "edit";
+        /** TierOut */
+        TierOut: {
+            /** Binds */
+            binds: boolean;
+            /** Carry Total */
+            carry_total: string;
+            /** Equity Total */
+            equity_total: string;
+            /** Hurdle Rate */
+            hurdle_rate: string;
+            /** Irr Check */
+            irr_check: string | null;
+            /** Promote Pct */
+            promote_pct: string;
+            /** Tier */
+            tier: number;
+        };
         /** UnderwritingDoc */
         UnderwritingDoc: {
             /** Assumptions */
@@ -4108,6 +4281,95 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    compute_promote_waterfall_promote_waterfall_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoteResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

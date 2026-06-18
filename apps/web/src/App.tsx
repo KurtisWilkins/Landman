@@ -5,6 +5,7 @@ import { DealDetail } from "./routes/DealDetail";
 import { FeedbackTriage } from "./routes/FeedbackTriage";
 import { Pipeline } from "./routes/Pipeline";
 import { Placeholder } from "./routes/Placeholder";
+import { Promote } from "./routes/Promote";
 import { Settings } from "./routes/Settings";
 
 /**
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
           />
         ),
       },
+      { path: "promote", element: <Promote /> },
       { path: "approvals", element: <Approvals /> },
       { path: "feedback", element: <FeedbackTriage /> },
       { path: "settings", element: <Settings /> },
