@@ -24,7 +24,7 @@ export function CompsTab({ dealId }: { dealId: string }) {
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)
     return (
-      <p className="rounded border border-forest/20 p-3 text-sm opacity-80">
+      <p className="rounded border border-brand/20 p-3 text-sm opacity-80">
         Comps land with the comp-intelligence backend (50-mile set, sentiment, amenity scores). This
         tab is wired to the contract and will render once it’s implemented.
       </p>
@@ -49,7 +49,7 @@ export function CompsTab({ dealId }: { dealId: string }) {
             <YAxis type="number" dataKey="sentiment" name="Sentiment" />
             <ZAxis type="number" dataKey="amenity" range={[40, 200]} name="Amenity" />
             <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-            <Scatter data={points} fill="#b08a3e" />
+            <Scatter data={points} fill="var(--color-accent)" />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
@@ -57,7 +57,7 @@ export function CompsTab({ dealId }: { dealId: string }) {
       {ranked.length === 0 ? (
         <p className="text-sm opacity-70">No comps yet.</p>
       ) : (
-        <ol className="divide-y divide-forest/10">
+        <ol className="divide-y divide-brand/10">
           {ranked.map((c) => (
             <li key={c.comp_id} className="flex items-center justify-between py-2 text-sm">
               <span>

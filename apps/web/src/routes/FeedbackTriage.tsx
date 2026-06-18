@@ -37,7 +37,7 @@ export function FeedbackTriage() {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FeedbackStatus | "")}
-            className="rounded border border-forest/20 bg-white px-2 py-1 text-sm"
+            className="rounded border border-brand/20 bg-white px-2 py-1 text-sm"
           >
             <option value="">All statuses</option>
             {STATUSES.map((s) => (
@@ -51,7 +51,7 @@ export function FeedbackTriage() {
 
       {isLoading && <p className="mt-4 text-sm opacity-70">Loading…</p>}
       {error && (
-        <p className="mt-4 rounded border border-forest/20 p-3 text-sm opacity-80">
+        <p className="mt-4 rounded border border-brand/20 p-3 text-sm opacity-80">
           Couldn’t load the triage queue (admin access required).
         </p>
       )}
@@ -59,7 +59,7 @@ export function FeedbackTriage() {
         <p className="mt-6 text-sm opacity-70">No feedback in this view.</p>
       )}
 
-      <ul className="mt-4 divide-y divide-forest/10">
+      <ul className="mt-4 divide-y divide-brand/10">
         {items.map((f) => (
           <li key={f.feedback_id} className="py-3">
             <div className="flex items-start justify-between gap-3">
@@ -80,7 +80,7 @@ export function FeedbackTriage() {
                       patch: { status: e.target.value as FeedbackStatus },
                     })
                   }
-                  className="rounded border border-forest/20 bg-white px-2 py-1 text-xs"
+                  className="rounded border border-brand/20 bg-white px-2 py-1 text-xs"
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -93,7 +93,7 @@ export function FeedbackTriage() {
                   onClick={() => dispatch.mutate({ id: f.feedback_id, body: {} })}
                   disabled={f.status !== "ready" || dispatch.isPending}
                   title={f.status !== "ready" ? "Item must be 'ready' to dispatch" : undefined}
-                  className="rounded bg-brass-accent px-3 py-1 text-xs text-bone-paper disabled:opacity-40"
+                  className="rounded bg-accent px-3 py-1 text-xs text-brand disabled:opacity-40"
                 >
                   Dispatch
                 </button>

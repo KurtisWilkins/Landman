@@ -22,7 +22,7 @@ export function ProformaTab({ dealId }: { dealId: string }) {
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)
     return (
-      <p className="rounded border border-forest/20 p-3 text-sm opacity-80">
+      <p className="rounded border border-brand/20 p-3 text-sm opacity-80">
         The pro forma lands with the underwriting backend (IRR, waterfall, 5-yr cash flow). This tab
         is wired to the contract and will render once it’s implemented.
       </p>
@@ -70,7 +70,7 @@ export function ProformaTab({ dealId }: { dealId: string }) {
           </thead>
           <tbody className="font-figure">
             {rows.map((r) => (
-              <tr key={r.key} className="border-t border-forest/10">
+              <tr key={r.key} className="border-t border-brand/10">
                 <td className="px-2 py-1">{r.label}</td>
                 {years.map((y) => (
                   <td key={y.yr} className="px-2 py-1 text-right">

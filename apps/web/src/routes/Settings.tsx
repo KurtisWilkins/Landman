@@ -29,12 +29,12 @@ function IntegrationRow({ item }: { item: IntegrationStatus }) {
           <div className="text-xs opacity-70">
             <code>{item.key}</code> ·{" "}
             {item.configured ? (
-              <span className="text-forest">
+              <span className="text-brand">
                 Configured{item.hint ? ` (…${item.hint})` : ""}
                 {item.source ? ` · ${item.source}` : ""}
               </span>
             ) : (
-              <span className="text-red-700">Missing</span>
+              <span className="text-danger">Missing</span>
             )}
           </div>
         </div>
@@ -46,19 +46,19 @@ function IntegrationRow({ item }: { item: IntegrationStatus }) {
           placeholder={item.configured ? "Replace value…" : "Paste key…"}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="w-full max-w-md rounded border border-forest/20 bg-bone px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brass-accent"
+          className="w-full max-w-md rounded border border-brand/20 bg-surface px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
         />
         <button
           type="button"
           onClick={save}
           disabled={!value.trim() || setKey.isPending}
-          className="rounded bg-forest px-3 py-1.5 text-sm text-bone disabled:opacity-50"
+          className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
         >
           {setKey.isPending ? "Saving…" : "Save"}
         </button>
-        {setKey.isSuccess && <span className="text-xs text-forest">Saved.</span>}
+        {setKey.isSuccess && <span className="text-xs text-brand">Saved.</span>}
         {setKey.isError && (
-          <span role="alert" className="text-xs text-red-700">
+          <span role="alert" className="text-xs text-danger">
             {setKey.error instanceof ApiError ? setKey.error.message : "Save failed."}
           </span>
         )}
@@ -81,7 +81,7 @@ export function Settings() {
       {isLoading && <p className="mt-4 text-sm opacity-70">Loading…</p>}
 
       {error && (
-        <p className="mt-4 rounded border border-forest/20 p-3 text-sm opacity-80">
+        <p className="mt-4 rounded border border-brand/20 p-3 text-sm opacity-80">
           {error instanceof ApiError && error.status === 403
             ? "Integration keys are admin-only. Ask an admin to set them."
             : "Couldn’t load integration settings."}
@@ -89,7 +89,7 @@ export function Settings() {
       )}
 
       {data && (
-        <ul className="mt-4 divide-y divide-forest/10">
+        <ul className="mt-4 divide-y divide-brand/10">
           {data.map((item) => (
             <IntegrationRow key={item.key} item={item} />
           ))}

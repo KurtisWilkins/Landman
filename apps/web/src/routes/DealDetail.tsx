@@ -32,7 +32,7 @@ export function DealDetail() {
       <div
         role="tablist"
         aria-label="Deal sections"
-        className="mt-4 flex gap-1 border-b border-forest/15"
+        className="mt-4 flex gap-1 border-b border-brand/15"
       >
         {TABS.map((t) => (
           <button
@@ -41,7 +41,7 @@ export function DealDetail() {
             aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm ${
-              tab === t ? "border-forest font-medium" : "border-transparent opacity-70"
+              tab === t ? "border-brand font-medium" : "border-transparent opacity-70"
             }`}
           >
             {t}

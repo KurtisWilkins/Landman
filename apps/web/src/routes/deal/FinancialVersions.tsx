@@ -21,20 +21,20 @@ export function FinancialVersions({ dealId }: { dealId: string }) {
   if (versions.length < 2) return null;
 
   return (
-    <div className="rounded-lg border border-forest/15 p-4">
+    <div className="rounded-lg border border-brand/15 p-4">
       <div className="text-sm font-medium">Financials versions</div>
       <p className="mt-1 text-xs opacity-70">
         Each upload is kept as a dated version; the active one feeds the GL view below. Switching
         never deletes a version.
       </p>
-      <ul className="mt-3 divide-y divide-forest/10">
+      <ul className="mt-3 divide-y divide-brand/10">
         {versions.map((v) => (
           <li key={v.period_id} className="flex items-center justify-between gap-3 py-2">
             <div className="min-w-0">
               <div className="truncate text-sm">
                 {v.source_filename ?? v.label ?? v.period_id}
                 {v.is_current && (
-                  <span className="ml-2 rounded bg-forest/10 px-1.5 py-0.5 text-xs text-forest">
+                  <span className="ml-2 rounded bg-brand/10 px-1.5 py-0.5 text-xs text-brand">
                     Active
                   </span>
                 )}
@@ -51,7 +51,7 @@ export function FinancialVersions({ dealId }: { dealId: string }) {
                 type="button"
                 onClick={() => activate.mutate(v.period_id)}
                 disabled={activate.isPending}
-                className="rounded border border-forest/30 px-2 py-1 text-xs text-forest disabled:opacity-50"
+                className="rounded border border-brand/30 px-2 py-1 text-xs text-brand disabled:opacity-50"
               >
                 Make active
               </button>

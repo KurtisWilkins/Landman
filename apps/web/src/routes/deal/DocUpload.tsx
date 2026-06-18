@@ -25,7 +25,7 @@ export function DocUpload({ dealId }: { dealId: string }) {
   }
 
   return (
-    <div className="rounded-lg border border-forest/15 p-4">
+    <div className="rounded-lg border border-brand/15 p-4">
       <div className="text-sm font-medium">Upload a source document</div>
       <p className="mt-1 text-xs opacity-70">
         Excel or CSV (P&amp;L, unit mix, rent roll). PDF extraction activates once the AI provider
@@ -43,14 +43,14 @@ export function DocUpload({ dealId }: { dealId: string }) {
         <button
           onClick={submit}
           disabled={!file || upload.isPending}
-          className="rounded bg-forest px-3 py-1.5 text-sm text-bone disabled:opacity-50"
+          className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
         >
           {upload.isPending ? "Uploading…" : "Upload"}
         </button>
       </div>
 
       {upload.isError && (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-danger">
           {upload.error instanceof ApiError ? upload.error.message : "Upload failed."}
         </p>
       )}

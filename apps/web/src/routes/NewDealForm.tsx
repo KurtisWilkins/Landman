@@ -26,7 +26,7 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
 
 const labelCls = "block text-xs uppercase tracking-wide opacity-70";
 const inputCls =
-  "mt-1 w-full rounded border border-forest/20 bg-bone px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brass-accent";
+  "mt-1 w-full rounded border border-brand/20 bg-surface px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
 
 export function NewDealForm({
   onCreated,
@@ -98,7 +98,7 @@ export function NewDealForm({
   const busy = create.isPending || extract.isPending;
 
   return (
-    <form onSubmit={submit} className="mt-4 rounded-lg border border-forest/15 p-4">
+    <form onSubmit={submit} className="mt-4 rounded-lg border border-brand/15 p-4">
       <div role="tablist" aria-label="Intake method" className="mb-4 flex gap-1">
         {(["manual", "om"] as const).map((m) => (
           <button
@@ -108,7 +108,7 @@ export function NewDealForm({
             aria-selected={mode === m}
             onClick={() => setMode(m)}
             className={`rounded px-3 py-1 text-sm ${
-              mode === m ? "bg-forest text-bone" : "border border-forest/20"
+              mode === m ? "bg-brand text-surface" : "border border-brand/20"
             }`}
           >
             {m === "manual" ? "Enter manually" : "Upload OM (PDF)"}
@@ -117,7 +117,7 @@ export function NewDealForm({
       </div>
 
       {mode === "om" && (
-        <div className="mb-4 rounded-lg border border-forest/15 p-3">
+        <div className="mb-4 rounded-lg border border-brand/15 p-3">
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="file"
@@ -130,13 +130,13 @@ export function NewDealForm({
               type="button"
               onClick={extractFromOm}
               disabled={!omFile || extract.isPending}
-              className="rounded bg-brass-accent px-3 py-1.5 text-sm text-forest-ink disabled:opacity-50"
+              className="rounded bg-accent px-3 py-1.5 text-sm text-ink disabled:opacity-50"
             >
               {extract.isPending ? "Extracting…" : "Extract from OM"}
             </button>
           </div>
           {extract.isError && (
-            <p role="alert" className="mt-2 text-sm text-red-700">
+            <p role="alert" className="mt-2 text-sm text-danger">
               {extract.error instanceof ApiError &&
               extract.error.code === "extractor_not_configured"
                 ? "OM extraction isn’t configured yet (needs the AI provider key). Enter the deal manually for now."
@@ -247,7 +247,7 @@ export function NewDealForm({
           <div className="text-xs uppercase tracking-wide opacity-70">
             Extracted financials (loaded on create)
           </div>
-          <ul className="mt-1 divide-y divide-forest/10 text-sm">
+          <ul className="mt-1 divide-y divide-brand/10 text-sm">
             {financials.map((line, i) => (
               <li key={i} className="flex justify-between py-1">
                 <span>{line.description}</span>
@@ -259,7 +259,7 @@ export function NewDealForm({
       )}
 
       {create.isError && (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-danger">
           {create.error instanceof ApiError ? create.error.message : "Could not create the deal."}
         </p>
       )}
@@ -268,14 +268,14 @@ export function NewDealForm({
         <button
           type="submit"
           disabled={!name.trim() || busy}
-          className="rounded bg-forest px-3 py-1.5 text-sm text-bone disabled:opacity-50"
+          className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
         >
           {create.isPending ? "Creating…" : "Create deal"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded border border-forest/20 px-3 py-1.5 text-sm"
+          className="rounded border border-brand/20 px-3 py-1.5 text-sm"
         >
           Cancel
         </button>

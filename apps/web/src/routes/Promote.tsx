@@ -70,7 +70,7 @@ function Field({
         value={Number.isFinite(shown) ? shown : 0}
         step={step ?? (pct ? 0.5 : money ? 1000000 : 1)}
         onChange={(e) => onChange(pct ? num(e.target.value) / 100 : num(e.target.value))}
-        className="w-full rounded border border-forest/20 bg-bone px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-brass-accent"
+        className="w-full rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
       />
     </label>
   );
@@ -78,7 +78,7 @@ function Field({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <fieldset className="rounded-lg border border-forest/15 p-3">
+    <fieldset className="rounded-lg border border-brand/15 p-3">
       <legend className="px-1 text-xs font-medium uppercase tracking-wide opacity-70">
         {title}
       </legend>
@@ -126,7 +126,7 @@ export function Promote() {
                 aria-label="Deal name"
                 value={form.deal_name}
                 onChange={(e) => set({ deal_name: e.target.value })}
-                className="rounded border border-forest/20 bg-bone px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brass-accent"
+                className="rounded border border-brand/20 bg-surface px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs">
@@ -136,7 +136,7 @@ export function Promote() {
                 aria-label="Start date"
                 value={String(form.start_date)}
                 onChange={(e) => set({ start_date: e.target.value })}
-                className="rounded border border-forest/20 bg-bone px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-brass-accent"
+                className="rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
             <Field
@@ -169,7 +169,7 @@ export function Promote() {
             />
             <label className="flex flex-col gap-1 text-xs">
               <span className="opacity-70">Partner equity (%)</span>
-              <output className="rounded border border-forest/10 bg-bone/50 px-2 py-1 font-figure text-sm">
+              <output className="rounded border border-brand/10 bg-surface/50 px-2 py-1 font-figure text-sm">
                 {fmtPct(partnerPct)}
               </output>
             </label>
@@ -236,7 +236,7 @@ export function Promote() {
         {/* ── Outputs ──────────────────────────────────────── */}
         <div className="space-y-4">
           {calc.isError && (
-            <p role="alert" className="rounded border border-red-700/30 p-3 text-sm text-red-700">
+            <p role="alert" className="rounded border border-danger/30 p-3 text-sm text-danger">
               Couldn’t calculate — check the inputs.
             </p>
           )}
@@ -273,7 +273,7 @@ function ReturnsSummary({ result }: { result: Result }) {
     ["Deal-Level", result.deal],
   ];
   return (
-    <div className="rounded-lg border border-forest/15 p-4">
+    <div className="rounded-lg border border-brand/15 p-4">
       <h2 className="text-sm font-medium">Returns summary</h2>
       <table className="mt-2 w-full text-sm">
         <thead>
@@ -287,7 +287,7 @@ function ReturnsSummary({ result }: { result: Result }) {
           </tr>
         </thead>
         <tbody>
-          <tr className="border-t border-forest/10">
+          <tr className="border-t border-brand/10">
             <td className="py-1">IRR</td>
             {cols.map(([label, p]) => (
               <td key={label} className="py-1 text-right font-figure">
@@ -295,7 +295,7 @@ function ReturnsSummary({ result }: { result: Result }) {
               </td>
             ))}
           </tr>
-          <tr className="border-t border-forest/10">
+          <tr className="border-t border-brand/10">
             <td className="py-1">MOIC</td>
             {cols.map(([label, p]) => (
               <td key={label} className="py-1 text-right font-figure">
@@ -316,7 +316,7 @@ function ContributionAndProfit({ result }: { result: Result }) {
   ];
   return (
     <div className="grid gap-3 sm:grid-cols-2">
-      <div className="rounded-lg border border-forest/15 p-4">
+      <div className="rounded-lg border border-brand/15 p-4">
         <h2 className="text-sm font-medium">Equity &amp; profit</h2>
         <table className="mt-2 w-full text-sm">
           <thead>
@@ -328,7 +328,7 @@ function ContributionAndProfit({ result }: { result: Result }) {
           </thead>
           <tbody>
             {items.map(([label, a, b]) => (
-              <tr key={label} className="border-t border-forest/10">
+              <tr key={label} className="border-t border-brand/10">
                 <td className="py-1">{label}</td>
                 <td className="py-1 text-right font-figure">{a}</td>
                 <td className="py-1 text-right font-figure">{b}</td>
@@ -337,7 +337,7 @@ function ContributionAndProfit({ result }: { result: Result }) {
           </tbody>
         </table>
       </div>
-      <div className="rounded-lg border border-forest/15 p-4">
+      <div className="rounded-lg border border-brand/15 p-4">
         <h2 className="text-sm font-medium">Promote / carried interest</h2>
         <p className="mt-2 font-figure text-2xl">{fmtUsd(result.total_promote)}</p>
         <p className="mt-1 text-xs opacity-70">
@@ -351,7 +351,7 @@ function ContributionAndProfit({ result }: { result: Result }) {
 
 function TierBreakdown({ result }: { result: Result }) {
   return (
-    <div className="rounded-lg border border-forest/15 p-4 overflow-x-auto">
+    <div className="rounded-lg border border-brand/15 p-4 overflow-x-auto">
       <h2 className="text-sm font-medium">Per-tier waterfall</h2>
       <table className="mt-2 min-w-[560px] w-full text-sm">
         <thead>
@@ -366,14 +366,14 @@ function TierBreakdown({ result }: { result: Result }) {
         </thead>
         <tbody>
           {result.tiers.map((t) => (
-            <tr key={t.tier} className="border-t border-forest/10">
+            <tr key={t.tier} className="border-t border-brand/10">
               <td className="py-1">Hurdle {t.tier}</td>
               <td className="py-1 text-right font-figure">{fmtPct(t.hurdle_rate)}</td>
               <td className="py-1 text-right font-figure">{fmtPct(t.promote_pct)}</td>
               <td className="py-1 text-right font-figure">{fmtUsd(t.equity_total)}</td>
               <td className="py-1 text-right font-figure">{fmtUsd(t.carry_total)}</td>
               <td className="py-1 text-right">
-                <span className={t.binds ? "text-forest" : "opacity-50"}>
+                <span className={t.binds ? "text-brand" : "opacity-50"}>
                   {fmtPct(t.irr_check)} {t.binds ? "✓" : "(not binding)"}
                 </span>
               </td>
@@ -395,7 +395,7 @@ function AnnualTable({
   dates: string[];
 }) {
   return (
-    <div className="rounded-lg border border-forest/15 p-4 overflow-x-auto">
+    <div className="rounded-lg border border-brand/15 p-4 overflow-x-auto">
       <h2 className="text-sm font-medium">{title}</h2>
       <table className="mt-2 min-w-[480px] w-full text-sm">
         <thead>
@@ -409,7 +409,7 @@ function AnnualTable({
           </tr>
         </thead>
         <tbody>
-          <tr className="border-t border-forest/10">
+          <tr className="border-t border-brand/10">
             <td className="py-1 opacity-70">{(dates[0] ?? "").slice(0, 4)}…</td>
             {position.cashflows.map((cf, i) => (
               <td key={i} className="py-1 text-right font-figure">

@@ -23,7 +23,7 @@ function MappingReview({ dealId }: { dealId: string }) {
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   if (error || !data)
     return (
-      <p className="rounded border border-forest/20 p-3 text-sm opacity-80">
+      <p className="rounded border border-brand/20 p-3 text-sm opacity-80">
         Proposed GL mappings for human review appear here once a document is uploaded and the
         mapping backend has processed it.
       </p>
@@ -44,7 +44,7 @@ function MappingReview({ dealId }: { dealId: string }) {
         </thead>
         <tbody>
           {lines.map((l) => (
-            <tr key={l.line_id} className="border-t border-forest/10">
+            <tr key={l.line_id} className="border-t border-brand/10">
               <td className="px-2 py-1">{l.seller_source_line}</td>
               <td className="px-2 py-1 font-figure">
                 {l.proposed_account_code ?? "—"}

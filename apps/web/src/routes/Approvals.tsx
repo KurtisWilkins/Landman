@@ -17,7 +17,7 @@ export function Approvals() {
 
       {isLoading && <p className="mt-4 text-sm opacity-70">Loading…</p>}
       {error && (
-        <p className="mt-4 rounded border border-forest/20 p-3 text-sm opacity-80">
+        <p className="mt-4 rounded border border-brand/20 p-3 text-sm opacity-80">
           Couldn’t load suggestions (admin access required).
         </p>
       )}
@@ -26,7 +26,7 @@ export function Approvals() {
         <p className="mt-6 text-sm opacity-70">Nothing awaiting approval.</p>
       )}
 
-      <ul className="mt-4 divide-y divide-forest/10">
+      <ul className="mt-4 divide-y divide-brand/10">
         {suggestions.map((s) => (
           <li key={s.suggestion_id} className="py-3">
             <div className="flex items-start justify-between gap-3">
@@ -42,7 +42,7 @@ export function Approvals() {
                   type="button"
                   onClick={() => decide.mutate({ id: s.suggestion_id, status: "approved" })}
                   disabled={decide.isPending}
-                  className="rounded bg-forest px-3 py-1 text-sm text-bone-paper disabled:opacity-50"
+                  className="rounded bg-brand px-3 py-1 text-sm text-paper disabled:opacity-50"
                 >
                   Approve
                 </button>
@@ -50,7 +50,7 @@ export function Approvals() {
                   type="button"
                   onClick={() => decide.mutate({ id: s.suggestion_id, status: "declined" })}
                   disabled={decide.isPending}
-                  className="rounded border border-forest/30 px-3 py-1 text-sm disabled:opacity-50"
+                  className="rounded border border-brand/30 px-3 py-1 text-sm disabled:opacity-50"
                 >
                   Decline
                 </button>
