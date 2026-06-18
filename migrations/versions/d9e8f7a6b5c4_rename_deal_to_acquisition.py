@@ -40,6 +40,7 @@ _DEAL_ID_TABLES = [
     "waterfall_tiers",
     "weekly_summary",
     "financial_lines",
+    "population_rings",  # added in migration 6f81cfee1ece (after the initial schema)
 ]
 
 
