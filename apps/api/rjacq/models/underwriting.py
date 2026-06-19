@@ -112,3 +112,21 @@ class ProformaSummary(Base):
     exit_cap: Mapped[Decimal | None] = mapped_column(Numeric)
     exit_gross_value: Mapped[Decimal | None] = mapped_column(Numeric)
     exit_net_proceeds: Mapped[Decimal | None] = mapped_column(Numeric)
+
+
+class UnderwritingDefaults(Base):
+    """Singleton (id='default') of admin-set pro-forma defaults that seed each acquisition's
+    inputs. A null column falls back to the built-in best-guess (underwriting/defaults.py)."""
+
+    __tablename__ = "underwriting_defaults"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default="default")
+    ltv: Mapped[Decimal | None] = mapped_column(Numeric)
+    loan_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    noi_growth: Mapped[Decimal | None] = mapped_column(Numeric)
+    exit_cap: Mapped[Decimal | None] = mapped_column(Numeric)
+    selling_cost_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    capex_reserve_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    amort_months: Mapped[int | None] = mapped_column(Integer)
+    io_years: Mapped[int | None] = mapped_column(Integer)
+    hold_years: Mapped[int | None] = mapped_column(Integer)

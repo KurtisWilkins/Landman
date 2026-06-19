@@ -137,6 +137,29 @@ export function useSetIntegration() {
   });
 }
 
+type UnderwritingDefaults = Schemas["UnderwritingDefaults"];
+type UnderwritingDefaultsOut = Schemas["UnderwritingDefaultsOut"];
+
+export function useUnderwritingDefaults() {
+  // Effective global pro-forma defaults (admin-set or built-in); seed new acquisitions' inputs.
+  return useQuery({
+    queryKey: ["underwriting-defaults"],
+    queryFn: () => apiFetch<UnderwritingDefaultsOut>("/underwriting-defaults"),
+  });
+}
+
+export function useSaveUnderwritingDefaults() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UnderwritingDefaults) =>
+      apiFetch<UnderwritingDefaultsOut>("/underwriting-defaults", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["underwriting-defaults"] }),
+  });
+}
+
 export function useAcquisition(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId],

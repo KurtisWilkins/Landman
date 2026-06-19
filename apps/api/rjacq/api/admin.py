@@ -11,14 +11,38 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core import app_config
-from ..core.auth import Principal
+from ..core.auth import Principal, get_current_principal
 from ..core.db import get_session
 from ..core.logging import get_logger
 from ..core.rbac import Capability, require
 from ..schemas.admin import IntegrationStatus, IntegrationUpdate
+from ..schemas.underwriting import UnderwritingDefaults, UnderwritingDefaultsOut
+from ..underwriting import defaults as uw_defaults
 
 router = APIRouter(tags=["admin"])
 log = get_logger("admin")
+
+
+@router.get("/underwriting-defaults", response_model=UnderwritingDefaultsOut)
+async def get_underwriting_defaults(
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> UnderwritingDefaultsOut:
+    """The effective global pro-forma defaults (admin-set values, else built-in best-guess).
+    Any authenticated user reads these to pre-fill a new acquisition's pro forma."""
+    return UnderwritingDefaultsOut(**await uw_defaults.get_effective(session))
+
+
+@router.put("/underwriting-defaults", response_model=UnderwritingDefaultsOut)
+async def set_underwriting_defaults(
+    body: UnderwritingDefaults,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.SETTINGS_MANAGE)),
+) -> UnderwritingDefaultsOut:
+    """Admin: set the global pro-forma defaults (only provided fields); returns effective set."""
+    effective = await uw_defaults.set_defaults(session, body.model_dump(exclude_unset=True))
+    log.info("underwriting_defaults_set", actor=principal.email)
+    return UnderwritingDefaultsOut(**effective)
 
 
 def _to_schema(s: app_config.IntegrationStatus) -> IntegrationStatus:

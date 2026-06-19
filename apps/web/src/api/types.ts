@@ -608,6 +608,31 @@ export interface paths {
         patch: operations["decide_suggestion_question_suggestions__suggestion_id__patch"];
         trace?: never;
     };
+    "/underwriting-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Underwriting Defaults
+         * @description The effective global pro-forma defaults (admin-set values, else built-in best-guess).
+         *     Any authenticated user reads these to pre-fill a new acquisition's pro forma.
+         */
+        get: operations["get_underwriting_defaults_underwriting_defaults_get"];
+        /**
+         * Set Underwriting Defaults
+         * @description Admin: set the global pro-forma defaults (only provided fields). Returns the effective set.
+         */
+        put: operations["set_underwriting_defaults_underwriting_defaults_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/email-intake": {
         parameters: {
             query?: never;
@@ -1806,6 +1831,55 @@ export interface components {
             promote_pct: string;
             /** Tier */
             tier: number;
+        };
+        /**
+         * UnderwritingDefaults
+         * @description Global pro-forma defaults that seed each acquisition's inputs. PUT body (all optional); the
+         *     GET response (UnderwritingDefaultsOut) returns effective values (built-ins fill any nulls).
+         */
+        UnderwritingDefaults: {
+            /** Amort Months */
+            amort_months?: number | null;
+            /** Capex Reserve Rate */
+            capex_reserve_rate?: number | string | null;
+            /** Exit Cap */
+            exit_cap?: number | string | null;
+            /** Hold Years */
+            hold_years?: number | null;
+            /** Io Years */
+            io_years?: number | null;
+            /** Loan Rate */
+            loan_rate?: number | string | null;
+            /** Ltv */
+            ltv?: number | string | null;
+            /** Noi Growth */
+            noi_growth?: number | string | null;
+            /** Selling Cost Rate */
+            selling_cost_rate?: number | string | null;
+        };
+        /**
+         * UnderwritingDefaultsOut
+         * @description GET response — distinct (output-only) name avoids the -Input/-Output schema split.
+         */
+        UnderwritingDefaultsOut: {
+            /** Amort Months */
+            amort_months?: number | null;
+            /** Capex Reserve Rate */
+            capex_reserve_rate?: string | null;
+            /** Exit Cap */
+            exit_cap?: string | null;
+            /** Hold Years */
+            hold_years?: number | null;
+            /** Io Years */
+            io_years?: number | null;
+            /** Loan Rate */
+            loan_rate?: string | null;
+            /** Ltv */
+            ltv?: string | null;
+            /** Noi Growth */
+            noi_growth?: string | null;
+            /** Selling Cost Rate */
+            selling_cost_rate?: string | null;
         };
         /** UnderwritingDoc */
         UnderwritingDoc: {
@@ -4949,6 +5023,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuestionSuggestionOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_underwriting_defaults_underwriting_defaults_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderwritingDefaultsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_underwriting_defaults_underwriting_defaults_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnderwritingDefaults"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderwritingDefaultsOut"];
                 };
             };
             /** @description Bad Request */
