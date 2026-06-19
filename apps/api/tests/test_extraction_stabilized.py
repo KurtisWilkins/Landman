@@ -64,6 +64,7 @@ async def _seed_mapped_pnl(db_url: str, acquisition_id: str) -> None:
                 active=True,
             )
         )
+        await s.flush()  # accounts + period must exist before the lines' foreign keys
         s.add(
             FinancialLine(
                 line_id=f"fl_{uuid.uuid4().hex[:12]}",
