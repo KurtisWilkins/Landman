@@ -29,6 +29,9 @@ class Acquisition(Base):
     lng: Mapped[float | None] = mapped_column(Numeric)
     site_count: Mapped[int | None] = mapped_column(Integer)
     ask_price: Mapped[Decimal | None] = mapped_column(Numeric)
+    # Negotiated/underwriting price that flows downstream (pro forma debt sizing + promote).
+    # Distinct from ask_price (the OM ask); defaults to ask in the UI until set.
+    purchase_price: Mapped[Decimal | None] = mapped_column(Numeric)
     price_per_site: Mapped[Decimal | None] = mapped_column(Numeric)
     seller_name: Mapped[str | None] = mapped_column(String)
     date_received: Mapped[date | None] = mapped_column(Date)

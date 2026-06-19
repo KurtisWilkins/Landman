@@ -29,6 +29,7 @@ from ..schemas.acquisition import (
     AcquisitionDocument,
     AcquisitionMetadata,
     AcquisitionSummary,
+    AcquisitionUpdate,
     Address,
     OmFinancialLine,
     OmProposal,
@@ -103,6 +104,7 @@ async def create_acquisition(
         lng=addr.lng,
         site_count=body.site_count,
         ask_price=body.ask_price,
+        purchase_price=body.purchase_price,
         seller_name=body.seller_name,
         current_phase=Phase.INITIAL_UW,
         status=AcquisitionStatus.ACTIVE,
@@ -119,24 +121,8 @@ async def create_acquisition(
         lng=addr.lng,
         provider=build_population_provider(),
     )
-    rings = await population.get_rings(session, acquisition.acquisition_id)
     await session.commit()
-    return AcquisitionDocument(
-        acquisition_id=acquisition.acquisition_id,
-        metadata=AcquisitionMetadata(
-            name=acquisition.name,
-            property_type=acquisition.property_type,
-            address=body.address,
-            site_count=acquisition.site_count,
-            ask_price=acquisition.ask_price,
-            seller_name=acquisition.seller_name,
-            current_phase=acquisition.current_phase,
-            status=acquisition.status,
-            thesis=acquisition.thesis,
-            notes=acquisition.notes,
-        ),
-        market=rings,
-    )
+    return await _acquisition_document(session, acquisition)
 
 
 @router.post("/acquisitions/extract-om", response_model=OmProposal)
@@ -228,6 +214,40 @@ async def _require_acquisition(session: AsyncSession, acquisition_id: str) -> Ac
     return acquisition
 
 
+async def _acquisition_document(
+    session: AsyncSession, acquisition: Acquisition
+) -> AcquisitionDocument:
+    """Assemble the §8.3 document from the acquisition row + its market block (shared by GET
+    and PATCH). Other sections fill in as their backends land."""
+    rings = await population.get_rings(session, acquisition.acquisition_id)
+    return AcquisitionDocument(
+        acquisition_id=acquisition.acquisition_id,
+        metadata=AcquisitionMetadata(
+            name=acquisition.name,
+            property_type=acquisition.property_type,
+            address=Address(
+                line1=acquisition.address_line1,
+                city=acquisition.city,
+                state=acquisition.state,
+                zip=acquisition.zip,
+                lat=float(acquisition.lat) if acquisition.lat is not None else None,
+                lng=float(acquisition.lng) if acquisition.lng is not None else None,
+            ),
+            site_count=acquisition.site_count,
+            ask_price=acquisition.ask_price,
+            purchase_price=acquisition.purchase_price,
+            price_per_site=acquisition.price_per_site,
+            seller_name=acquisition.seller_name,
+            date_received=acquisition.date_received,
+            current_phase=acquisition.current_phase,
+            status=acquisition.status,
+            thesis=acquisition.thesis,
+            notes=acquisition.notes,
+        ),
+        market=rings,
+    )
+
+
 @router.get("/acquisitions/{acquisition_id}/population-rings", response_model=PopulationRingsDoc)
 async def get_population_rings(
     acquisition_id: str,
@@ -298,32 +318,23 @@ async def get_acquisition(
     """Full assembled §8.3 document. Financials/pro forma/comps/gates fill in as their
     backends land; today this returns the acquisition metadata and the market (population) block."""
     acquisition = await _require_acquisition(session, acquisition_id)
-    rings = await population.get_rings(session, acquisition_id)
-    return AcquisitionDocument(
-        acquisition_id=acquisition.acquisition_id,
-        metadata=AcquisitionMetadata(
-            name=acquisition.name,
-            property_type=acquisition.property_type,
-            address=Address(
-                line1=acquisition.address_line1,
-                city=acquisition.city,
-                state=acquisition.state,
-                zip=acquisition.zip,
-                lat=float(acquisition.lat) if acquisition.lat is not None else None,
-                lng=float(acquisition.lng) if acquisition.lng is not None else None,
-            ),
-            site_count=acquisition.site_count,
-            ask_price=acquisition.ask_price,
-            price_per_site=acquisition.price_per_site,
-            seller_name=acquisition.seller_name,
-            date_received=acquisition.date_received,
-            current_phase=acquisition.current_phase,
-            status=acquisition.status,
-            thesis=acquisition.thesis,
-            notes=acquisition.notes,
-        ),
-        market=rings,
-    )
+    return await _acquisition_document(session, acquisition)
+
+
+@router.patch("/acquisitions/{acquisition_id}", response_model=AcquisitionDocument)
+async def update_acquisition(
+    acquisition_id: str,
+    body: AcquisitionUpdate,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> AcquisitionDocument:
+    """Edit underwriting-level acquisition fields (e.g. the negotiated purchase price that flows
+    downstream). Only fields present in the body are applied; the rest are untouched."""
+    acquisition = await _require_acquisition(session, acquisition_id)
+    for key, value in body.model_dump(exclude_unset=True).items():
+        setattr(acquisition, key, value)
+    await session.commit()
+    return await _acquisition_document(session, acquisition)
 
 
 @router.patch("/acquisitions/{acquisition_id}/phase", response_model=AcquisitionDocument)

@@ -80,3 +80,42 @@ def test_get_acquisition_unknown_is_404(migrated_db: str, client: TestClient) ->
     r = client.get("/acquisitions/dl_does_not_exist", headers=ADMIN)
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "not_found"
+
+
+def test_create_with_purchase_price_round_trips(migrated_db: str, client: TestClient) -> None:
+    r = client.post(
+        "/acquisitions",
+        json={
+            "name": f"Price Test {uuid.uuid4().hex[:6]}",
+            "property_type": "rv_resort",
+            "ask_price": "5000000",
+            "purchase_price": "4250000",
+        },
+        headers=ADMIN,
+    )
+    assert r.status_code == 201, r.text
+    md = r.json()["metadata"]
+    assert float(md["ask_price"]) == 5000000.0
+    assert float(md["purchase_price"]) == 4250000.0
+
+
+def test_patch_updates_purchase_price(migrated_db: str, client: TestClient) -> None:
+    acquisition_id = _create(client, f"Patch Test {uuid.uuid4().hex[:6]}")
+    # Not set at create -> null.
+    assert (
+        client.get(f"/acquisitions/{acquisition_id}", headers=ADMIN).json()["metadata"][
+            "purchase_price"
+        ]
+        is None
+    )
+
+    r = client.patch(
+        f"/acquisitions/{acquisition_id}",
+        json={"purchase_price": "4100000"},
+        headers=ADMIN,
+    )
+    assert r.status_code == 200, r.text
+    assert float(r.json()["metadata"]["purchase_price"]) == 4100000.0
+    # Persisted.
+    again = client.get(f"/acquisitions/{acquisition_id}", headers=ADMIN).json()
+    assert float(again["metadata"]["purchase_price"]) == 4100000.0
