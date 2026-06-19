@@ -9192,7 +9192,7 @@
         ]
       },
       "put": {
-        "description": "Admin: set the global pro-forma defaults (only provided fields). Returns the effective set.",
+        "description": "Admin: set the global pro-forma defaults (only provided fields); returns effective set.",
         "operationId": "set_underwriting_defaults_underwriting_defaults_put",
         "parameters": [
           {

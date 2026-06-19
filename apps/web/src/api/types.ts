@@ -623,7 +623,7 @@ export interface paths {
         get: operations["get_underwriting_defaults_underwriting_defaults_get"];
         /**
          * Set Underwriting Defaults
-         * @description Admin: set the global pro-forma defaults (only provided fields). Returns the effective set.
+         * @description Admin: set the global pro-forma defaults (only provided fields); returns effective set.
          */
         put: operations["set_underwriting_defaults_underwriting_defaults_put"];
         post?: never;
