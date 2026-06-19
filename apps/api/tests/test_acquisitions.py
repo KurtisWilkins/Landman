@@ -99,6 +99,68 @@ def test_create_with_purchase_price_round_trips(migrated_db: str, client: TestCl
     assert float(md["purchase_price"]) == 4250000.0
 
 
+def test_proforma_inputs_recompute_round_trip(migrated_db: str, client: TestClient) -> None:
+    # Create with a purchase price so debt can be sized.
+    r = client.post(
+        "/acquisitions",
+        json={
+            "name": f"PF Test {uuid.uuid4().hex[:6]}",
+            "property_type": "rv_resort",
+            "purchase_price": "10000000",
+        },
+        headers=ADMIN,
+    )
+    acquisition_id = r.json()["acquisition_id"]
+
+    # Before inputs: pro forma is empty (no fabricated numbers).
+    assert (
+        client.get(f"/acquisitions/{acquisition_id}/proforma", headers=ADMIN).json()["years"] == []
+    )
+
+    # Save complete inputs -> server sizes debt + computes + persists.
+    pf = client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs",
+        json={
+            "stabilized_revenue": "1200000",
+            "stabilized_opex": "500000",
+            "noi_growth": "0.03",
+            "exit_cap": "0.07",
+            "ltv": "0.65",
+            "loan_rate": "0.065",
+            "amort_months": 360,
+            "io_years": 0,
+            "hold_years": 5,
+        },
+        headers=ADMIN,
+    )
+    assert pf.status_code == 200, pf.text
+    body = pf.json()
+    assert len(body["years"]) == 5
+    # Year-1 NOI = 1,200,000 - 500,000 = 700,000.
+    assert float(body["years"][0]["noi"]) == 700000.0
+    # Equity required = price - loan = 10,000,000 - 6,500,000.
+    assert float(body["equity_basis"]) == 3500000.0
+    assert body["levered_irr"] is not None
+
+    # Persisted: GET returns the same computed pro forma.
+    again = client.get(f"/acquisitions/{acquisition_id}/proforma", headers=ADMIN).json()
+    assert len(again["years"]) == 5
+
+
+def test_proforma_inputs_incomplete_does_not_fabricate(
+    migrated_db: str, client: TestClient
+) -> None:
+    acquisition_id = _create(client, f"PF Partial {uuid.uuid4().hex[:6]}")
+    # Missing stabilized revenue/opex -> saved, but no pro forma computed.
+    pf = client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs",
+        json={"ltv": "0.65", "loan_rate": "0.065", "amort_months": 360, "hold_years": 5},
+        headers=ADMIN,
+    )
+    assert pf.status_code == 200, pf.text
+    assert pf.json()["years"] == []
+
+
 def test_patch_updates_purchase_price(migrated_db: str, client: TestClient) -> None:
     acquisition_id = _create(client, f"Patch Test {uuid.uuid4().hex[:6]}")
     # Not set at create -> null.
