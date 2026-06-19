@@ -309,6 +309,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/proforma-inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Proforma Inputs
+         * @description The acquisition's editable pro-forma assumptions (debt terms, growth, exit, stabilized
+         *     revenue/opex). Empty until set.
+         */
+        get: operations["get_proforma_inputs_acquisitions__acquisition_id__proforma_inputs_get"];
+        /**
+         * Put Proforma Inputs
+         * @description Save the pro-forma inputs and recompute. The purchase price flows in from the acquisition;
+         *     debt is sized here (not on the promote). Returns the recomputed pro forma (empty until the
+         *     required inputs are all present).
+         */
+        put: operations["put_proforma_inputs_acquisitions__acquisition_id__proforma_inputs_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/integrations": {
         parameters: {
             query?: never;
@@ -1502,6 +1529,65 @@ export interface components {
             net_proceeds?: string | null;
             /** Year */
             year?: number | null;
+        };
+        /**
+         * ProformaInputs
+         * @description GET/PUT /acquisitions/{id}/proforma-inputs — the underwriter-owned pro-forma assumptions.
+         *     All optional; the pro forma is computed once the required ones (revenue, opex, exit cap, LTV,
+         *     rate, amort term, hold) plus a purchase price are present. Percentages are decimals.
+         */
+        ProformaInputs: {
+            /** Amort Months */
+            amort_months?: number | null;
+            /** Capex Reserve Rate */
+            capex_reserve_rate?: number | string | null;
+            /** Exit Cap */
+            exit_cap?: number | string | null;
+            /** Hold Years */
+            hold_years?: number | null;
+            /** Io Years */
+            io_years?: number | null;
+            /** Loan Rate */
+            loan_rate?: number | string | null;
+            /** Ltv */
+            ltv?: number | string | null;
+            /** Noi Growth */
+            noi_growth?: number | string | null;
+            /** Selling Cost Rate */
+            selling_cost_rate?: number | string | null;
+            /** Stabilized Opex */
+            stabilized_opex?: number | string | null;
+            /** Stabilized Revenue */
+            stabilized_revenue?: number | string | null;
+        };
+        /**
+         * ProformaInputsOut
+         * @description Response shape for GET /proforma-inputs. A distinct (output-only) class so FastAPI emits
+         *     one stable component name instead of splitting the shared model into -Input/-Output.
+         */
+        ProformaInputsOut: {
+            /** Amort Months */
+            amort_months?: number | null;
+            /** Capex Reserve Rate */
+            capex_reserve_rate?: string | null;
+            /** Exit Cap */
+            exit_cap?: string | null;
+            /** Hold Years */
+            hold_years?: number | null;
+            /** Io Years */
+            io_years?: number | null;
+            /** Loan Rate */
+            loan_rate?: string | null;
+            /** Ltv */
+            ltv?: string | null;
+            /** Noi Growth */
+            noi_growth?: string | null;
+            /** Selling Cost Rate */
+            selling_cost_rate?: string | null;
+            /** Stabilized Opex */
+            stabilized_opex?: string | null;
+            /** Stabilized Revenue */
+            stabilized_revenue?: string | null;
         };
         /** ProformaResults */
         ProformaResults: {
@@ -3319,6 +3405,184 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProformaResults"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_proforma_inputs_acquisitions__acquisition_id__proforma_inputs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProformaInputsOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_proforma_inputs_acquisitions__acquisition_id__proforma_inputs_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProformaInputs"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -169,6 +169,32 @@ export function useProforma(acquisitionId: string) {
   });
 }
 
+type ProformaInputs = Schemas["ProformaInputs"];
+type ProformaInputsOut = Schemas["ProformaInputsOut"];
+
+export function useProformaInputs(acquisitionId: string) {
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "proforma-inputs"],
+    queryFn: () => apiFetch<ProformaInputsOut>(`/acquisitions/${acquisitionId}/proforma-inputs`),
+  });
+}
+
+export function useSaveProformaInputs(acquisitionId: string) {
+  // Persist the pro-forma assumptions; the server sizes debt + recomputes, so refresh the proforma.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ProformaInputs) =>
+      apiFetch<ProformaResults>(`/acquisitions/${acquisitionId}/proforma-inputs`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "proforma"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "proforma-inputs"] });
+    },
+  });
+}
+
 export function useComps(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "comps"],

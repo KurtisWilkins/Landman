@@ -70,6 +70,31 @@ class UnderwritingDoc(BaseModel):
     proforma_results: ProformaResults | None = None
 
 
+class ProformaInputs(ApiModel):
+    """GET/PUT /acquisitions/{id}/proforma-inputs — the underwriter-owned pro-forma assumptions.
+    All optional; the pro forma is computed once the required ones (revenue, opex, exit cap, LTV,
+    rate, amort term, hold) plus a purchase price are present. Percentages are decimals."""
+
+    stabilized_revenue: Decimal | None = None
+    stabilized_opex: Decimal | None = None
+    noi_growth: Decimal | None = None
+    exit_cap: Decimal | None = None
+    ltv: Decimal | None = None
+    loan_rate: Decimal | None = None
+    amort_months: int | None = None
+    io_years: int | None = None
+    selling_cost_rate: Decimal | None = None
+    capex_reserve_rate: Decimal | None = None
+    hold_years: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ProformaInputsOut(ProformaInputs):
+    """Response shape for GET /proforma-inputs. A distinct (output-only) class so FastAPI emits
+    one stable component name instead of splitting the shared model into -Input/-Output."""
+
+
 class AssumptionOverride(BaseModel):
     """PATCH /acquisitions/{id}/assumptions — records author + note (provenance)."""
 

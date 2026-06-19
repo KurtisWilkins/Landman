@@ -37,7 +37,12 @@ from ..schemas.acquisition import (
 )
 from ..schemas.financials import FinancialPeriodVersion
 from ..schemas.market import PopulationRingOverride, PopulationRingsDoc
-from ..schemas.underwriting import AssumptionOverride, ProformaResults
+from ..schemas.underwriting import (
+    AssumptionOverride,
+    ProformaInputs,
+    ProformaInputsOut,
+    ProformaResults,
+)
 from ..underwriting import service as underwriting
 from ..underwriting.service import UnderwritingError
 from ._stub import not_implemented
@@ -453,6 +458,35 @@ async def get_proforma(
     """Pro forma results."""
     # Assembled from the persisted 5-yr schedule + summary.
     return await underwriting.get_proforma(session, acquisition_id)
+
+
+@router.get("/acquisitions/{acquisition_id}/proforma-inputs", response_model=ProformaInputsOut)
+async def get_proforma_inputs(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> ProformaInputsOut:
+    """The acquisition's editable pro-forma assumptions (debt terms, growth, exit, stabilized
+    revenue/opex). Empty until set."""
+    await _require_acquisition(session, acquisition_id)
+    stored = await underwriting.get_inputs(session, acquisition_id)
+    return ProformaInputsOut.model_validate(stored) if stored is not None else ProformaInputsOut()
+
+
+@router.put("/acquisitions/{acquisition_id}/proforma-inputs", response_model=ProformaResults)
+async def put_proforma_inputs(
+    acquisition_id: str,
+    body: ProformaInputs,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> ProformaResults:
+    """Save the pro-forma inputs and recompute. The purchase price flows in from the acquisition;
+    debt is sized here (not on the promote). Returns the recomputed pro forma (empty until the
+    required inputs are all present)."""
+    await _require_acquisition(session, acquisition_id)
+    return await underwriting.save_inputs_and_recompute(
+        session, acquisition_id, body.model_dump(exclude_unset=True)
+    )
 
 
 @router.patch("/acquisitions/{acquisition_id}/assumptions", response_model=ProformaResults)

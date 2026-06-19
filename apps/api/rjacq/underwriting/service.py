@@ -13,6 +13,8 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import get_logger
+from ..models.acquisitions import Acquisition
+from ..models.underwriting import ProformaInput
 from ..schemas.underwriting import (
     ProformaExit,
     ProformaResults,
@@ -20,8 +22,21 @@ from ..schemas.underwriting import (
 )
 from . import repository as repo
 from .engine import ProformaOutput
+from .proforma import DebtTerms, GLLine, ProformaInputs, build_acquisition_proforma
 
 log = get_logger("underwriting")
+
+_ZERO = Decimal(0)
+# Inputs that must all be present (plus a purchase price) before a pro forma can be computed.
+_REQUIRED_INPUTS = (
+    "stabilized_revenue",
+    "stabilized_opex",
+    "exit_cap",
+    "ltv",
+    "loan_rate",
+    "amort_months",
+    "hold_years",
+)
 
 
 class UnderwritingError(Exception):
@@ -67,9 +82,61 @@ async def get_proforma(session: AsyncSession, acquisition_id: str) -> ProformaRe
 async def store_proforma(
     session: AsyncSession, acquisition_id: str, output: ProformaOutput
 ) -> None:
-    """Persist a computed pro forma (used by ingestion/SHIELD recompute paths and tests)."""
+    """Persist a computed pro forma (used by the recompute path and tests)."""
     await repo.replace_proforma(session, acquisition_id, output)
     log.info("underwriting.proforma_stored", acquisition_id=acquisition_id)
+
+
+async def get_inputs(session: AsyncSession, acquisition_id: str) -> ProformaInput | None:
+    return await repo.get_proforma_input(session, acquisition_id)
+
+
+async def _purchase_price(session: AsyncSession, acquisition_id: str) -> Decimal | None:
+    """The price that flows downstream: the negotiated purchase price, else the OM ask."""
+    acquisition = await session.get(Acquisition, acquisition_id)
+    if acquisition is None:
+        return None
+    return (
+        acquisition.purchase_price
+        if acquisition.purchase_price is not None
+        else acquisition.ask_price
+    )
+
+
+async def save_inputs_and_recompute(
+    session: AsyncSession, acquisition_id: str, fields: dict[str, object]
+) -> ProformaResults:
+    """Save the acquisition's pro-forma inputs, recompute + persist the pro forma when the
+    inputs (and a purchase price) are complete, and return the current results. Never fabricates
+    numbers: if a required input is missing, the inputs are saved but no pro forma is computed.
+    """
+    inp = await repo.upsert_proforma_input(session, acquisition_id, fields)
+    price = await _purchase_price(session, acquisition_id)
+    ready = price is not None and all(getattr(inp, k) is not None for k in _REQUIRED_INPUTS)
+    if ready:
+        assert price is not None  # narrowed by `ready`; for the type checker
+        engine_inputs = ProformaInputs(
+            purchase_price=price,
+            hold_years=int(inp.hold_years or 0),
+            lines=[
+                GLLine("Revenue", inp.stabilized_revenue or _ZERO, is_expense=False),
+                GLLine("OpEx", inp.stabilized_opex or _ZERO, is_expense=True),
+            ],
+            noi_growth=inp.noi_growth or _ZERO,
+            exit_cap=inp.exit_cap or _ZERO,
+            debt=DebtTerms(
+                ltv=inp.ltv or _ZERO,
+                annual_rate=inp.loan_rate or _ZERO,
+                amort_months=int(inp.amort_months or 0),
+                io_years=int(inp.io_years or 0),
+            ),
+            selling_cost_rate=inp.selling_cost_rate or _ZERO,
+            capex_reserve_rate=inp.capex_reserve_rate or _ZERO,
+        )
+        result = build_acquisition_proforma(engine_inputs)
+        await store_proforma(session, acquisition_id, result.proforma)
+    await session.commit()
+    return await get_proforma(session, acquisition_id)
 
 
 async def override_assumption(
