@@ -25,6 +25,7 @@ from .underwriting import (
     ProformaInput,
     ProformaResult,
     ProformaSummary,
+    UnderwritingDefaults,
     WaterfallTier,
 )
 
@@ -48,6 +49,7 @@ __all__ = [
     "ProformaInput",
     "ProformaResult",
     "ProformaSummary",
+    "UnderwritingDefaults",
     "Comp",
     "AcquisitionGateItem",
     "QuestionSuggestion",

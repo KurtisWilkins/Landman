@@ -7,7 +7,12 @@
  * Presentational; the calculation lives server-side. No browser storage.
  */
 import { useEffect, useState } from "react";
-import { useProforma, useProformaInputs, useSaveProformaInputs } from "../../api/hooks";
+import {
+  useProforma,
+  useProformaInputs,
+  useSaveProformaInputs,
+  useUnderwritingDefaults,
+} from "../../api/hooks";
 import type { Schemas } from "../../api/client";
 import { fmtMult, fmtPct, fmtUsd } from "../../lib/format";
 
@@ -83,14 +88,16 @@ function stripNulls(obj: Inputs): Partial<Inputs> {
 
 export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
   const { data: saved } = useProformaInputs(acquisitionId);
+  const { data: uwDefaults } = useUnderwritingDefaults();
   const { data: results } = useProforma(acquisitionId);
   const save = useSaveProformaInputs(acquisitionId);
   const [form, setForm] = useState<Inputs>(DEFAULTS);
 
-  // Seed the form from saved inputs once they load (falling back to the best-guess defaults).
+  // Seed precedence: built-in fallback < admin defaults (Settings) < this acquisition's saved inputs.
   useEffect(() => {
-    if (saved) setForm({ ...DEFAULTS, ...stripNulls(saved) });
-  }, [saved]);
+    const base: Inputs = { ...DEFAULTS, ...(uwDefaults ? stripNulls(uwDefaults) : {}) };
+    setForm(saved ? { ...base, ...stripNulls(saved) } : base);
+  }, [saved, uwDefaults]);
 
   const set = (patch: Partial<Inputs>) => setForm((f) => ({ ...f, ...patch }));
   const years = results?.years ?? [];

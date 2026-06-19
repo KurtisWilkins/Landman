@@ -95,6 +95,27 @@ class ProformaInputsOut(ProformaInputs):
     one stable component name instead of splitting the shared model into -Input/-Output."""
 
 
+class UnderwritingDefaults(ApiModel):
+    """Global pro-forma defaults that seed each acquisition's inputs. PUT body (all optional); the
+    GET response (UnderwritingDefaultsOut) returns effective values (built-ins fill any nulls)."""
+
+    ltv: Decimal | None = None
+    loan_rate: Decimal | None = None
+    noi_growth: Decimal | None = None
+    exit_cap: Decimal | None = None
+    selling_cost_rate: Decimal | None = None
+    capex_reserve_rate: Decimal | None = None
+    amort_months: int | None = None
+    io_years: int | None = None
+    hold_years: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class UnderwritingDefaultsOut(UnderwritingDefaults):
+    """GET response — distinct (output-only) name avoids the -Input/-Output schema split."""
+
+
 class AssumptionOverride(BaseModel):
     """PATCH /acquisitions/{id}/assumptions — records author + note (provenance)."""
 

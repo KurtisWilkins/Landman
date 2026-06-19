@@ -4,12 +4,18 @@
  * a last-4 hint and let an admin set/replace a value. Stored encrypted server-side; takes effect
  * immediately (no redeploy). No browser storage.
  */
-import { useState } from "react";
-import { useIntegrations, useSetIntegration } from "../api/hooks";
+import { useEffect, useState } from "react";
+import {
+  useIntegrations,
+  useSaveUnderwritingDefaults,
+  useSetIntegration,
+  useUnderwritingDefaults,
+} from "../api/hooks";
 import { ApiError } from "../api/client";
 import type { Schemas } from "../api/client";
 
 type IntegrationStatus = Schemas["IntegrationStatus"];
+type UnderwritingDefaults = Schemas["UnderwritingDefaults"];
 
 function IntegrationRow({ item }: { item: IntegrationStatus }) {
   const setKey = useSetIntegration();
@@ -67,6 +73,90 @@ function IntegrationRow({ item }: { item: IntegrationStatus }) {
   );
 }
 
+// Editable numeric default. `pct` fields display ×100 and store the decimal.
+const UW_FIELDS: { key: keyof UnderwritingDefaults; label: string; pct: boolean }[] = [
+  { key: "ltv", label: "LTV", pct: true },
+  { key: "loan_rate", label: "Loan rate", pct: true },
+  { key: "amort_months", label: "Amortization (months)", pct: false },
+  { key: "io_years", label: "Interest-only (years)", pct: false },
+  { key: "noi_growth", label: "NOI growth", pct: true },
+  { key: "exit_cap", label: "Exit cap", pct: true },
+  { key: "selling_cost_rate", label: "Selling cost", pct: true },
+  { key: "capex_reserve_rate", label: "CapEx reserve", pct: true },
+  { key: "hold_years", label: "Hold (years)", pct: false },
+];
+
+function num(v: unknown): number {
+  return Number(v) || 0;
+}
+
+function UnderwritingDefaultsSection() {
+  const { data, error } = useUnderwritingDefaults();
+  const save = useSaveUnderwritingDefaults();
+  const [form, setForm] = useState<UnderwritingDefaults>({});
+
+  useEffect(() => {
+    if (data) setForm(data);
+  }, [data]);
+
+  if (error) return null; // GET is open to any authenticated user; ignore transient errors here
+
+  return (
+    <div className="mt-10">
+      <h2 className="text-lg font-semibold">Underwriting defaults</h2>
+      <p className="mt-1 text-sm opacity-70">
+        Best-guess starting values that pre-fill each acquisition&apos;s pro forma. Per-acquisition
+        edits always override these. Admin-only to change.
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {UW_FIELDS.map((f) => {
+          const raw = form[f.key];
+          const shown = raw == null ? "" : f.pct ? num(raw) * 100 : num(raw);
+          return (
+            <label key={f.key} className="flex flex-col gap-1 text-xs">
+              <span className="opacity-70">
+                {f.label}
+                {f.pct ? " (%)" : ""}
+              </span>
+              <input
+                type="number"
+                aria-label={f.label}
+                value={shown}
+                step={f.pct ? 0.25 : 1}
+                onChange={(e) =>
+                  setForm((s) => ({
+                    ...s,
+                    [f.key]: f.pct ? num(e.target.value) / 100 : num(e.target.value),
+                  }))
+                }
+                className="w-full rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </label>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => save.mutate(form)}
+          disabled={save.isPending}
+          className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
+        >
+          {save.isPending ? "Saving…" : "Save defaults"}
+        </button>
+        {save.isSuccess && <span className="text-xs text-brand">Saved.</span>}
+        {save.isError && (
+          <span role="alert" className="text-xs text-danger">
+            {save.error instanceof ApiError && save.error.status === 403
+              ? "Admin-only."
+              : "Save failed."}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Settings() {
   const { data, isLoading, error } = useIntegrations();
 
@@ -95,6 +185,8 @@ export function Settings() {
           ))}
         </ul>
       )}
+
+      <UnderwritingDefaultsSection />
     </section>
   );
 }
