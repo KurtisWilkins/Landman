@@ -137,6 +137,8 @@ describe("PromoteTab — pro-forma-fed", () => {
     // Banner indicates pro-forma sourcing; the return-case equity field is hidden.
     expect(screen.getByText(/Cash flows are sourced/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Total equity")).not.toBeInTheDocument();
+    // Debt lives on the pro forma — no LTV/debt input on the promote tab.
+    expect(screen.queryByLabelText("Asset LTV")).not.toBeInTheDocument();
 
     // The POST fed the engine the pro-forma-derived stream via cashflow_override.
     const body = lastPostBody();

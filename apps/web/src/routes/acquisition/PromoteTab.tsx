@@ -22,7 +22,6 @@ type ProformaResults = Schemas["ProformaResults"];
 /** Promote-specific assumptions — the only inputs entered on this tab. */
 type PromoteInputs = {
   start_date: string;
-  ltv: number;
   acquisition_fee_pct: number;
   mgmt_fee_pct: number;
   rjourney_coinvest_pct: number;
@@ -40,7 +39,6 @@ type ReturnCase = {
 
 const PROMOTE_DEFAULTS: PromoteInputs = {
   start_date: "2025-12-31",
-  ltv: 0.65,
   acquisition_fee_pct: 0,
   mgmt_fee_pct: 0,
   rjourney_coinvest_pct: 0.1,
@@ -138,26 +136,34 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
   // Build the engine request: promote-specific inputs always; cash flows from the pro forma
   // when present (cashflow_override), else from the editable return case.
   const request = useMemo<PromoteRequest>(() => {
-    const base: PromoteRequest = {
+    // Debt lives on the pro forma now. Derive LTV from the purchase price (entered on
+    // Underwriting) + the pro-forma equity so the engine reproduces the real purchase price for
+    // the acquisition fee + display — no debt input on this tab, engine unchanged.
+    const purchasePrice = num(
+      acquisition?.metadata.purchase_price ?? acquisition?.metadata.ask_price ?? 0,
+    );
+    const equity = sourcedStream ? -sourcedStream[0] : returnCase.equity;
+    const ltv =
+      sourcedStream && purchasePrice > 0 && equity < purchasePrice ? 1 - equity / purchasePrice : 0;
+    return {
       acquisition_name: dealName,
       start_date: inputs.start_date,
       hold_years: holdYears,
-      ltv: inputs.ltv,
+      ltv,
       acquisition_fee_pct: inputs.acquisition_fee_pct,
       mgmt_fee_pct: inputs.mgmt_fee_pct,
       rjourney_coinvest_pct: inputs.rjourney_coinvest_pct,
       hurdles: inputs.hurdles,
       promotes: inputs.promotes,
-      // Return-case fields are ignored by the engine when cashflow_override is set, but the
-      // contract requires them — send the (defaulted/edited) values either way.
-      equity: sourcedStream ? -sourcedStream[0] : returnCase.equity,
+      equity,
+      // Return-case fields are ignored when cashflow_override is set, but the contract requires
+      // them — send the (defaulted/edited) values either way.
       yr1_distribution_pct: returnCase.yr1_distribution_pct,
       distribution_growth: returnCase.distribution_growth,
       exit: returnCase.exit,
       cashflow_override: sourcedStream ?? null,
     };
-    return base;
-  }, [dealName, inputs, returnCase, sourcedStream, holdYears]);
+  }, [acquisition, dealName, inputs, returnCase, sourcedStream, holdYears]);
 
   // Live recalc: debounce edits, then POST. Runs on mount and whenever inputs/pro forma change.
   useEffect(() => {
@@ -209,12 +215,6 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
                 className="rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
-            <Field
-              label="Asset LTV"
-              pct
-              value={num(inputs.ltv)}
-              onChange={(n) => setI({ ltv: n })}
-            />
             <Field
               label="Acquisition fee"
               pct
