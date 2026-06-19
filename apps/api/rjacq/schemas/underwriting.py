@@ -95,6 +95,25 @@ class ProformaInputsOut(ProformaInputs):
     one stable component name instead of splitting the shared model into -Input/-Output."""
 
 
+class AcquisitionReturns(ApiModel):
+    """Headline returns for an acquisition (computed from its persisted pro forma + the standard
+    promote). All null until a pro forma is computed. Output-only — used in the detail header and
+    the pipeline list for at-a-glance comparison."""
+
+    going_in_cap: Decimal | None = None
+    loan_amount: Decimal | None = None
+    ltv: Decimal | None = None
+    hold_years: int | None = None
+    equity: Decimal | None = None
+    promote_value: Decimal | None = None
+    partner_irr: Decimal | None = None
+    partner_moic: Decimal | None = None
+    rjourney_irr: Decimal | None = None
+    rjourney_moic: Decimal | None = None
+    deal_irr: Decimal | None = None
+    deal_moic: Decimal | None = None
+
+
 class UnderwritingDefaults(ApiModel):
     """Global pro-forma defaults that seed each acquisition's inputs. PUT body (all optional); the
     GET response (UnderwritingDefaultsOut) returns effective values (built-ins fill any nulls)."""

@@ -192,6 +192,16 @@ export function useProforma(acquisitionId: string) {
   });
 }
 
+type AcquisitionReturns = Schemas["AcquisitionReturns"];
+
+export function useAcquisitionReturns(acquisitionId: string) {
+  // Headline returns (cap, loan/LTV, Partner/RJourney/Deal-Level IRR & MOIC) for the header.
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "returns"],
+    queryFn: () => apiFetch<AcquisitionReturns>(`/acquisitions/${acquisitionId}/returns`),
+  });
+}
+
 type ProformaInputs = Schemas["ProformaInputs"];
 type ProformaInputsOut = Schemas["ProformaInputsOut"];
 

@@ -147,6 +147,50 @@ def test_proforma_inputs_recompute_round_trip(migrated_db: str, client: TestClie
     assert len(again["years"]) == 5
 
 
+def test_returns_summary_after_recompute(migrated_db: str, client: TestClient) -> None:
+    r = client.post(
+        "/acquisitions",
+        json={
+            "name": f"Returns Test {uuid.uuid4().hex[:6]}",
+            "property_type": "rv_resort",
+            "purchase_price": "10000000",
+        },
+        headers=ADMIN,
+    )
+    acquisition_id = r.json()["acquisition_id"]
+
+    # No pro forma yet -> returns are empty (no fabrication).
+    empty = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    assert empty["partner_irr"] is None and empty["deal_irr"] is None
+
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs",
+        json={
+            "stabilized_revenue": "1200000",
+            "stabilized_opex": "500000",
+            "noi_growth": "0.03",
+            "exit_cap": "0.07",
+            "ltv": "0.65",
+            "loan_rate": "0.065",
+            "amort_months": 360,
+            "io_years": 0,
+            "hold_years": 5,
+        },
+        headers=ADMIN,
+    )
+
+    ret = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN)
+    assert ret.status_code == 200, ret.text
+    body = ret.json()
+    assert body["partner_irr"] is not None
+    assert body["rjourney_irr"] is not None
+    assert body["deal_irr"] is not None
+    assert float(body["equity"]) == 3500000.0  # price - loan = 10M - 6.5M
+    assert body["hold_years"] == 5
+    # Going-in cap = year-1 NOI 700,000 / price 10,000,000 = 7%.
+    assert abs(float(body["going_in_cap"]) - 0.07) < 1e-6
+
+
 def test_proforma_inputs_incomplete_does_not_fabricate(
     migrated_db: str, client: TestClient
 ) -> None:

@@ -15,7 +15,7 @@ from .gates import GateDoc
 from .market import PopulationRingsDoc
 from .operations import OperationsDoc
 from .property import PropertyDoc
-from .underwriting import UnderwritingDoc
+from .underwriting import AcquisitionReturns, UnderwritingDoc
 
 
 class Address(BaseModel):
@@ -103,6 +103,7 @@ class AcquisitionSummary(ApiModel):
     city: str | None = None
     state: str | None = None
     blocking_gate_count: int = 0
+    returns: AcquisitionReturns | None = None  # headline returns for at-a-glance comparison
 
 
 class AcquisitionDocument(BaseModel):

@@ -336,6 +336,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/returns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Acquisition Returns
+         * @description Headline returns (going-in cap, loan/LTV, Partner/RJourney/Deal-Level IRR & MOIC, promote
+         *     value) computed from the persisted pro forma + the standard promote. Empty until computed.
+         */
+        get: operations["get_acquisition_returns_acquisitions__acquisition_id__returns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/integrations": {
         parameters: {
             query?: never;
@@ -756,6 +777,38 @@ export interface components {
             thesis?: string | null;
         };
         /**
+         * AcquisitionReturns
+         * @description Headline returns for an acquisition (computed from its persisted pro forma + the standard
+         *     promote). All null until a pro forma is computed. Output-only — used in the detail header and
+         *     the pipeline list for at-a-glance comparison.
+         */
+        AcquisitionReturns: {
+            /** Deal Irr */
+            deal_irr?: string | null;
+            /** Deal Moic */
+            deal_moic?: string | null;
+            /** Equity */
+            equity?: string | null;
+            /** Going In Cap */
+            going_in_cap?: string | null;
+            /** Hold Years */
+            hold_years?: number | null;
+            /** Loan Amount */
+            loan_amount?: string | null;
+            /** Ltv */
+            ltv?: string | null;
+            /** Partner Irr */
+            partner_irr?: string | null;
+            /** Partner Moic */
+            partner_moic?: string | null;
+            /** Promote Value */
+            promote_value?: string | null;
+            /** Rjourney Irr */
+            rjourney_irr?: string | null;
+            /** Rjourney Moic */
+            rjourney_moic?: string | null;
+        };
+        /**
          * AcquisitionStatus
          * @enum {string}
          */
@@ -780,6 +833,7 @@ export interface components {
             /** Name */
             name: string;
             property_type: components["schemas"]["PropertyType"];
+            returns?: components["schemas"]["AcquisitionReturns"] | null;
             /** Site Count */
             site_count?: number | null;
             /** State */
@@ -3665,6 +3719,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProformaResults"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_acquisition_returns_acquisitions__acquisition_id__returns_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcquisitionReturns"];
                 };
             };
             /** @description Bad Request */

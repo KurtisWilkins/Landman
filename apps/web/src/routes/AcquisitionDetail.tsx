@@ -6,9 +6,9 @@
  */
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useAcquisition } from "../api/hooks";
+import { useAcquisition, useAcquisitionReturns } from "../api/hooks";
 import type { Schemas } from "../api/client";
-import { fmtUsd } from "../lib/format";
+import { fmtMult, fmtPct, fmtUsd } from "../lib/format";
 import { CompsTab } from "./acquisition/CompsTab";
 import { GLDocsTab } from "./acquisition/GLDocsTab";
 import { GatesTab } from "./acquisition/GatesTab";
@@ -41,11 +41,25 @@ function prettyType(v: string | undefined): string {
   return v ? v.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
 }
 
-/** Acquisition summary header — key facts + headline returns. Computed fields ("—") light up
- * when the pro-forma + promote engine lands. */
-function SummaryHeader({ m }: { m: Schemas["AcquisitionMetadata"] | undefined }) {
+/** IRR · MOIC pair, or "—" when neither is computed yet. */
+function irrMoic(
+  irr: string | number | null | undefined,
+  moic: string | number | null | undefined,
+) {
+  return irr == null && moic == null ? "—" : `${fmtPct(irr)} · ${fmtMult(moic)}`;
+}
+
+/** Acquisition summary header — key facts + headline returns (filled once a pro forma exists). */
+function SummaryHeader({
+  m,
+  r,
+}: {
+  m: Schemas["AcquisitionMetadata"] | undefined;
+  r: Schemas["AcquisitionReturns"] | undefined;
+}) {
   const price = m?.purchase_price ?? m?.ask_price ?? null;
   const location = [m?.address?.city, m?.address?.state].filter(Boolean).join(", ") || "—";
+  const loanLtv = r?.loan_amount == null ? "—" : `${fmtUsd(r.loan_amount)} (${fmtPct(r.ltv)})`;
   return (
     <header className="rounded-lg border border-brand/15 p-4">
       <h1 className="text-2xl font-semibold">{m?.name ?? "—"}</h1>
@@ -58,14 +72,14 @@ function SummaryHeader({ m }: { m: Schemas["AcquisitionMetadata"] | undefined })
         <Fact label="Sites / units" value={m?.site_count ?? "—"} />
         <Fact label="Purchase price" value={fmtUsd(price)} />
         <Fact label="Price / site" value={fmtUsd(m?.price_per_site)} />
-        <Fact label="Going-in cap" value="—" />
-        <Fact label="Loan / LTV" value="—" />
-        <Fact label="Hold" value="—" />
+        <Fact label="Going-in cap" value={r?.going_in_cap == null ? "—" : fmtPct(r.going_in_cap)} />
+        <Fact label="Loan / LTV" value={loanLtv} />
+        <Fact label="Hold" value={r?.hold_years == null ? "—" : `${r.hold_years} yr`} />
       </dl>
       <dl className="mt-3 grid grid-cols-3 gap-3 border-t border-brand/10 pt-3">
-        <Fact label="Partner IRR / MOIC" value="—" />
-        <Fact label="RJourney IRR / MOIC" value="—" />
-        <Fact label="Deal-Level IRR / MOIC" value="—" />
+        <Fact label="Partner IRR / MOIC" value={irrMoic(r?.partner_irr, r?.partner_moic)} />
+        <Fact label="RJourney IRR / MOIC" value={irrMoic(r?.rjourney_irr, r?.rjourney_moic)} />
+        <Fact label="Deal-Level IRR / MOIC" value={irrMoic(r?.deal_irr, r?.deal_moic)} />
       </dl>
     </header>
   );
@@ -75,10 +89,11 @@ export function AcquisitionDetail() {
   const { acquisitionId = "" } = useParams();
   const [tab, setTab] = useState<Tab>("Underwriting");
   const { data: acquisition } = useAcquisition(acquisitionId);
+  const { data: returns } = useAcquisitionReturns(acquisitionId);
 
   return (
     <section>
-      <SummaryHeader m={acquisition?.metadata} />
+      <SummaryHeader m={acquisition?.metadata} r={returns} />
 
       <div
         role="tablist"

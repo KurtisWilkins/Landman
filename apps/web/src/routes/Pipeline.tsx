@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { usePipeline } from "../api/hooks";
 import { NewAcquisitionForm } from "./NewAcquisitionForm";
+import { fmtMult, fmtPct, fmtUsd } from "../lib/format";
 import type { components } from "../api/types";
 import type { Schemas } from "../api/client";
 
@@ -34,6 +35,14 @@ function rollup(
   const inPhase = acquisitions.filter((d) => d.current_phase === phase);
   const dollars = inPhase.reduce((acc, d) => acc + Number(d.ask_price ?? 0), 0);
   return { count: inPhase.length, dollars };
+}
+
+/** IRR · MOIC pair, or "—" when neither is computed yet. */
+function irrMoic(
+  irr: string | number | null | undefined,
+  moic: string | number | null | undefined,
+): string {
+  return irr == null && moic == null ? "—" : `${fmtPct(irr)} · ${fmtMult(moic)}`;
 }
 
 export function Pipeline() {
@@ -89,37 +98,62 @@ export function Pipeline() {
             })}
           </div>
 
-          {/* Acquisition lists */}
+          {/* Acquisition comparison table — headline returns at a glance (#29). */}
           {acquisitions.length === 0 ? (
             <p className="mt-6 text-sm opacity-70">No acquisitions yet.</p>
           ) : (
-            <ul className="mt-6 divide-y divide-brand/10">
-              {acquisitions.map((d) => (
-                <li key={d.acquisition_id}>
-                  <Link
-                    to={`/acquisitions/${d.acquisition_id}`}
-                    className="flex items-center justify-between py-3 hover:bg-surface focus:outline-none focus:ring-2 focus:ring-accent"
-                  >
-                    <div>
-                      <div className="font-medium">{d.name}</div>
-                      <div className="text-xs opacity-70">
-                        {[d.city, d.state].filter(Boolean).join(", ")} · {d.property_type}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {d.blocking_gate_count > 0 && (
-                        <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs text-ink">
-                          {d.blocking_gate_count} blocking
-                        </span>
-                      )}
-                      <span className="font-figure text-sm">
+            <div className="mt-6 overflow-x-auto">
+              <table className="min-w-[820px] w-full border-collapse text-sm">
+                <thead>
+                  <tr className="text-left">
+                    <th className="px-2 py-2 font-medium">Acquisition</th>
+                    <th className="px-2 py-2 font-medium">Phase</th>
+                    <th className="px-2 py-2 text-right font-medium">Price</th>
+                    <th className="px-2 py-2 text-right font-medium">Partner IRR / MOIC</th>
+                    <th className="px-2 py-2 text-right font-medium">RJourney IRR / MOIC</th>
+                    <th className="px-2 py-2 text-right font-medium">Deal-Level IRR / MOIC</th>
+                    <th className="px-2 py-2 text-right font-medium">Promote</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {acquisitions.map((d) => (
+                    <tr
+                      key={d.acquisition_id}
+                      className="border-t border-brand/10 hover:bg-surface"
+                    >
+                      <td className="px-2 py-2">
+                        <Link
+                          to={`/acquisitions/${d.acquisition_id}`}
+                          className="font-medium text-brand hover:underline focus:outline-none focus:ring-2 focus:ring-accent"
+                        >
+                          {d.name}
+                        </Link>
+                        <div className="text-xs opacity-70">
+                          {[d.city, d.state].filter(Boolean).join(", ")} · {d.property_type}
+                          {d.blocking_gate_count > 0 ? ` · ${d.blocking_gate_count} blocking` : ""}
+                        </div>
+                      </td>
+                      <td className="px-2 py-2">{d.current_phase}</td>
+                      <td className="px-2 py-2 text-right font-figure">
                         {usd.format(Number(d.ask_price ?? 0))}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                      </td>
+                      <td className="px-2 py-2 text-right font-figure">
+                        {irrMoic(d.returns?.partner_irr, d.returns?.partner_moic)}
+                      </td>
+                      <td className="px-2 py-2 text-right font-figure">
+                        {irrMoic(d.returns?.rjourney_irr, d.returns?.rjourney_moic)}
+                      </td>
+                      <td className="px-2 py-2 text-right font-figure">
+                        {irrMoic(d.returns?.deal_irr, d.returns?.deal_moic)}
+                      </td>
+                      <td className="px-2 py-2 text-right font-figure">
+                        {d.returns?.promote_value == null ? "—" : fmtUsd(d.returns.promote_value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </>
       )}
