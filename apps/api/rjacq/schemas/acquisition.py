@@ -42,6 +42,7 @@ class AcquisitionMetadata(BaseModel):
     address: Address | None = None
     site_count: int | None = None
     ask_price: Decimal | None = None
+    purchase_price: Decimal | None = None  # negotiated price that flows downstream
     price_per_site: Decimal | None = None
     seller_name: str | None = None
     date_received: date | None = None
@@ -59,9 +60,17 @@ class AcquisitionCreate(BaseModel):
     address: Address | None = None
     site_count: int | None = None
     ask_price: Decimal | None = None
+    purchase_price: Decimal | None = None
     seller_name: str | None = None
     thesis: str | None = None
     notes: str | None = None
+
+
+class AcquisitionUpdate(BaseModel):
+    """PATCH /acquisitions/{id} — edit underwriting-level acquisition fields. All optional;
+    only provided fields are applied. Extend as more editable fields land (PR 3/4)."""
+
+    purchase_price: Decimal | None = None
 
 
 class OmFinancialLine(BaseModel):

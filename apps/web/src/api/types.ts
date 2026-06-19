@@ -71,7 +71,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Acquisition
+         * @description Edit underwriting-level acquisition fields (e.g. the negotiated purchase price that flows
+         *     downstream). Only fields present in the body are applied; the rest are untouched.
+         */
+        patch: operations["update_acquisition_acquisitions__acquisition_id__patch"];
         trace?: never;
     };
     "/acquisitions/{acquisition_id}/assumptions": {
@@ -640,6 +645,8 @@ export interface components {
             /** Notes */
             notes?: string | null;
             property_type: components["schemas"]["PropertyType"];
+            /** Purchase Price */
+            purchase_price?: number | string | null;
             /** Seller Name */
             seller_name?: string | null;
             /** Site Count */
@@ -686,6 +693,8 @@ export interface components {
             /** Price Per Site */
             price_per_site?: string | null;
             property_type: components["schemas"]["PropertyType"];
+            /** Purchase Price */
+            purchase_price?: string | null;
             /** Seller Name */
             seller_name?: string | null;
             /** Site Count */
@@ -724,6 +733,15 @@ export interface components {
             /** State */
             state?: string | null;
             status: components["schemas"]["AcquisitionStatus"];
+        };
+        /**
+         * AcquisitionUpdate
+         * @description PATCH /acquisitions/{id} — edit underwriting-level acquisition fields. All optional;
+         *     only provided fields are applied. Extend as more editable fields land (PR 3/4).
+         */
+        AcquisitionUpdate: {
+            /** Purchase Price */
+            purchase_price?: number | string | null;
         };
         /** Address */
         Address: {
@@ -2052,6 +2070,97 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcquisitionDocument"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_acquisition_acquisitions__acquisition_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcquisitionUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

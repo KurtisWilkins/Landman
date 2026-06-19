@@ -144,6 +144,24 @@ export function useAcquisition(acquisitionId: string) {
   });
 }
 
+type AcquisitionUpdate = Schemas["AcquisitionUpdate"];
+
+export function useUpdateAcquisition(acquisitionId: string) {
+  // Edit underwriting-level fields (e.g. negotiated purchase price); refreshes the document.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AcquisitionUpdate) =>
+      apiFetch<AcquisitionDocument>(`/acquisitions/${acquisitionId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId] });
+      qc.invalidateQueries({ queryKey: ["acquisitions"] });
+    },
+  });
+}
+
 export function useProforma(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "proforma"],

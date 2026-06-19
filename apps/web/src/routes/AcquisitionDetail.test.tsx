@@ -60,13 +60,20 @@ describe("AcquisitionDetail", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("shows the header and tabs, and renders pro forma rows", async () => {
+  it("shows the summary header and layered tabs; underwriting is the default", async () => {
     renderAcquisition();
     expect(await screen.findByRole("heading", { name: "Cedar Hollow" })).toBeInTheDocument();
-    for (const t of ["Pro forma", "Comps", "Gates", "GL / Docs"]) {
+    for (const t of ["Underwriting", "Pro forma", "Promote", "Comps", "Gates", "GL / Docs"]) {
       expect(screen.getByRole("tab", { name: t })).toBeInTheDocument();
     }
-    // Pro forma is the default tab.
+    // Underwriting is the default tab (first in the flow order).
+    expect(await screen.findByText(/from the offering memorandum/i)).toBeInTheDocument();
+  });
+
+  it("switches to the Pro forma tab and renders rows", async () => {
+    const user = userEvent.setup();
+    renderAcquisition();
+    await user.click(screen.getByRole("tab", { name: "Pro forma" }));
     expect(await screen.findByText("Levered CF")).toBeInTheDocument();
   });
 
