@@ -55,6 +55,8 @@ describe("UnderwritingTab", () => {
     const user = userEvent.setup();
     renderTab();
     const input = await screen.findByLabelText("Purchase price");
+    // Wait for the async seed (OM ask) to populate before editing, else clear+type races it.
+    await waitFor(() => expect(input).toHaveValue("5000000"));
     await user.clear(input);
     await user.type(input, "4250000");
     await user.click(screen.getByRole("button", { name: "Save" }));
