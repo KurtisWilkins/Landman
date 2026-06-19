@@ -16,13 +16,17 @@ from ..core.logging import get_logger
 from ..models.acquisitions import Acquisition
 from ..models.underwriting import ProformaInput
 from ..schemas.underwriting import (
+    AcquisitionReturns,
     ProformaExit,
     ProformaResults,
     ProformaYear,
 )
+from . import promote as promote_engine
 from . import repository as repo
 from .engine import ProformaOutput
 from .proforma import DebtTerms, GLLine, ProformaInputs, build_acquisition_proforma
+
+_ONE = Decimal(1)
 
 log = get_logger("underwriting")
 
@@ -155,6 +159,51 @@ async def save_inputs_and_recompute(
         await store_proforma(session, acquisition_id, result.proforma)
     await session.commit()
     return await get_proforma(session, acquisition_id)
+
+
+async def acquisition_returns(session: AsyncSession, acquisition_id: str) -> AcquisitionReturns:
+    """Headline returns from the persisted pro forma run through the **standard** promote
+    (engine defaults). Empty until a pro forma is computed. (Custom per-acquisition promote terms
+    aren't persisted yet — a later enhancement; this is the comparison/standard view.)"""
+    pf = await get_proforma(session, acquisition_id)
+    if not pf.years or pf.equity_basis is None:
+        return AcquisitionReturns()
+
+    equity = pf.equity_basis
+    stream = [-equity, *[(y.levered_cf or _ZERO) for y in pf.years]]
+    if pf.exit is not None and pf.exit.net_proceeds is not None:
+        stream[-1] += pf.exit.net_proceeds
+
+    price = await _purchase_price(session, acquisition_id)
+    ltv = (_ONE - equity / price) if (price is not None and price > equity) else _ZERO
+    result = promote_engine.run_promote_waterfall(
+        promote_engine.PromoteInputs(
+            equity=equity,
+            hold_years=len(pf.years),
+            ltv=ltv,
+            cashflow_override=tuple(stream),
+        )
+    )
+
+    year1_noi = pf.years[0].noi
+    going_in_cap = (
+        (year1_noi / price) if (price is not None and price > 0 and year1_noi is not None) else None
+    )
+    loan = (price - equity) if price is not None else None
+    return AcquisitionReturns(
+        going_in_cap=going_in_cap,
+        loan_amount=loan,
+        ltv=(loan / price) if (loan is not None and price) else None,
+        hold_years=len(pf.years),
+        equity=equity,
+        promote_value=result.total_promote,
+        partner_irr=result.partner.irr,
+        partner_moic=result.partner.moic,
+        rjourney_irr=result.rjourney.irr,
+        rjourney_moic=result.rjourney.moic,
+        deal_irr=result.acquisition.irr,
+        deal_moic=result.acquisition.moic,
+    )
 
 
 async def override_assumption(

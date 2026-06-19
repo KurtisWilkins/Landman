@@ -38,6 +38,7 @@ from ..schemas.acquisition import (
 from ..schemas.financials import FinancialPeriodVersion
 from ..schemas.market import PopulationRingOverride, PopulationRingsDoc
 from ..schemas.underwriting import (
+    AcquisitionReturns,
     AssumptionOverride,
     ProformaInputs,
     ProformaInputsOut,
@@ -81,6 +82,8 @@ async def list_acquisitions(
             state=d.state,
             # Gate scoring is Phase 4; no blocking-gate count yet (never invented).
             blocking_gate_count=0,
+            # Headline returns for comparison (null until the acquisition has a computed pro forma).
+            returns=await underwriting.acquisition_returns(session, d.acquisition_id),
         )
         for d in acquisitions
     ]
@@ -458,6 +461,18 @@ async def get_proforma(
     """Pro forma results."""
     # Assembled from the persisted 5-yr schedule + summary.
     return await underwriting.get_proforma(session, acquisition_id)
+
+
+@router.get("/acquisitions/{acquisition_id}/returns", response_model=AcquisitionReturns)
+async def get_acquisition_returns(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> AcquisitionReturns:
+    """Headline returns (going-in cap, loan/LTV, Partner/RJourney/Deal-Level IRR & MOIC, promote
+    value) computed from the persisted pro forma + the standard promote. Empty until computed."""
+    await _require_acquisition(session, acquisition_id)
+    return await underwriting.acquisition_returns(session, acquisition_id)
 
 
 @router.get("/acquisitions/{acquisition_id}/proforma-inputs", response_model=ProformaInputsOut)
