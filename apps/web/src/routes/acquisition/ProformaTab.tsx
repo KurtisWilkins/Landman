@@ -115,8 +115,9 @@ export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
       {/* ── Assumptions ──────────────────────────────────── */}
       <div className="space-y-3">
         <p className="text-xs opacity-70">
-          Debt is sized here from the purchase price (entered on Underwriting). Edit and save to
-          recompute; the promote uses the resulting equity cash flows.
+          Stabilized NOI is pre-filled from the GL-mapped P&amp;L when available; debt is sized here
+          from the purchase price (entered on Underwriting). Edit and save to recompute; the promote
+          uses the resulting equity cash flows.
         </p>
         <Panel title="Stabilized NOI (year 1)">
           <Field

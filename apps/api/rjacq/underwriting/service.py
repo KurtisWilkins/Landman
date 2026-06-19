@@ -27,16 +27,32 @@ from .proforma import DebtTerms, GLLine, ProformaInputs, build_acquisition_profo
 log = get_logger("underwriting")
 
 _ZERO = Decimal(0)
-# Inputs that must all be present (plus a purchase price) before a pro forma can be computed.
-_REQUIRED_INPUTS = (
-    "stabilized_revenue",
-    "stabilized_opex",
-    "exit_cap",
-    "ltv",
-    "loan_rate",
-    "amort_months",
-    "hold_years",
-)
+# Financing/exit/hold inputs that must all be present before a pro forma can be computed.
+# Stabilized revenue/opex are handled separately: they fall back to the GL-mapped P&L's NOI
+# bridge (extraction-first), so they aren't required to be entered manually.
+_REQUIRED_FIN = ("exit_cap", "ltv", "loan_rate", "amort_months", "hold_years")
+
+
+async def noi_bridge_totals(session: AsyncSession, acquisition_id: str) -> tuple[Decimal, Decimal]:
+    """Stabilized revenue + operating expense from the acquisition's GL-mapped P&L (NOI bridge).
+    Zeros until a P&L is uploaded and mapped. Lazy import avoids an import cycle with mapping."""
+    from ..mapping import noi as noi_mapping
+
+    bridge = await noi_mapping.noi_bridge_for_acquisition(session, acquisition_id)
+    return bridge.gross_revenue, bridge.operating_expense
+
+
+async def effective_stabilized(
+    session: AsyncSession, acquisition_id: str, inp: ProformaInput | None
+) -> tuple[Decimal | None, Decimal | None]:
+    """Stabilized revenue/opex to use: the manually-saved values, else the NOI-bridge totals from
+    the GL-mapped P&L (extraction-first). A bridge with no revenue stays None (no fabrication)."""
+    bridge_rev, bridge_opex = await noi_bridge_totals(session, acquisition_id)
+    saved_rev = inp.stabilized_revenue if inp is not None else None
+    saved_opex = inp.stabilized_opex if inp is not None else None
+    revenue = saved_rev if saved_rev is not None else (bridge_rev if bridge_rev > 0 else None)
+    opex = saved_opex if saved_opex is not None else (bridge_opex if revenue is not None else None)
+    return revenue, opex
 
 
 class UnderwritingError(Exception):
@@ -112,15 +128,17 @@ async def save_inputs_and_recompute(
     """
     inp = await repo.upsert_proforma_input(session, acquisition_id, fields)
     price = await _purchase_price(session, acquisition_id)
-    ready = price is not None and all(getattr(inp, k) is not None for k in _REQUIRED_INPUTS)
+    revenue, opex = await effective_stabilized(session, acquisition_id, inp)
+    fin_present = all(getattr(inp, k) is not None for k in _REQUIRED_FIN)
+    ready = price is not None and revenue is not None and revenue > 0 and fin_present
     if ready:
-        assert price is not None  # narrowed by `ready`; for the type checker
+        assert price is not None and revenue is not None  # narrowed by `ready`
         engine_inputs = ProformaInputs(
             purchase_price=price,
             hold_years=int(inp.hold_years or 0),
             lines=[
-                GLLine("Revenue", inp.stabilized_revenue or _ZERO, is_expense=False),
-                GLLine("OpEx", inp.stabilized_opex or _ZERO, is_expense=True),
+                GLLine("Revenue", revenue, is_expense=False),
+                GLLine("OpEx", opex or _ZERO, is_expense=True),
             ],
             noi_growth=inp.noi_growth or _ZERO,
             exit_cap=inp.exit_cap or _ZERO,

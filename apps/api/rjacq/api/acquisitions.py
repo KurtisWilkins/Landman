@@ -470,7 +470,15 @@ async def get_proforma_inputs(
     revenue/opex). Empty until set."""
     await _require_acquisition(session, acquisition_id)
     stored = await underwriting.get_inputs(session, acquisition_id)
-    return ProformaInputsOut.model_validate(stored) if stored is not None else ProformaInputsOut()
+    out = ProformaInputsOut.model_validate(stored) if stored is not None else ProformaInputsOut()
+    # Extraction-first: pre-fill stabilized revenue/opex from the GL-mapped P&L when not set.
+    if out.stabilized_revenue is None or out.stabilized_opex is None:
+        revenue, opex = await underwriting.effective_stabilized(session, acquisition_id, stored)
+        if out.stabilized_revenue is None:
+            out.stabilized_revenue = revenue
+        if out.stabilized_opex is None:
+            out.stabilized_opex = opex
+    return out
 
 
 @router.put("/acquisitions/{acquisition_id}/proforma-inputs", response_model=ProformaResults)
