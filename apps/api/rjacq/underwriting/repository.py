@@ -9,7 +9,7 @@ from decimal import Decimal
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.underwriting import Assumption, ProformaResult, ProformaSummary
+from ..models.underwriting import Assumption, ProformaInput, ProformaResult, ProformaSummary
 from .engine import ProformaOutput
 
 
@@ -35,6 +35,24 @@ async def get_assumption(session: AsyncSession, acquisition_id: str, key: str) -
         Assumption.acquisition_id == acquisition_id, Assumption.key == key
     )
     return (await session.execute(stmt)).scalars().first()
+
+
+async def get_proforma_input(session: AsyncSession, acquisition_id: str) -> ProformaInput | None:
+    return await session.get(ProformaInput, acquisition_id)
+
+
+async def upsert_proforma_input(
+    session: AsyncSession, acquisition_id: str, fields: dict[str, object]
+) -> ProformaInput:
+    """Create or update the acquisition's pro-forma inputs; only provided fields are applied."""
+    obj = await session.get(ProformaInput, acquisition_id)
+    if obj is None:
+        obj = ProformaInput(acquisition_id=acquisition_id)
+        session.add(obj)
+    for key, value in fields.items():
+        setattr(obj, key, value)
+    await session.flush()
+    return obj
 
 
 async def replace_proforma(

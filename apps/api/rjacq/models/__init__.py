@@ -22,6 +22,7 @@ from .reference import GateQuestion, GLAccount, GLMappingLearned
 from .underwriting import (
     Assumption,
     Hurdle,
+    ProformaInput,
     ProformaResult,
     ProformaSummary,
     WaterfallTier,
@@ -44,6 +45,7 @@ __all__ = [
     "Assumption",
     "Hurdle",
     "WaterfallTier",
+    "ProformaInput",
     "ProformaResult",
     "ProformaSummary",
     "Comp",

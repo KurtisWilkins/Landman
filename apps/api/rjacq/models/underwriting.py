@@ -60,6 +60,29 @@ class WaterfallTier(Base):
     gp_split: Mapped[Decimal | None] = mapped_column(Numeric)
 
 
+class ProformaInput(Base):
+    """Per-acquisition pro-forma assumptions the underwriter owns (debt terms, growth, exit,
+    stabilized year-1 revenue/opex). One row per acquisition; the pro forma is recomputed from
+    these + the acquisition's purchase price. Defaults are config/UI-seeded, never literals."""
+
+    __tablename__ = "proforma_inputs"
+
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), primary_key=True
+    )
+    stabilized_revenue: Mapped[Decimal | None] = mapped_column(Numeric)
+    stabilized_opex: Mapped[Decimal | None] = mapped_column(Numeric)
+    noi_growth: Mapped[Decimal | None] = mapped_column(Numeric)
+    exit_cap: Mapped[Decimal | None] = mapped_column(Numeric)
+    ltv: Mapped[Decimal | None] = mapped_column(Numeric)
+    loan_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    amort_months: Mapped[int | None] = mapped_column(Integer)
+    io_years: Mapped[int | None] = mapped_column(Integer)
+    selling_cost_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    capex_reserve_rate: Mapped[Decimal | None] = mapped_column(Numeric)
+    hold_years: Mapped[int | None] = mapped_column(Integer)
+
+
 class ProformaResult(Base):
     __tablename__ = "proforma_results"
 
