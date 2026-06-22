@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProformaTab } from "./ProformaTab";
@@ -80,5 +80,54 @@ describe("ProformaTab", () => {
       expect(body.stabilized_revenue).toBe(1200000);
       expect(body.ltv).toBe(0.65); // debt sized on the pro forma, not the promote
     });
+  });
+
+  it("sends loan_amount + growth overrides in the PUT when set", async () => {
+    renderTab();
+    // Wait for the form to seed (LTV default present) before editing the optional fields.
+    await waitFor(() => expect(screen.getByLabelText("LTV")).toHaveValue(65));
+    fireEvent.change(screen.getByLabelText("Loan amount"), { target: { value: "7000000" } });
+    fireEvent.change(screen.getByLabelText("Revenue growth"), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: /save & recompute/i }));
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
+      );
+      expect(put).toBeTruthy();
+      const body = JSON.parse((put![1] as RequestInit).body as string);
+      expect(body.loan_amount).toBe(7000000); // dollar override
+      expect(body.revenue_growth).toBe(0.05); // 5% → decimal
+    });
+  });
+
+  it("renders the 60-month grid when the endpoint returns months", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const u = String(url);
+        if (u.includes("/proforma-monthly")) {
+          return jsonResponse({
+            months: [
+              {
+                month: 1,
+                revenue: 100000,
+                opex: 41666,
+                noi: 58334,
+                debt_service: 33333,
+                capex: 0,
+                levered_cf: 25001,
+              },
+            ],
+          });
+        }
+        if (u.includes("/proforma-inputs")) return jsonResponse({});
+        if (u.includes("/proforma")) return jsonResponse(RESULTS);
+        return jsonResponse({});
+      }),
+    );
+    renderTab();
+    expect(await screen.findByText("1-month cash flow")).toBeInTheDocument();
   });
 });
