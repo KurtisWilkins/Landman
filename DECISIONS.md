@@ -8,6 +8,67 @@ Newest first.
 
 ---
 
+## 2026-06-22 — Underwriting page: GL mapping + budget + defaults (PRs #48–#54)
+
+Built the acquisition Underwriting page: upload → GL mapping → prior-year-vs-year-one budget →
+defaults → review/lock → flow-through to the stabilized NOI (which feeds the engines above).
+
+### D-8 — GL mapping: auto-map-with-confirm (keep + extend the existing engine)
+
+**Decision.** Keep `propose_for_line` (learned → embed+classify → never-drop-unmapped) with the
+mandatory human `confirm()` gate; do **not** go fully manual.
+
+- **Wired `source_seller`** (was passed `None`): confirmed phrases are learned **per seller**, with a
+  global fallback on miss — this is the "faster re-uploads" mechanism. Found the engine had **no
+  caller**; it now runs in a **background Arq worker** after upload (chosen over inline — ~1 embed +
+  1 classify per line, so a 200-line P&L shouldn't block the request) and degrades gracefully.
+- **First-time AI suggestions** stay gated on §14 C-20 (Voyage + Claude providers are still stubs);
+  until then the worker does learned reuse and the confirm workstation is the manual+learned surface.
+- **SPLIT** (PR #50, migration `d4e5f6a7b8c9`): one nullable self-FK `financial_lines.split_parent_id`
+  + a pure `allocate_split` (parts must sum to the parent). The parent becomes a non-counted
+  container (`account_code = NULL`, already skipped by the NOI bridge); one confirmed child line per
+  part. **MERGE** needs no new capability — confirm several lines to the same `account_code`.
+
+### D-9 — Budget: prefill year-one from prior-year actuals; prior-year is computed on read
+
+**Decision.** Year-one prefills from the mapped prior-year actuals (tagged `actuals`, overridable);
+defaults fill the gaps; placeholders the rest. Not blank-start.
+
+- **Prior-year monthly already lives in `FinancialLine.raw_payload`** (the QuickBooks recap parser
+  stores each month) — so prior-year is **computed on read**, no prior-year table. Only the editable
+  year-one cells are stored: new `budgets` + `budget_lines` (migration `e5f6a7b8c9d0`), one cell per
+  `(acquisition, account, calendar month)` carrying provenance (`source`, `is_overridden`, note).
+- **Line-item provenance is first-class** (`actuals` / `default` / `placeholder` / `edited`), visible
+  on every row. Month alignment is by calendar month so "this June" sits beside "last June".
+
+### D-10 — Defaults engine: formulas in code, numbers in config
+
+**Decision.** A pure `budget_defaults.py` emits default lines; the **rates and the target GL account
+codes are config** (CLAUDE.md rule #2), never literals in logic.
+
+- **Shield** — fixed $1,000/mo, **overrides** any historical Shield line. **Marketing** — website
+  $825 + secondary $850 as **two independent** lines. **PPC** — linear **two lines**:
+  `google = site_count × target_volume × rate`; `intercompany = google × pct` (the self-charge stays
+  visible with its own GL). `site_count` is read from the canonical `Acquisition`.
+- The Shield/marketing amounts are the **confirmed** values; the **PPC rate/volume/% and all five
+  target account codes default to `None`**, so the engine **no-ops until configured** (the full GL
+  chart is §14 B-13) rather than guessing. Each default line is badged and per-deal overridable.
+- **Open**: the exact GL account codes + the PPC `target_volume` unit / rate / intercompany-placement
+  are still needed from the user to switch the defaults on.
+
+### D-11 — Lock + flow-through: locked budget feeds stabilized NOI
+
+**Decision.** `effective_stabilized` precedence is **manual override → locked-budget rollup → NOI
+bridge**. No-op until a budget is locked (existing acquisitions unchanged).
+
+- The locked budget rolls up through the **same `normalized_noi` machinery** the NOI bridge uses, so
+  the two stabilized paths reconcile by construction. **Live-read** (not snapshot): editing a locked
+  budget invalidates the lock and forces a re-lock.
+- **Lock is gated** on zero placeholders **and** zero unmapped lines; lock/unlock recompute the pro
+  forma. Recompute happens on lock/save, not per keystroke (per D-2).
+
+---
+
 ## 2026-06-22 — Underwriting single source of truth (Parts 1–6, PRs #41–#46)
 
 The per-acquisition data flow **upload → editable NOI → pro forma → 60-month cash flow → promote**

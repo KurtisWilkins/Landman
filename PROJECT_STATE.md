@@ -44,8 +44,35 @@ upload OM / P&L → editable NOI → canonical store → pro forma → 60-month 
 `GET/PUT /acquisitions/{id}/waterfall-tiers` · `PATCH /acquisitions/{id}` (price → recompute) ·
 `GET/PUT /underwriting-defaults` (admin seed defaults).
 
-## Shipped this round (PRs #41–#46)
+## Underwriting page — GL mapping → budget → defaults (complete)
 
+The acquisition Underwriting page produces the **stabilized NOI** that feeds the flow above. End to
+end: **upload P&L → GL map (confirm) → prior-year-vs-year-one budget → review + lock → stabilized
+NOI**. See `DECISIONS.md` D-8…D-11.
+
+- **GL mapping** (`mapping/`, `GLDocsTab`): the existing learned → embed+classify → never-drop
+  engine runs in a **background Arq worker** after upload; the confirm workstation buckets lines
+  (needs review / auto-mapped / confirmed) with a GL-chart picker, NOI selector, learn toggle,
+  **remap / split** (one line → many GLs via `financial_lines.split_parent_id`), and bulk confirm.
+  Learned mappings are **per seller** so re-uploads resolve without the LLM. First-time AI
+  suggestions await §14 C-20 (Voyage/Claude providers); until then it does learned + manual.
+- **Budget** (`underwriting/budget*.py`, `BudgetTab`): each canonical GL's prior-year actuals
+  (computed on read from `raw_payload`) beside the editable year-one cells (stored in
+  `budget_lines`), with $/% variance and a provenance badge (actuals / default / to review /
+  edited). Collapsed annual; expand for the month-by-month view.
+- **Defaults engine** (`underwriting/budget_defaults.py`, pure): Shield (fixed, overrides),
+  marketing (two lines), PPC (two-line formula). Rates + target GL codes are config; **no-op until
+  configured** so nothing is guessed.
+- **Lock + flow-through**: `effective_stabilized` precedence = manual override → **locked budget
+  rollup** → NOI bridge; lock gated on zero placeholders + unmapped; lock/unlock recompute.
+
+### Budget endpoints
+`GET/PUT /gl-accounts` (chart picker) · `POST /acquisitions/{id}/mapping/confirm|split` ·
+`GET /acquisitions/{id}/budget` · `PATCH …/budget` (cell edit) · `POST …/budget/seed|lock|unlock`.
+
+## Shipped
+
+**Single source of truth (PRs #41–#46):**
 1. **#41** — canonical store schema (additive `proforma_inputs` / `underwriting_defaults` columns).
 2. **#42** — pro forma + promote read from the store (loan_amount, split growth, persisted terms).
 3. **#43** — price edit triggers the recompute (closed the "editing price doesn't resize debt" bug).
@@ -53,13 +80,24 @@ upload OM / P&L → editable NOI → canonical store → pro forma → 60-month 
 5. **#45** — ProformaTab UI: new fields + the 60-month grid.
 6. **#46** — promote persistence: `waterfall-tiers` endpoints + PromoteTab load/save.
 
+**Underwriting page (PRs #48–#54):**
+7. **#48** — auto-map runs in a background worker + seller-scoped learned mappings.
+8. **#49** — GL mapping confirm workstation + `GET /gl-accounts`.
+9. **#50** — split one seller line across GLs (`split_parent_id`).
+10. **#51 / #52** — budget model + grid (prior-year beside editable year-one).
+11. **#53** — budget lock + flow-through to stabilized NOI.
+12. **#54** — budget defaults engine (Shield / marketing / PPC).
+
 ## Pending
 
-- **Deploy**: the next Azure deploy must run the migrate job — it applies `b2c3d4e5f6a7`
-  (canonical-store columns) and `c3d4e5f6a7b8` (`proforma_monthly`). Both are additive; back up
-  Postgres first per CLAUDE.md.
+- **Deploy**: the SSOT release (`b2c3d4e5f6a7` + `c3d4e5f6a7b8`) is live (SHA `8bb2b59`). The next
+  deploy applies the Underwriting-page migrations `d4e5f6a7b8c9` (split-parent) + `e5f6a7b8c9d0`
+  (budget tables) — both additive; back up Postgres first per CLAUDE.md.
+- **Activate the defaults engine**: set the five `*_account_code` + `ppc_rate` / `ppc_target_volume`
+  / `ppc_intercompany_pct` config (needs the full GL chart, §14 B-13). Until then the budget seeds
+  from actuals only.
 - Known future enhancements are tracked in `TASKS.md` (monthly-direct promote, P&L-parsing UX
-  guards, etc.).
+  guards, first-time AI mapping suggestions = §14 C-20, etc.).
 
 ## Local toolchain notes
 
