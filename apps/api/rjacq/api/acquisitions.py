@@ -339,9 +339,16 @@ async def update_acquisition(
     """Edit underwriting-level acquisition fields (e.g. the negotiated purchase price that flows
     downstream). Only fields present in the body are applied; the rest are untouched."""
     acquisition = await _require_acquisition(session, acquisition_id)
-    for key, value in body.model_dump(exclude_unset=True).items():
+    fields = body.model_dump(exclude_unset=True)
+    for key, value in fields.items():
         setattr(acquisition, key, value)
-    await session.commit()
+    # The purchase price flows downstream (debt sizing + the promote). A price edit recomputes
+    # through the single write path so the cached pro forma + returns stay consistent (cached-
+    # derived reactivity); GETs never recompute. Other field edits (name, thesis, …) don't.
+    if {"purchase_price", "ask_price"} & fields.keys():
+        await underwriting.save_inputs_and_recompute(session, acquisition_id, {})
+    else:
+        await session.commit()
     return await _acquisition_document(session, acquisition)
 
 

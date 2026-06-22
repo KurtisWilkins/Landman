@@ -347,3 +347,24 @@ def test_persisted_waterfall_tiers_change_returns(migrated_db: str, client: Test
     asyncio.run(_seed())
     after = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
     assert after["promote_value"] != base["promote_value"]
+
+
+def test_patch_price_resizes_debt(migrated_db: str, client: TestClient) -> None:
+    """Editing the purchase price re-runs the recompute so debt re-sizes (cached-derived store);
+    closes the gap where a price edit left the pro forma stale."""
+    acquisition_id = _create_priced(client, "10000000")
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs", json=_COMPLETE_INPUTS, headers=ADMIN
+    )
+    before = client.get(f"/acquisitions/{acquisition_id}/proforma", headers=ADMIN).json()
+    assert float(before["equity_basis"]) == 3500000.0  # 10M − 10M × 0.65
+
+    # Negotiate the price down to $8M → loan = 8M × 0.65 = 5.2M → equity = 2.8M.
+    r = client.patch(
+        f"/acquisitions/{acquisition_id}",
+        json={"purchase_price": "8000000"},
+        headers=ADMIN,
+    )
+    assert r.status_code == 200, r.text
+    after = client.get(f"/acquisitions/{acquisition_id}/proforma", headers=ADMIN).json()
+    assert float(after["equity_basis"]) == 2800000.0  # re-sized from the new price
