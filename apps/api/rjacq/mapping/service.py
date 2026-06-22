@@ -63,7 +63,11 @@ async def propose_for_line(
     phrase = line.seller_source_line or ""
 
     # 1) Learned mapping (§5.3.5): a confirmed seller phrase auto-resolves, no LLM needed.
+    #    Prefer a mapping learned for THIS seller; fall back to a seller-agnostic (global) one so
+    #    cross-seller knowledge and pre-scoping rows still resolve. Seller-specific always wins.
     learned = await repo.find_learned(session, seller_phrase=phrase, source_seller=source_seller)
+    if learned is None and source_seller is not None:
+        learned = await repo.find_learned(session, seller_phrase=phrase, source_seller=None)
     if learned is not None:
         account = await repo.get_account(session, learned.account_code)
         line.account_code = learned.account_code

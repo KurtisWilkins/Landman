@@ -216,7 +216,8 @@ export interface paths {
         put?: never;
         /**
          * Confirm Mapping
-         * @description Human accepts a mapping → writes a learned mapping for reuse (§5.3.5).
+         * @description Human accepts a mapping → writes a learned mapping for reuse (§5.3.5), scoped to the
+         *     acquisition's seller so re-uploads from the same seller resolve without the LLM.
          */
         post: operations["confirm_mapping_acquisitions__acquisition_id__mapping_confirm_post"];
         delete?: never;

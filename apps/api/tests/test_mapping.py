@@ -246,6 +246,82 @@ async def test_confirm_writes_learned_and_reuses(session: AsyncSession) -> None:
     assert line2.account_code == code
 
 
+# ── seller-scoped learned mappings (faster re-uploads) ──────────────────────
+
+
+async def test_confirm_scopes_learned_to_seller(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    phrase = f"Pad Rent {uuid.uuid4().hex[:6]}"
+    await _account(session, code, level=AccountLevel.LEAF, section="Income", placement="above")
+    line = await _line(session, acquisition_id, period_id, phrase, "5000")
+    await service.confirm(
+        session,
+        line_id=line.line_id,
+        account_code=code,
+        account_level="leaf",
+        noi_placement="above",
+        learn=True,
+        confirmed_by="kurtis",
+        source_seller="Acme Holdings",
+    )
+    scoped = await repo.find_learned(session, seller_phrase=phrase, source_seller="Acme Holdings")
+    assert scoped is not None and scoped.account_code == code
+    # It is NOT written as a global (seller-agnostic) mapping.
+    assert await repo.find_learned(session, seller_phrase=phrase, source_seller=None) is None
+
+
+async def test_propose_falls_back_to_global_learned(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    phrase = f"Laundry {uuid.uuid4().hex[:6]}"
+    await _account(session, code, level=AccountLevel.LEAF, section="Income", placement="above")
+    session.add(
+        GLMappingLearned(
+            mapping_id=f"gm_{uuid.uuid4().hex[:8]}",
+            seller_phrase=phrase,
+            source_seller=None,  # global
+            account_code=code,
+            hit_count=1,
+        )
+    )
+    await session.flush()
+    line = await _line(session, acquisition_id, period_id, phrase, "1200")
+    # A new seller with no scoped row falls back to the global learned mapping (no LLM needed).
+    await service.propose_for_line(
+        session, line, embedder=None, classifier=None, source_seller="New Seller LLC"
+    )
+    assert line.account_code == code
+    assert line.map_confidence == MapConfidence.LEAF
+
+
+async def test_propose_prefers_seller_scoped_over_global(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    glob_code = f"g{uuid.uuid4().hex[:8]}"
+    seller_code = f"s{uuid.uuid4().hex[:8]}"
+    phrase = f"Misc Income {uuid.uuid4().hex[:6]}"
+    await _account(session, glob_code, level=AccountLevel.LEAF, section="Income", placement="above")
+    await _account(
+        session, seller_code, level=AccountLevel.LEAF, section="Income", placement="above"
+    )
+    for seller, acct in ((None, glob_code), ("Acme Holdings", seller_code)):
+        session.add(
+            GLMappingLearned(
+                mapping_id=f"gm_{uuid.uuid4().hex[:8]}",
+                seller_phrase=phrase,
+                source_seller=seller,
+                account_code=acct,
+                hit_count=1,
+            )
+        )
+    await session.flush()
+    line = await _line(session, acquisition_id, period_id, phrase, "300")
+    await service.propose_for_line(
+        session, line, embedder=None, classifier=None, source_seller="Acme Holdings"
+    )
+    assert line.account_code == seller_code  # seller-scoped wins over the global mapping
+
+
 # ── pgvector shortlist ──────────────────────────────────────────────────────
 
 

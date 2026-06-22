@@ -11,6 +11,7 @@ from ..core.rbac import Capability, require
 from ..mapping import service
 from ..mapping.providers import build_embedder
 from ..mapping.service import MappingError
+from ..models.acquisitions import Acquisition
 from ..schemas.financials import MappingConfirm, MappingReview
 
 router = APIRouter(tags=["mapping"])
@@ -33,7 +34,9 @@ async def confirm_mapping(
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(require(Capability.MAPPING_CONFIRM)),
 ) -> MappingReview:
-    """Human accepts a mapping → writes a learned mapping for reuse (§5.3.5)."""
+    """Human accepts a mapping → writes a learned mapping for reuse (§5.3.5), scoped to the
+    acquisition's seller so re-uploads from the same seller resolve without the LLM."""
+    acquisition = await session.get(Acquisition, acquisition_id)
     try:
         await service.confirm(
             session,
@@ -43,6 +46,7 @@ async def confirm_mapping(
             noi_placement=body.noi_placement.value,
             learn=body.learn,
             confirmed_by=principal.user_id,
+            source_seller=acquisition.seller_name if acquisition else None,
         )
     except MappingError as exc:
         await session.rollback()
