@@ -9,6 +9,7 @@ import { useParams } from "react-router-dom";
 import { useAcquisition, useAcquisitionReturns } from "../api/hooks";
 import type { Schemas } from "../api/client";
 import { fmtMult, fmtPct, fmtUsd } from "../lib/format";
+import { BudgetTab } from "./acquisition/BudgetTab";
 import { CompsTab } from "./acquisition/CompsTab";
 import { GLDocsTab } from "./acquisition/GLDocsTab";
 import { GatesTab } from "./acquisition/GatesTab";
@@ -19,6 +20,7 @@ import { UnderwritingTab } from "./acquisition/UnderwritingTab";
 
 const TABS = [
   "Underwriting",
+  "Budget",
   "Pro forma",
   "Promote",
   "Market",
@@ -117,6 +119,7 @@ export function AcquisitionDetail() {
 
       <div className="mt-4">
         {tab === "Underwriting" && <UnderwritingTab acquisitionId={acquisitionId} />}
+        {tab === "Budget" && <BudgetTab acquisitionId={acquisitionId} />}
         {tab === "Pro forma" && <ProformaTab acquisitionId={acquisitionId} />}
         {tab === "Promote" && <PromoteTab acquisitionId={acquisitionId} />}
         {tab === "Market" && <MarketTab acquisitionId={acquisitionId} />}

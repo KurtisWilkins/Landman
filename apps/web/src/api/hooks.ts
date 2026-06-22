@@ -273,6 +273,40 @@ export function useSaveWaterfallTiers(acquisitionId: string) {
   });
 }
 
+type BudgetDoc = Schemas["BudgetDoc"];
+type BudgetCellUpdate = Schemas["BudgetCellUpdate"];
+
+export function useBudget(acquisitionId: string) {
+  // Prior-year-vs-year-one budget: prior actuals (computed) beside the editable year-one cells.
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "budget"],
+    queryFn: () => apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget`),
+  });
+}
+
+export function useSeedBudget(acquisitionId: string) {
+  // Prefill year-one from the mapped prior-year actuals (idempotent; never clobbers edits).
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/seed`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "budget"] }),
+  });
+}
+
+export function usePatchBudgetCell(acquisitionId: string) {
+  // Edit one year-one cell → flips it to a human override.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BudgetCellUpdate) =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "budget"] }),
+  });
+}
+
 export function useComps(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "comps"],
