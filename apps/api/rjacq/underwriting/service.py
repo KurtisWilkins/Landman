@@ -18,13 +18,21 @@ from ..models.underwriting import ProformaInput
 from ..schemas.underwriting import (
     AcquisitionReturns,
     ProformaExit,
+    ProformaMonth,
+    ProformaMonthlyResults,
     ProformaResults,
     ProformaYear,
 )
 from . import promote as promote_engine
 from . import repository as repo
 from .engine import ProformaOutput
-from .proforma import DebtTerms, GLLine, ProformaInputs, build_acquisition_proforma
+from .proforma import (
+    DebtTerms,
+    GLLine,
+    ProformaInputs,
+    build_acquisition_proforma,
+    build_monthly_cashflows,
+)
 
 _ONE = Decimal(1)
 
@@ -100,6 +108,14 @@ async def get_proforma(session: AsyncSession, acquisition_id: str) -> ProformaRe
     )
 
 
+async def get_proforma_monthly(
+    session: AsyncSession, acquisition_id: str
+) -> ProformaMonthlyResults:
+    """The persisted 60-month cash-flow grid (read-only; empty until a pro forma is computed)."""
+    rows = await repo.get_proforma_monthly(session, acquisition_id)
+    return ProformaMonthlyResults(months=[ProformaMonth.model_validate(r) for r in rows])
+
+
 async def store_proforma(
     session: AsyncSession, acquisition_id: str, output: ProformaOutput
 ) -> None:
@@ -170,6 +186,9 @@ async def save_inputs_and_recompute(
         )
         result = build_acquisition_proforma(engine_inputs)
         await store_proforma(session, acquisition_id, result.proforma)
+        await repo.replace_proforma_monthly(
+            session, acquisition_id, build_monthly_cashflows(engine_inputs)
+        )
     await session.commit()
     return await get_proforma(session, acquisition_id)
 

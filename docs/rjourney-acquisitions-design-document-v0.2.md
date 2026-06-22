@@ -463,6 +463,10 @@ proforma_inputs( acquisition_id PK FK→acquisitions, stabilized_revenue numeric
   -- itself stays on acquisitions (read-through purchase_price ?? ask_price), never copied here.
 proforma_results( result_id PK, acquisition_id FK→acquisitions, yr int, revenue numeric, opex numeric,
   noi numeric, debt_service numeric, capex numeric, levered_cf numeric )  -- derived output cache
+proforma_monthly( monthly_id PK, acquisition_id FK→acquisitions, month int, revenue numeric,
+  opex numeric, noi numeric, debt_service numeric, capex numeric, levered_cf numeric )  -- derived
+  -- output cache: the 60-month grid; each 12-month block rolls up to the matching proforma_results
+  -- year (debt service is the real monthly amortization; revenue/opex/CapEx spread evenly)
 proforma_summary( acquisition_id PK FK→acquisitions, levered_irr numeric, equity_multiple numeric,
   equity_basis numeric, exit_year int, exit_cap numeric, exit_gross_value numeric,
   exit_net_proceeds numeric )  -- derived output cache (recomputed on write)

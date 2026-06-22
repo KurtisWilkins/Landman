@@ -336,6 +336,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/proforma-monthly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Proforma Monthly
+         * @description The 60-month monthly cash-flow grid. Each 12-month block rolls up to the matching pro-forma
+         *     year; empty until a pro forma is computed.
+         */
+        get: operations["get_proforma_monthly_acquisitions__acquisition_id__proforma_monthly_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/returns": {
         parameters: {
             query?: never;
@@ -1697,6 +1718,35 @@ export interface components {
             stabilized_revenue?: string | null;
             /** Start Date */
             start_date?: string | null;
+        };
+        /**
+         * ProformaMonth
+         * @description One month of the levered cash flow (month 1..hold_years×12).
+         */
+        ProformaMonth: {
+            /** Capex */
+            capex?: string | null;
+            /** Debt Service */
+            debt_service?: string | null;
+            /** Levered Cf */
+            levered_cf?: string | null;
+            /** Month */
+            month: number;
+            /** Noi */
+            noi?: string | null;
+            /** Opex */
+            opex?: string | null;
+            /** Revenue */
+            revenue?: string | null;
+        };
+        /**
+         * ProformaMonthlyResults
+         * @description GET /acquisitions/{id}/proforma-monthly — the 60-month grid (empty until a pro forma is
+         *     computed). Each 12-month block rolls up to the matching ProformaResults year.
+         */
+        ProformaMonthlyResults: {
+            /** Months */
+            months?: components["schemas"]["ProformaMonth"][];
         };
         /** ProformaResults */
         ProformaResults: {
@@ -3761,6 +3811,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProformaResults"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_proforma_monthly_acquisitions__acquisition_id__proforma_monthly_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProformaMonthlyResults"];
                 };
             };
             /** @description Bad Request */

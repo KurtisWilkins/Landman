@@ -64,6 +64,27 @@ class ProformaResults(BaseModel):
     equity_basis: Decimal | None = None
 
 
+class ProformaMonth(ApiModel):
+    """One month of the levered cash flow (month 1..hold_years×12)."""
+
+    month: int
+    revenue: Decimal | None = None
+    opex: Decimal | None = None
+    noi: Decimal | None = None
+    debt_service: Decimal | None = None
+    capex: Decimal | None = None
+    levered_cf: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ProformaMonthlyResults(BaseModel):
+    """GET /acquisitions/{id}/proforma-monthly — the 60-month grid (empty until a pro forma is
+    computed). Each 12-month block rolls up to the matching ProformaResults year."""
+
+    months: list[ProformaMonth] = Field(default_factory=list)
+
+
 class UnderwritingDoc(BaseModel):
     assumptions: list[Assumption] = Field(default_factory=list)
     hurdles: list[Hurdle] = Field(default_factory=list)

@@ -42,6 +42,7 @@ from ..schemas.underwriting import (
     AssumptionOverride,
     ProformaInputs,
     ProformaInputsOut,
+    ProformaMonthlyResults,
     ProformaResults,
 )
 from ..underwriting import service as underwriting
@@ -468,6 +469,20 @@ async def get_proforma(
     """Pro forma results."""
     # Assembled from the persisted 5-yr schedule + summary.
     return await underwriting.get_proforma(session, acquisition_id)
+
+
+@router.get(
+    "/acquisitions/{acquisition_id}/proforma-monthly", response_model=ProformaMonthlyResults
+)
+async def get_proforma_monthly(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> ProformaMonthlyResults:
+    """The 60-month monthly cash-flow grid. Each 12-month block rolls up to the matching pro-forma
+    year; empty until a pro forma is computed."""
+    await _require_acquisition(session, acquisition_id)
+    return await underwriting.get_proforma_monthly(session, acquisition_id)
 
 
 @router.get("/acquisitions/{acquisition_id}/returns", response_model=AcquisitionReturns)

@@ -109,6 +109,25 @@ class ProformaResult(Base):
     levered_cf: Mapped[Decimal | None] = mapped_column(Numeric)
 
 
+class ProformaMonthly(Base):
+    """One month of the levered cash flow (month 1..hold_years×12). Derived output cache — replaced
+    on each recompute, mirroring proforma_results. Rolls up to proforma_results by year."""
+
+    __tablename__ = "proforma_monthly"
+
+    monthly_id: Mapped[str] = mapped_column(String, primary_key=True)
+    acquisition_id: Mapped[str] = mapped_column(
+        ForeignKey("acquisitions.acquisition_id"), nullable=False
+    )
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    revenue: Mapped[Decimal | None] = mapped_column(Numeric)
+    opex: Mapped[Decimal | None] = mapped_column(Numeric)
+    noi: Mapped[Decimal | None] = mapped_column(Numeric)
+    debt_service: Mapped[Decimal | None] = mapped_column(Numeric)
+    capex: Mapped[Decimal | None] = mapped_column(Numeric)
+    levered_cf: Mapped[Decimal | None] = mapped_column(Numeric)
+
+
 class ProformaSummary(Base):
     __tablename__ = "proforma_summary"
 
