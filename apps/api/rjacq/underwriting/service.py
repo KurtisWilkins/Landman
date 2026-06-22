@@ -32,9 +32,10 @@ log = get_logger("underwriting")
 
 _ZERO = Decimal(0)
 # Financing/exit/hold inputs that must all be present before a pro forma can be computed.
-# Stabilized revenue/opex are handled separately: they fall back to the GL-mapped P&L's NOI
-# bridge (extraction-first), so they aren't required to be entered manually.
-_REQUIRED_FIN = ("exit_cap", "ltv", "loan_rate", "amort_months", "hold_years")
+# Leverage is checked separately (an LTV *or* a dollar loan_amount satisfies it). Stabilized
+# revenue/opex are handled separately too: they fall back to the GL-mapped P&L's NOI bridge
+# (extraction-first), so they aren't required to be entered manually.
+_REQUIRED_FIN = ("exit_cap", "loan_rate", "amort_months", "hold_years")
 
 
 async def noi_bridge_totals(session: AsyncSession, acquisition_id: str) -> tuple[Decimal, Decimal]:
@@ -134,20 +135,32 @@ async def save_inputs_and_recompute(
     price = await _purchase_price(session, acquisition_id)
     revenue, opex = await effective_stabilized(session, acquisition_id, inp)
     fin_present = all(getattr(inp, k) is not None for k in _REQUIRED_FIN)
-    ready = price is not None and revenue is not None and revenue > 0 and fin_present
+    leverage_present = inp.ltv is not None or inp.loan_amount is not None
+    ready = (
+        price is not None
+        and revenue is not None
+        and revenue > 0
+        and fin_present
+        and leverage_present
+    )
     if ready:
         assert price is not None and revenue is not None  # narrowed by `ready`
+        # Leverage: a dollar loan_amount override wins; otherwise size_debt uses the LTV. The
+        # override is expressed as an effective LTV (loan / price) so the pure engine is unchanged.
+        effective_ltv = inp.ltv or _ZERO
+        if inp.loan_amount is not None and price > 0:
+            effective_ltv = inp.loan_amount / price
         engine_inputs = ProformaInputs(
             purchase_price=price,
             hold_years=int(inp.hold_years or 0),
             lines=[
-                GLLine("Revenue", revenue, is_expense=False),
-                GLLine("OpEx", opex or _ZERO, is_expense=True),
+                GLLine("Revenue", revenue, is_expense=False, growth=inp.revenue_growth),
+                GLLine("OpEx", opex or _ZERO, is_expense=True, growth=inp.expense_growth),
             ],
             noi_growth=inp.noi_growth or _ZERO,
             exit_cap=inp.exit_cap or _ZERO,
             debt=DebtTerms(
-                ltv=inp.ltv or _ZERO,
+                ltv=effective_ltv,
                 annual_rate=inp.loan_rate or _ZERO,
                 amort_months=int(inp.amort_months or 0),
                 io_years=int(inp.io_years or 0),
@@ -162,9 +175,11 @@ async def save_inputs_and_recompute(
 
 
 async def acquisition_returns(session: AsyncSession, acquisition_id: str) -> AcquisitionReturns:
-    """Headline returns from the persisted pro forma run through the **standard** promote
-    (engine defaults). Empty until a pro forma is computed. (Custom per-acquisition promote terms
-    aren't persisted yet — a later enhancement; this is the comparison/standard view.)"""
+    """Headline returns from the persisted pro forma run through the promote. Promote terms come
+    from the acquisition's canonical inputs (co-invest, fees, start date) and its persisted
+    waterfall_tiers (hurdles/promotes) when set; any unset term falls back to the engine default,
+    so an acquisition that has never customized its promote is byte-identical to the standard
+    waterfall. Empty until a pro forma is computed."""
     pf = await get_proforma(session, acquisition_id)
     if not pf.years or pf.equity_basis is None:
         return AcquisitionReturns()
@@ -176,12 +191,44 @@ async def acquisition_returns(session: AsyncSession, acquisition_id: str) -> Acq
 
     price = await _purchase_price(session, acquisition_id)
     ltv = (_ONE - equity / price) if (price is not None and price > equity) else _ZERO
+
+    # Promote terms: persisted per-acquisition values win; anything unset uses the engine default
+    # (defaults() is the single source so we never duplicate the [DECISION] hurdle/split literals).
+    inp = await repo.get_proforma_input(session, acquisition_id)
+    promote_defaults = promote_engine.PromoteInputs()
+    coinvest = promote_defaults.rjourney_coinvest_pct
+    acq_fee = promote_defaults.acquisition_fee_pct
+    mgmt_fee = promote_defaults.mgmt_fee_pct
+    start = promote_defaults.start_date
+    if inp is not None:
+        if inp.rjourney_coinvest_pct is not None:
+            coinvest = inp.rjourney_coinvest_pct
+        if inp.acquisition_fee_pct is not None:
+            acq_fee = inp.acquisition_fee_pct
+        if inp.mgmt_fee_pct is not None:
+            mgmt_fee = inp.mgmt_fee_pct
+        if inp.start_date is not None:
+            start = inp.start_date
+    tiers = await repo.get_waterfall_tiers(session, acquisition_id)
+    if tiers:
+        hurdles = tuple(t.irr_floor or _ZERO for t in tiers)
+        promotes = tuple(t.gp_split or _ZERO for t in tiers)
+    else:
+        hurdles = promote_defaults.hurdles
+        promotes = promote_defaults.promotes
+
     result = promote_engine.run_promote_waterfall(
         promote_engine.PromoteInputs(
             equity=equity,
             hold_years=len(pf.years),
             ltv=ltv,
             cashflow_override=tuple(stream),
+            rjourney_coinvest_pct=coinvest,
+            acquisition_fee_pct=acq_fee,
+            mgmt_fee_pct=mgmt_fee,
+            start_date=start,
+            hurdles=hurdles,
+            promotes=promotes,
         )
     )
 
