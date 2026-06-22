@@ -508,10 +508,14 @@ feedback_dispatch( dispatch_id PK, feedback_id FK→feedback_items, target, brie
 `bookings` (grain) and `weekly_summary` (rollup) coexist; rollup is recomputed from bookings
 when present, else loaded directly.
 
-### 8.5 GL reference — RJourney chart (excerpt; seeds `gl_accounts`)
+### 8.5 GL reference — RJourney chart (seeds `gl_accounts`)
 
-Four levels; mapping targets the lowest level the source supports. Full chart (~235 lines)
-seeds from `RJourneyP_LGLStructure.xlsx`.
+Four levels; mapping targets the lowest level the source supports. The **full chart (169 accounts)**
+is seeded from `seeds/gl_accounts.py`, generated from the RJourney consolidated income statement's
+chart-of-accounts column (B-13 resolved). NOI placement travels with the account (700000 → below;
+800000/900000/950000 → non-operating; else above). Two source codes are reused for different
+accounts (600400, 600410) — the second of each is stored with a `-2` suffix and should be recoded
+at source.
 
 | Level | Code | Name |
 |---|---|---|

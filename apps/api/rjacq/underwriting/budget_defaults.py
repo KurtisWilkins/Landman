@@ -102,16 +102,28 @@ def ppc_defaults(ctx: DefaultsContext) -> list[DefaultLine]:
         return []
     google = Decimal(ctx.site_count) * ctx.ppc_target_volume * ctx.ppc_rate
     intercompany = google * ctx.ppc_intercompany_pct
+    base_explain = f"{ctx.site_count} sites × {ctx.ppc_target_volume} vol × ${ctx.ppc_rate}"
+    if ctx.ppc_google_account_code == ctx.ppc_intercompany_account_code:
+        # Both components post to the same Pay-Per-Click GL → one combined line.
+        return [
+            DefaultLine(
+                account_code=ctx.ppc_google_account_code,
+                label="PPC",
+                default_rule_key="ppc",
+                monthly_amount=google + intercompany,
+                explain=(
+                    f"{base_explain} = ${google} Google + ${intercompany} intercompany "
+                    f"= ${google + intercompany}/mo"
+                ),
+            )
+        ]
     return [
         DefaultLine(
             account_code=ctx.ppc_google_account_code,
             label="PPC — Google",
             default_rule_key="ppc_google",
             monthly_amount=google,
-            explain=(
-                f"{ctx.site_count} sites × {ctx.ppc_target_volume} vol × "
-                f"${ctx.ppc_rate} = ${google}/mo Google spend"
-            ),
+            explain=f"{base_explain} = ${google}/mo Google spend",
         ),
         DefaultLine(
             account_code=ctx.ppc_intercompany_account_code,

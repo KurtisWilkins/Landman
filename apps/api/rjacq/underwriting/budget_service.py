@@ -194,9 +194,13 @@ async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
             session.add(line)
             cells[(code, idx)] = line
 
-    # 2) Defaults (our numbers). No-op until the rates/codes are configured.
+    # 2) Defaults (our numbers). No-op until the rates/codes are configured; only post to GL
+    #    accounts that actually exist in the chart.
     ctx = await _defaults_context(session, acquisition_id)
+    known_codes = {a.account_code for a in await mapping_repo.list_accounts(session)}
     for dl in all_defaults(ctx):
+        if dl.account_code not in known_codes:
+            continue
         for idx in range(1, 13):
             existing_cell = cells.get((dl.account_code, idx))
             if existing_cell is not None:
