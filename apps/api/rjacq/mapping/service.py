@@ -14,6 +14,7 @@ from ..core.logging import get_logger
 from ..models.enums import AccountLevel, MapConfidence, NoiPlacement
 from ..models.financials import FinancialLine
 from ..schemas.financials import (
+    GlAccountOption,
     MappingCandidate,
     MappingReview,
     MappingReviewLine,
@@ -119,6 +120,7 @@ async def build_review(
     """Assemble the mapping-review queue from each line's stored proposal + (optionally) a
     fresh candidate shortlist."""
     lines = await repo.list_lines(session, acquisition_id)
+    accounts = {a.account_code: a for a in await repo.list_accounts(session)}  # 1 query for names
     review_lines: list[MappingReviewLine] = []
     for line in lines:
         candidates: list[MappingCandidate] = []
@@ -127,23 +129,50 @@ async def build_review(
                 session, embedder.embed(line.seller_source_line), k=5
             )
             candidates = [
-                MappingCandidate(account_code=a.account_code, name=a.name, similarity=s)
+                MappingCandidate(
+                    account_code=a.account_code,
+                    name=a.name,
+                    similarity=s,
+                    level=a.level,
+                    noi_placement=NoiPlacement(a.default_noi_placement)
+                    if a.default_noi_placement
+                    else None,
+                )
                 for a, s in shortlist
             ]
+        proposed = accounts.get(line.account_code) if line.account_code else None
         review_lines.append(
             MappingReviewLine(
                 line_id=line.line_id,
                 seller_source_line=line.seller_source_line,
                 amount=line.amount,
                 proposed_account_code=line.account_code,
+                proposed_account_name=proposed.name if proposed else None,
                 proposed_level=line.account_level,
                 map_confidence=line.map_confidence,
                 map_confidence_score=line.map_confidence_score,
                 noi_placement=line.noi_placement,
+                reviewed_at=line.reviewed_at,
                 candidates=candidates,
             )
         )
     return MappingReview(acquisition_id=acquisition_id, lines=review_lines)
+
+
+async def list_gl_accounts(session: AsyncSession) -> list[GlAccountOption]:
+    """The canonical GL chart (active accounts) for the mapping picker, in display order."""
+    return [
+        GlAccountOption(
+            account_code=a.account_code,
+            name=a.name,
+            level=a.level,
+            section=a.section,
+            noi_placement=NoiPlacement(a.default_noi_placement)
+            if a.default_noi_placement
+            else None,
+        )
+        for a in await repo.list_accounts(session)
+    ]
 
 
 async def confirm(

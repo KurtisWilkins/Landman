@@ -12,9 +12,18 @@ from ..mapping import service
 from ..mapping.providers import build_embedder
 from ..mapping.service import MappingError
 from ..models.acquisitions import Acquisition
-from ..schemas.financials import MappingConfirm, MappingReview
+from ..schemas.financials import GlAccountOption, MappingConfirm, MappingReview
 
 router = APIRouter(tags=["mapping"])
+
+
+@router.get("/gl-accounts", response_model=list[GlAccountOption])
+async def list_gl_accounts(
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> list[GlAccountOption]:
+    """The canonical GL chart (active accounts) for the mapping picker / remap."""
+    return await service.list_gl_accounts(session)
 
 
 @router.get("/acquisitions/{acquisition_id}/mapping", response_model=MappingReview)

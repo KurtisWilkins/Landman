@@ -2448,6 +2448,56 @@
         "title": "GateQuestion",
         "type": "object"
       },
+      "GlAccountOption": {
+        "description": "A canonical GL account for the mapping picker (GET /gl-accounts).",
+        "properties": {
+          "account_code": {
+            "title": "Account Code",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "noi_placement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoiPlacement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          }
+        },
+        "required": [
+          "account_code",
+          "name"
+        ],
+        "title": "GlAccountOption",
+        "type": "object"
+      },
       "HookupLevel": {
         "enum": [
           "full",
@@ -2593,9 +2643,29 @@
             "title": "Account Code",
             "type": "string"
           },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "noi_placement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoiPlacement"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "similarity": {
             "title": "Similarity",
@@ -2730,6 +2800,17 @@
             ],
             "title": "Proposed Account Code"
           },
+          "proposed_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Account Name"
+          },
           "proposed_level": {
             "anyOf": [
               {
@@ -2739,6 +2820,18 @@
                 "type": "null"
               }
             ]
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
           },
           "seller_source_line": {
             "anyOf": [
@@ -9597,6 +9690,120 @@
         "summary": "List Gate Questions",
         "tags": [
           "gates"
+        ]
+      }
+    },
+    "/gl-accounts": {
+      "get": {
+        "description": "The canonical GL chart (active accounts) for the mapping picker / remap.",
+        "operationId": "list_gl_accounts_gl_accounts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GlAccountOption"
+                  },
+                  "title": "Response List Gl Accounts Gl Accounts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "List Gl Accounts",
+        "tags": [
+          "mapping"
         ]
       }
     },

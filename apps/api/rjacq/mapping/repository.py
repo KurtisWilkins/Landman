@@ -47,6 +47,16 @@ async def get_account(session: AsyncSession, account_code: str) -> GLAccount | N
     return await session.get(GLAccount, account_code)
 
 
+async def list_accounts(session: AsyncSession) -> Sequence[GLAccount]:
+    """All active GL accounts in canonical order (the mapping picker + review name lookup)."""
+    stmt = (
+        select(GLAccount)
+        .where(GLAccount.active.is_(True))
+        .order_by(GLAccount.sort, GLAccount.account_code)
+    )
+    return (await session.execute(stmt)).scalars().all()
+
+
 async def find_learned(
     session: AsyncSession, *, seller_phrase: str, source_seller: str | None
 ) -> GLMappingLearned | None:
