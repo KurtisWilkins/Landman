@@ -592,6 +592,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gl-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Gl Accounts
+         * @description The canonical GL chart (active accounts) for the mapping picker / remap.
+         */
+        get: operations["list_gl_accounts_gl_accounts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1404,6 +1424,20 @@ export interface components {
             text: string;
         };
         /**
+         * GlAccountOption
+         * @description A canonical GL account for the mapping picker (GET /gl-accounts).
+         */
+        GlAccountOption: {
+            /** Account Code */
+            account_code: string;
+            level?: components["schemas"]["AccountLevel"] | null;
+            /** Name */
+            name: string;
+            noi_placement?: components["schemas"]["NoiPlacement"] | null;
+            /** Section */
+            section?: string | null;
+        };
+        /**
          * HookupLevel
          * @enum {string}
          */
@@ -1448,8 +1482,10 @@ export interface components {
         MappingCandidate: {
             /** Account Code */
             account_code: string;
+            level?: components["schemas"]["AccountLevel"] | null;
             /** Name */
             name: string;
+            noi_placement?: components["schemas"]["NoiPlacement"] | null;
             /** Similarity */
             similarity: number;
         };
@@ -1491,7 +1527,11 @@ export interface components {
             noi_placement?: components["schemas"]["NoiPlacement"] | null;
             /** Proposed Account Code */
             proposed_account_code?: string | null;
+            /** Proposed Account Name */
+            proposed_account_name?: string | null;
             proposed_level?: components["schemas"]["AccountLevel"] | null;
+            /** Reviewed At */
+            reviewed_at?: string | null;
             /** Seller Source Line */
             seller_source_line?: string | null;
         };
@@ -5180,6 +5220,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GateQuestion"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_gl_accounts_gl_accounts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlAccountOption"][];
                 };
             };
             /** @description Bad Request */

@@ -68,6 +68,8 @@ class MappingCandidate(BaseModel):
     account_code: str
     name: str
     similarity: float
+    level: AccountLevel | None = None
+    noi_placement: NoiPlacement | None = None  # default placement for the account
 
 
 class MappingReviewLine(BaseModel):
@@ -75,16 +77,28 @@ class MappingReviewLine(BaseModel):
     seller_source_line: str | None = None
     amount: Decimal | None = None
     proposed_account_code: str | None = None
+    proposed_account_name: str | None = None
     proposed_level: AccountLevel | None = None
     map_confidence: MapConfidence | None = None
     map_confidence_score: Decimal | None = None
     noi_placement: NoiPlacement | None = None
+    reviewed_at: datetime | None = None  # set once a human has confirmed the line
     candidates: list[MappingCandidate] = Field(default_factory=list)
 
 
 class MappingReview(BaseModel):
     acquisition_id: str
     lines: list[MappingReviewLine] = Field(default_factory=list)
+
+
+class GlAccountOption(BaseModel):
+    """A canonical GL account for the mapping picker (GET /gl-accounts)."""
+
+    account_code: str
+    name: str
+    level: AccountLevel | None = None
+    section: str | None = None
+    noi_placement: NoiPlacement | None = None
 
 
 class MappingConfirm(BaseModel):

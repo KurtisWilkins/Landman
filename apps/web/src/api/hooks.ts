@@ -287,6 +287,33 @@ export function useMapping(acquisitionId: string) {
   });
 }
 
+type GlAccountOption = Schemas["GlAccountOption"];
+type MappingConfirm = Schemas["MappingConfirm"];
+
+export function useGlAccounts() {
+  // The canonical GL chart (active accounts) for the mapping picker; cached app-wide.
+  return useQuery({
+    queryKey: ["gl-accounts"],
+    queryFn: () => apiFetch<GlAccountOption[]>("/gl-accounts"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useConfirmMapping(acquisitionId: string) {
+  // Human accepts a line's mapping (and optionally learns it); refresh the review queue.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MappingConfirm) =>
+      apiFetch<MappingReview>(`/acquisitions/${acquisitionId}/mapping/confirm`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "mapping"] });
+    },
+  });
+}
+
 export function usePopulationRings(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "population-rings"],

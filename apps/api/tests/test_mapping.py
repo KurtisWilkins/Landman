@@ -379,3 +379,38 @@ async def test_noi_bridge_excludes_addback_and_below_line(session: AsyncSession)
     assert bridge.operating_expense == Decimal("400000")  # below-line + add-back excluded
     assert bridge.addbacks_excluded == Decimal("84000")
     assert bridge.normalized_noi == Decimal("600000")
+
+
+# ── confirm workstation: GL chart picker + review enrichment ─────────────────
+
+
+async def test_list_gl_accounts_returns_active_chart(session: AsyncSession) -> None:
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, level=AccountLevel.LEAF, section="Income", placement="above")
+    options = await service.list_gl_accounts(session)
+    mine = next((o for o in options if o.account_code == code), None)
+    assert mine is not None
+    assert mine.level == AccountLevel.LEAF
+    assert mine.section == "Income"
+    assert mine.noi_placement == NoiPlacement.ABOVE
+
+
+async def test_build_review_enriches_proposed_name_and_reviewed_at(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, level=AccountLevel.LEAF, section="Income", placement="above")
+    line = await _line(session, acquisition_id, period_id, "Site Rent", "5000")
+    await service.confirm(
+        session,
+        line_id=line.line_id,
+        account_code=code,
+        account_level="leaf",
+        noi_placement="above",
+        learn=False,
+        confirmed_by="kurtis",
+    )
+    review = await service.build_review(session, acquisition_id)
+    row = next(r for r in review.lines if r.line_id == line.line_id)
+    assert row.proposed_account_code == code
+    assert row.proposed_account_name == f"Acct {code}"  # resolved from the chart
+    assert row.reviewed_at is not None  # drives the "Confirmed" bucket in the UI
