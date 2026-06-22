@@ -39,6 +39,15 @@ class WaterfallTier(ApiModel):
     gp_split: Decimal | None = None
 
 
+class WaterfallTiersUpdate(BaseModel):
+    """PUT /acquisitions/{id}/waterfall-tiers — the per-acquisition promote tiers. ``hurdles[i]`` is
+    the tier's IRR hurdle, ``promotes[i]`` the GP/RJourney promote share (LP = 1 − promote).
+    Replaces all tiers for the acquisition; the promote then reads them instead of the defaults."""
+
+    hurdles: list[Decimal] = Field(default_factory=list)
+    promotes: list[Decimal] = Field(default_factory=list)
+
+
 class ProformaYear(ApiModel):
     yr: int
     revenue: Decimal | None = None

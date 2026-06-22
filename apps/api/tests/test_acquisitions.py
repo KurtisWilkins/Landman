@@ -390,3 +390,35 @@ def test_proforma_monthly_endpoint_rolls_up(migrated_db: str, client: TestClient
     # The first 12 months roll up to the year-1 levered cash flow.
     y1 = sum(float(m["levered_cf"]) for m in monthly[:12])
     assert abs(y1 - float(annual[0]["levered_cf"])) < 1.0
+
+
+def test_waterfall_tiers_persist_and_drive_returns(migrated_db: str, client: TestClient) -> None:
+    """PUT /waterfall-tiers persists the promote tiers, round-trips on GET, and the headline
+    returns reflect them (the UI write path for custom promotes)."""
+    acquisition_id = _create_priced(client, "10000000")
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs", json=_COMPLETE_INPUTS, headers=ADMIN
+    )
+    base = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    # None persisted yet.
+    assert client.get(f"/acquisitions/{acquisition_id}/waterfall-tiers", headers=ADMIN).json() == []
+
+    put = client.put(
+        f"/acquisitions/{acquisition_id}/waterfall-tiers",
+        json={"hurdles": [0.05, 0.1, 0.15, 0.15], "promotes": [0.5, 0.5, 0.5, 0.5]},
+        headers=ADMIN,
+    )
+    assert put.status_code == 200, put.text
+    tiers = put.json()
+    assert len(tiers) == 4
+    assert float(tiers[0]["irr_floor"]) == 0.05
+    assert float(tiers[0]["gp_split"]) == 0.5
+    assert float(tiers[0]["lp_split"]) == 0.5  # lp = 1 − promote
+
+    # Round-trips on GET, and the headline returns now reflect the custom promote.
+    assert (
+        len(client.get(f"/acquisitions/{acquisition_id}/waterfall-tiers", headers=ADMIN).json())
+        == 4
+    )
+    after = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    assert after["promote_value"] != base["promote_value"]

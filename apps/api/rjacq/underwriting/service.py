@@ -22,6 +22,7 @@ from ..schemas.underwriting import (
     ProformaMonthlyResults,
     ProformaResults,
     ProformaYear,
+    WaterfallTier,
 )
 from . import promote as promote_engine
 from . import repository as repo
@@ -114,6 +115,27 @@ async def get_proforma_monthly(
     """The persisted 60-month cash-flow grid (read-only; empty until a pro forma is computed)."""
     rows = await repo.get_proforma_monthly(session, acquisition_id)
     return ProformaMonthlyResults(months=[ProformaMonth.model_validate(r) for r in rows])
+
+
+async def get_waterfall_tiers_doc(
+    session: AsyncSession, acquisition_id: str
+) -> list[WaterfallTier]:
+    """The acquisition's persisted promote tiers (empty ⇒ the promote uses the engine defaults)."""
+    rows = await repo.get_waterfall_tiers(session, acquisition_id)
+    return [WaterfallTier.model_validate(r) for r in rows]
+
+
+async def save_waterfall_tiers(
+    session: AsyncSession,
+    acquisition_id: str,
+    hurdles: list[Decimal],
+    promotes: list[Decimal],
+) -> list[WaterfallTier]:
+    """Persist the acquisition's promote tiers; acquisition_returns then reads them on the next
+    GET (no pro-forma recompute needed — the promote is evaluated live from the persisted tiers)."""
+    rows = await repo.replace_waterfall_tiers(session, acquisition_id, hurdles, promotes)
+    await session.commit()
+    return [WaterfallTier.model_validate(r) for r in rows]
 
 
 async def store_proforma(

@@ -61,6 +61,35 @@ async def get_waterfall_tiers(
     return (await session.execute(stmt)).scalars().all()
 
 
+async def replace_waterfall_tiers(
+    session: AsyncSession,
+    acquisition_id: str,
+    hurdles: list[Decimal],
+    promotes: list[Decimal],
+) -> Sequence[WaterfallTier]:
+    """Replace the acquisition's promote tiers: hurdles[i] = hurdle rate, promotes[i] = GP/promote
+    share (lp_split = 1 − promote). Tiers are numbered 1..n."""
+    await session.execute(
+        delete(WaterfallTier).where(WaterfallTier.acquisition_id == acquisition_id)
+    )
+    n = max(len(hurdles), len(promotes))
+    for i in range(n):
+        gp = promotes[i] if i < len(promotes) else None
+        session.add(
+            WaterfallTier(
+                tier_id=_new_id("wt"),
+                acquisition_id=acquisition_id,
+                tier=i + 1,
+                irr_floor=hurdles[i] if i < len(hurdles) else None,
+                irr_ceiling=None,
+                lp_split=(Decimal(1) - gp) if gp is not None else None,
+                gp_split=gp,
+            )
+        )
+    await session.flush()
+    return await get_waterfall_tiers(session, acquisition_id)
+
+
 async def upsert_proforma_input(
     session: AsyncSession, acquisition_id: str, fields: dict[str, object]
 ) -> ProformaInput:

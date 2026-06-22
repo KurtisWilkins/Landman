@@ -12,7 +12,15 @@
  * Presentational; the calculation lives server-side (usePromoteWaterfall). No browser storage.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAcquisition, useProforma, usePromoteWaterfall } from "../../api/hooks";
+import {
+  useAcquisition,
+  useProforma,
+  useProformaInputs,
+  usePromoteWaterfall,
+  useSaveProformaInputs,
+  useSaveWaterfallTiers,
+  useWaterfallTiers,
+} from "../../api/hooks";
 import type { Schemas } from "../../api/client";
 import { fmtMult, fmtPct, fmtUsd } from "../../lib/format";
 
@@ -127,6 +135,46 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
   const [returnCase, setReturnCase] = useState<ReturnCase>(RETURN_CASE_DEFAULTS);
   const calc = usePromoteWaterfall();
   const timer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Persisted promote terms: co-invest / fees / start date live on the pro-forma inputs (the
+  // canonical store); hurdles / promotes in waterfall_tiers. Load to seed the form, save to persist.
+  const { data: savedInputs } = useProformaInputs(acquisitionId);
+  const { data: savedTiers } = useWaterfallTiers(acquisitionId);
+  const saveInputs = useSaveProformaInputs(acquisitionId);
+  const saveTiers = useSaveWaterfallTiers(acquisitionId);
+
+  // Seed the editable terms from the persisted store; fall back to the defaults until saved.
+  useEffect(() => {
+    setInputs((prev) => {
+      const next = { ...prev };
+      if (savedInputs) {
+        if (savedInputs.start_date != null) next.start_date = String(savedInputs.start_date);
+        if (savedInputs.acquisition_fee_pct != null)
+          next.acquisition_fee_pct = Number(savedInputs.acquisition_fee_pct);
+        if (savedInputs.mgmt_fee_pct != null) next.mgmt_fee_pct = Number(savedInputs.mgmt_fee_pct);
+        if (savedInputs.rjourney_coinvest_pct != null)
+          next.rjourney_coinvest_pct = Number(savedInputs.rjourney_coinvest_pct);
+      }
+      if (savedTiers && savedTiers.length > 0) {
+        next.hurdles = savedTiers.map((t) => Number(t.irr_floor ?? 0));
+        next.promotes = savedTiers.map((t) => Number(t.gp_split ?? 0));
+      }
+      return next;
+    });
+  }, [savedInputs, savedTiers]);
+
+  const savePending = saveInputs.isPending || saveTiers.isPending;
+  const saveError = saveInputs.isError || saveTiers.isError;
+  const saveSucceeded = saveInputs.isSuccess && saveTiers.isSuccess && !savePending;
+  const onSavePromote = () => {
+    saveInputs.mutate({
+      rjourney_coinvest_pct: inputs.rjourney_coinvest_pct,
+      acquisition_fee_pct: inputs.acquisition_fee_pct,
+      mgmt_fee_pct: inputs.mgmt_fee_pct,
+      start_date: inputs.start_date,
+    });
+    saveTiers.mutate({ hurdles: inputs.hurdles, promotes: inputs.promotes });
+  };
 
   const dealName = acquisition?.metadata.name ?? acquisitionId;
   const sourcedStream = useMemo(() => streamFromProforma(proforma), [proforma]);
@@ -312,6 +360,27 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
               />
             ))}
           </Panel>
+
+          {/* Persist the promote terms so they drive the saved headline returns (the panels above
+              are a live preview; saving makes them stick across reloads + feed the pipeline). */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={savePending}
+              onClick={onSavePromote}
+              className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
+            >
+              {savePending ? "Saving…" : "Save promote terms"}
+            </button>
+            {saveSucceeded && (
+              <span className="text-xs opacity-60">Saved · drives the headline returns</span>
+            )}
+            {saveError && (
+              <span role="alert" className="text-sm text-danger">
+                Couldn&apos;t save — check the inputs.
+              </span>
+            )}
+          </div>
         </div>
 
         {/* ── Outputs ──────────────────────────────────────── */}
