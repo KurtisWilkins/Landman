@@ -124,12 +124,13 @@ class Settings(BaseSettings):
     ppc_rate: Decimal | None = None  # $ per (site × target_volume) unit — admin sets
     ppc_target_volume: Decimal | None = None  # targeted booked site-nights per site per month
     ppc_intercompany_pct: Decimal | None = None  # RJourney markup fraction on the Google spend
-    # Target GL account codes per rule (None until the full RJourney chart loads, §14 B-13).
-    shield_account_code: str | None = None
-    mktg_website_account_code: str | None = None
-    mktg_secondary_account_code: str | None = None
-    ppc_google_account_code: str | None = None
-    ppc_intercompany_account_code: str | None = None
+    # Target GL account codes per rule (RJourney chart, §8.5). PPC posts both the Google spend and
+    # the intercompany markup to the same Pay-Per-Click account (600225).
+    shield_account_code: str | None = "600410"  # Office Software Support
+    mktg_website_account_code: str | None = "600210"  # Website Maintenance & Hosting
+    mktg_secondary_account_code: str | None = "601010"  # Marketing Service
+    ppc_google_account_code: str | None = "600225"  # Pay-Per-Click
+    ppc_intercompany_account_code: str | None = "600225"  # Pay-Per-Click (combined on one GL)
 
     # ── Reference data ─────────────────────  TODO(decision: §14 B-13/A-8/A-9)
     # The full ~235-line GL chart and the re-mastered DD/gate question sets are not yet

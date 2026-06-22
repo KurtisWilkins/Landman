@@ -72,6 +72,24 @@ def test_ppc_two_line_linear_formula() -> None:
     assert intercompany.default_rule_key == "ppc_intercompany"
 
 
+def test_ppc_combined_when_same_account() -> None:
+    # Both components post to the same Pay-Per-Click GL → one combined line (google + intercompany).
+    lines = ppc_defaults(
+        _ctx(
+            site_count=12,
+            ppc_rate=Decimal("3.5"),
+            ppc_target_volume=Decimal("4"),
+            ppc_intercompany_pct=Decimal("0.15"),
+            ppc_google_account_code="600225",
+            ppc_intercompany_account_code="600225",
+        )
+    )
+    assert len(lines) == 1
+    assert lines[0].account_code == "600225"
+    assert lines[0].default_rule_key == "ppc"
+    assert lines[0].monthly_amount == Decimal("193.20")  # 168 + 25.20
+
+
 def test_ppc_empty_until_fully_configured() -> None:
     # site_count + an account code present, but no rate/volume/% → no fabricated number.
     assert ppc_defaults(_ctx(site_count=12, ppc_google_account_code="7000")) == []
