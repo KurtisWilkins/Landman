@@ -7,6 +7,7 @@ Column names match §8 exactly. ``raw_payload`` (jsonb) is retained on ingest-fe
 from .acquisitions import Acquisition, AcquisitionPhoto
 from .app_secret import AppSecret
 from .base import Base
+from .budget import Budget, BudgetLine
 from .comps import Comp
 from .feedback import (
     FeedbackAttachment,
@@ -35,6 +36,8 @@ __all__ = [
     "AppSecret",
     "Acquisition",
     "AcquisitionPhoto",
+    "Budget",
+    "BudgetLine",
     "GLAccount",
     "GLMappingLearned",
     "GateQuestion",

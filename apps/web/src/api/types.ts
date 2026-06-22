@@ -99,6 +99,51 @@ export interface paths {
         patch: operations["override_assumption_acquisitions__acquisition_id__assumptions_patch"];
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Budget
+         * @description The prior-year-vs-year-one budget: each GL's prior-year actuals (read-only, computed)
+         *     beside the editable year-one projection, month by month, with variance + provenance.
+         */
+        get: operations["get_budget_acquisitions__acquisition_id__budget_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Budget
+         * @description Edit one year-one cell (flips it to a human override).
+         */
+        patch: operations["patch_budget_acquisitions__acquisition_id__budget_patch"];
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/budget/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seed Budget
+         * @description Prefill year-one from the mapped prior-year actuals (idempotent; never clobbers edits).
+         */
+        post: operations["seed_budget_acquisitions__acquisition_id__budget_seed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/comps": {
         parameters: {
             query?: never;
@@ -1031,6 +1076,77 @@ export interface components {
             site_id?: string | null;
             /** Unit Type */
             unit_type?: string | null;
+        };
+        /**
+         * BudgetCellUpdate
+         * @description PATCH /acquisitions/{id}/budget — edit one year-one cell (flips it to an override).
+         */
+        BudgetCellUpdate: {
+            /** Account Code */
+            account_code: string;
+            /** Month Index */
+            month_index: number;
+            /** Note */
+            note?: string | null;
+            /** Year1 Amount */
+            year1_amount?: number | string | null;
+        };
+        /** BudgetDoc */
+        BudgetDoc: {
+            /** Rows */
+            rows?: components["schemas"]["BudgetRow"][];
+            /** Status */
+            status: string;
+            totals: components["schemas"]["BudgetTotals"];
+        };
+        /**
+         * BudgetRow
+         * @description One canonical GL: prior-year actuals (read-only, computed) beside the editable year-one
+         *     projection, month by month, with variance and provenance.
+         */
+        BudgetRow: {
+            /** Account Code */
+            account_code: string;
+            /**
+             * Is Overridden
+             * @default false
+             */
+            is_overridden: boolean;
+            /** Name */
+            name: string;
+            /** Note */
+            note?: string | null;
+            /** Prior Annual */
+            prior_annual: string;
+            /** Prior Months */
+            prior_months?: (string | null)[];
+            /** Section */
+            section?: string | null;
+            /** Source */
+            source: string;
+            /** Var Abs */
+            var_abs: string;
+            /** Var Pct */
+            var_pct?: string | null;
+            /** Year1 Annual */
+            year1_annual: string;
+            /** Year1 Months */
+            year1_months?: (string | null)[];
+        };
+        /** BudgetTotals */
+        BudgetTotals: {
+            /** Prior Noi */
+            prior_noi: string;
+            /** Prior Opex */
+            prior_opex: string;
+            /** Prior Revenue */
+            prior_revenue: string;
+            /** Year1 Noi */
+            year1_noi: string;
+            /** Year1 Opex */
+            year1_opex: string;
+            /** Year1 Revenue */
+            year1_revenue: string;
         };
         /**
          * Channel
@@ -2686,6 +2802,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProformaResults"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_budget_acquisitions__acquisition_id__budget_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_budget_acquisitions__acquisition_id__budget_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetCellUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    seed_budget_acquisitions__acquisition_id__budget_seed_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
                 };
             };
             /** @description Bad Request */

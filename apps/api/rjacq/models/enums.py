@@ -136,5 +136,19 @@ class FeedbackStatus(str, enum.Enum):
     DECLINED = "declined"
 
 
+class BudgetSource(str, enum.Enum):
+    """Provenance of a year-one budget line item — visible in the UI so the underwriter sees
+    at a glance which numbers are real vs assumed vs unfinished."""
+
+    ACTUALS = "actuals"  # from the mapped prior-year P&L
+    DEFAULT = "default"  # from the defaults engine (our number, not the seller's)
+    PLACEHOLDER = "placeholder"  # to review — neither actuals nor a default covers it
+
+
+class BudgetStatus(str, enum.Enum):
+    DRAFT = "draft"
+    LOCKED = "locked"
+
+
 # amp_rating is an open vocabulary of {20, 30, 50, null}; modeled as a nullable int.
 AMP_RATINGS = (20, 30, 50)
