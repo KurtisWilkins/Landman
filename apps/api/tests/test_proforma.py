@@ -13,6 +13,8 @@ from rjacq.underwriting.proforma import (
     GLLine,
     ProformaInputs,
     build_acquisition_proforma,
+    build_monthly_cashflows,
+    monthly_debt_schedule,
     project_lines,
     size_debt,
 )
@@ -112,3 +114,73 @@ def test_build_acquisition_proforma_ties_together() -> None:
     assert len(result.equity_cashflows) == 6
     assert result.equity_cashflows[0] == Decimal("-3500000")
     assert result.proforma.levered_irr is not None
+
+
+# ── 60-month cash flow ───────────────────────────────────────────────────────────
+
+
+def _monthly_inputs() -> ProformaInputs:
+    return ProformaInputs(
+        purchase_price=Decimal("10000000"),
+        hold_years=5,
+        lines=[
+            GLLine("Revenue", Decimal("1200000"), is_expense=False),
+            GLLine("OpEx", Decimal("500000"), is_expense=True),
+        ],
+        noi_growth=Decimal("0.03"),
+        exit_cap=Decimal("0.07"),
+        debt=DebtTerms(
+            ltv=Decimal("0.65"), annual_rate=Decimal("0.065"), amort_months=360, io_years=2
+        ),
+        selling_cost_rate=Decimal("0.02"),
+        capex_reserve_rate=Decimal("0.01"),
+    )
+
+
+def test_monthly_debt_schedule_matches_size_debt() -> None:
+    """The monthly schedule summed in 12-month blocks reproduces size_debt's annual figures and
+    the exit balance — the refactor that keeps the two debt views reconciled."""
+    inp = _monthly_inputs()
+    monthly, balance = monthly_debt_schedule(inp.purchase_price, inp.debt, inp.hold_years)
+    sched = size_debt(inp.purchase_price, inp.debt, inp.hold_years)
+    assert len(monthly) == 60
+    assert balance == sched.balance_at_exit  # exact
+    for yr in range(5):
+        assert sum(monthly[yr * 12 : (yr + 1) * 12]) == sched.annual_debt_service[yr]  # exact
+
+
+def test_build_monthly_cashflows_rolls_up_to_annual() -> None:
+    """Each 12-month block rolls up to the matching annual pro-forma row (the regression guard for
+    decision: feed the waterfall an annual rollup of the monthly grid)."""
+    inp = _monthly_inputs()
+    annual = build_acquisition_proforma(inp).proforma.years
+    monthly = build_monthly_cashflows(inp)
+    assert len(monthly) == 60
+    for yr, row in enumerate(annual):
+        block = monthly[yr * 12 : (yr + 1) * 12]
+        assert approx(sum(r.revenue for r in block), str(row.revenue), tol="0.01")
+        assert approx(sum(r.opex for r in block), str(row.opex), tol="0.01")
+        assert approx(sum(r.noi for r in block), str(row.noi), tol="0.01")
+        assert sum(r.debt_service for r in block) == row.debt_service  # exact
+        assert approx(sum(r.capex for r in block), str(row.capex), tol="0.01")
+        assert approx(sum(r.levered_cf for r in block), str(row.levered_cf), tol="0.01")
+
+
+def test_build_monthly_cashflows_spreads_year_evenly() -> None:
+    inp = _monthly_inputs()
+    monthly = build_monthly_cashflows(inp)
+    # Year 1 = stabilized 1,200,000 revenue spread evenly → 100,000/mo for the first 12 months.
+    for row in monthly[:12]:
+        assert approx(row.revenue, "100000", tol="0.01")
+    assert monthly[0].month == 1 and monthly[-1].month == 60
+
+
+def test_monthly_debt_schedule_io_then_amortizes() -> None:
+    # 2-yr IO: the first 24 months are level interest-only; month 25 adds principal (higher).
+    terms = DebtTerms(
+        ltv=Decimal("0.65"), annual_rate=Decimal("0.06"), amort_months=360, io_years=2
+    )
+    monthly, _ = monthly_debt_schedule(Decimal("10000000"), terms, hold_years=5)
+    io = monthly[:24]
+    assert all(ds == io[0] for ds in io)  # interest-only is constant (balance unchanged)
+    assert monthly[24] > monthly[23]  # amortization begins → payment includes principal

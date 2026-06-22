@@ -12,11 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.underwriting import (
     Assumption,
     ProformaInput,
+    ProformaMonthly,
     ProformaResult,
     ProformaSummary,
     WaterfallTier,
 )
 from .engine import ProformaOutput
+from .proforma import MonthlyRow
 
 
 def _new_id(prefix: str) -> str:
@@ -106,4 +108,39 @@ async def replace_proforma(
     summary.exit_cap = output.exit.exit_cap
     summary.exit_gross_value = output.exit.gross_value
     summary.exit_net_proceeds = output.exit.net_proceeds
+    await session.flush()
+
+
+async def get_proforma_monthly(
+    session: AsyncSession, acquisition_id: str
+) -> Sequence[ProformaMonthly]:
+    stmt = (
+        select(ProformaMonthly)
+        .where(ProformaMonthly.acquisition_id == acquisition_id)
+        .order_by(ProformaMonthly.month)
+    )
+    return (await session.execute(stmt)).scalars().all()
+
+
+async def replace_proforma_monthly(
+    session: AsyncSession, acquisition_id: str, rows: list[MonthlyRow]
+) -> None:
+    """Persist a freshly-computed 60-month grid: replace the month rows for the acquisition."""
+    await session.execute(
+        delete(ProformaMonthly).where(ProformaMonthly.acquisition_id == acquisition_id)
+    )
+    for row in rows:
+        session.add(
+            ProformaMonthly(
+                monthly_id=_new_id("pm"),
+                acquisition_id=acquisition_id,
+                month=row.month,
+                revenue=row.revenue,
+                opex=row.opex,
+                noi=row.noi,
+                debt_service=row.debt_service,
+                capex=row.capex,
+                levered_cf=row.levered_cf,
+            )
+        )
     await session.flush()

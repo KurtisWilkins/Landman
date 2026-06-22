@@ -72,13 +72,29 @@ class AcquisitionProforma:
     equity_cashflows: list[Decimal]  # [-equity, levered CF…, +net exit] — feeds the promote
 
 
+@dataclass(frozen=True)
+class MonthlyRow:
+    """One month of the levered cash flow (month 1..``hold_years×12``)."""
+
+    month: int
+    revenue: Decimal
+    opex: Decimal
+    noi: Decimal
+    debt_service: Decimal
+    capex: Decimal
+    levered_cf: Decimal
+
+
 # ── debt sizing (amortizing, optional interest-only period) ────────────────────
 
 
-def size_debt(purchase_price: Decimal, terms: DebtTerms, hold_years: int) -> DebtSchedule:
-    """Loan = price·LTV. Interest-only for ``io_years``, then a level payment that amortizes the
-    balance over the remaining amortization term. Returns annual debt service per hold year and
-    the principal still outstanding at exit (the payoff).
+def monthly_debt_schedule(
+    purchase_price: Decimal, terms: DebtTerms, hold_years: int
+) -> tuple[list[Decimal], Decimal]:
+    """Per-month debt service over the hold (interest-only for ``io_years``, then a level payment
+    amortizing the balance over the remaining term) plus the principal outstanding at exit.
+    ``size_debt`` sums this into annual figures and ``build_monthly_cashflows`` consumes it
+    directly, so the monthly grid and the annual pro forma reconcile by construction.
     """
     loan = purchase_price * terms.ltv
     mr = terms.annual_rate / Decimal(12)
@@ -93,21 +109,29 @@ def size_debt(purchase_price: Decimal, terms: DebtTerms, hold_years: int) -> Deb
         amort_payment = loan * mr / (ONE - (ONE + mr) ** (-amort_after_io))
 
     balance = loan
-    annual: list[Decimal] = []
-    for yr in range(hold_years):
-        ds = ZERO
-        for month in range(12):
-            global_m = yr * 12 + month
-            interest = balance * mr
-            if global_m < io_months:
-                ds += interest  # interest-only: no principal paydown
-                continue
-            principal = amort_payment - interest
-            if principal > balance:  # final partial period
-                principal = balance
-            balance -= principal
-            ds += interest + principal
-        annual.append(ds)
+    monthly: list[Decimal] = []
+    for global_m in range(hold_years * 12):
+        interest = balance * mr
+        if global_m < io_months:
+            monthly.append(interest)  # interest-only: no principal paydown
+            continue
+        principal = amort_payment - interest
+        if principal > balance:  # final partial period
+            principal = balance
+        balance -= principal
+        monthly.append(interest + principal)
+    return monthly, balance
+
+
+def size_debt(purchase_price: Decimal, terms: DebtTerms, hold_years: int) -> DebtSchedule:
+    """Loan = price·LTV. Interest-only for ``io_years``, then a level payment that amortizes the
+    balance over the remaining amortization term. Returns annual debt service per hold year and
+    the principal still outstanding at exit (the payoff) — the annual figures are the monthly
+    schedule summed in 12-month blocks (see ``monthly_debt_schedule``).
+    """
+    monthly, balance = monthly_debt_schedule(purchase_price, terms, hold_years)
+    loan = purchase_price * terms.ltv
+    annual = [sum(monthly[yr * 12 : (yr + 1) * 12], ZERO) for yr in range(hold_years)]
     return DebtSchedule(loan_amount=loan, annual_debt_service=annual, balance_at_exit=balance)
 
 
@@ -172,6 +196,40 @@ def build_acquisition_proforma(inp: ProformaInputs) -> AcquisitionProforma:
     )
 
 
+def build_monthly_cashflows(inp: ProformaInputs) -> list[MonthlyRow]:
+    """The hold's monthly levered cash flow (``hold_years×12`` rows — 60 for the default 5-yr hold).
+    Each year's projected revenue/opex/CapEx is spread evenly across its 12 months (no fabricated
+    intra-year seasonality — the even-spread assumption is the caller's to confirm); debt service is
+    the real amortization schedule. Summing each 12-month block reproduces the annual pro forma, so
+    the monthly and annual views stay reconciled.
+    """
+    if inp.hold_years < 1:
+        raise ValueError("hold_years must be >= 1")
+    projected = project_lines(inp.lines, inp.noi_growth, inp.hold_years)
+    monthly_ds, _balance = monthly_debt_schedule(inp.purchase_price, inp.debt, inp.hold_years)
+    twelve = Decimal(12)
+    rows: list[MonthlyRow] = []
+    for yr, (revenue, opex) in enumerate(projected):
+        m_rev = revenue / twelve
+        m_opex = opex / twelve
+        m_noi = m_rev - m_opex
+        m_capex = (revenue * inp.capex_reserve_rate) / twelve
+        for m in range(12):
+            ds = monthly_ds[yr * 12 + m]
+            rows.append(
+                MonthlyRow(
+                    month=yr * 12 + m + 1,
+                    revenue=m_rev,
+                    opex=m_opex,
+                    noi=m_noi,
+                    debt_service=ds,
+                    capex=m_capex,
+                    levered_cf=m_noi - ds - m_capex,
+                )
+            )
+    return rows
+
+
 # Re-exported for callers that build line lists from mapped financials.
 __all__ = [
     "GLLine",
@@ -179,7 +237,10 @@ __all__ = [
     "ProformaInputs",
     "DebtSchedule",
     "AcquisitionProforma",
+    "MonthlyRow",
     "size_debt",
+    "monthly_debt_schedule",
     "project_lines",
     "build_acquisition_proforma",
+    "build_monthly_cashflows",
 ]

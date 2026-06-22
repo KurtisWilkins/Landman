@@ -368,3 +368,25 @@ def test_patch_price_resizes_debt(migrated_db: str, client: TestClient) -> None:
     assert r.status_code == 200, r.text
     after = client.get(f"/acquisitions/{acquisition_id}/proforma", headers=ADMIN).json()
     assert float(after["equity_basis"]) == 2800000.0  # re-sized from the new price
+
+
+def test_proforma_monthly_endpoint_rolls_up(migrated_db: str, client: TestClient) -> None:
+    """The 60-month grid is persisted on recompute and rolls up to the annual pro forma."""
+    acquisition_id = _create_priced(client, "10000000")
+    # Empty until a pro forma is computed.
+    empty = client.get(f"/acquisitions/{acquisition_id}/proforma-monthly", headers=ADMIN).json()
+    assert empty["months"] == []
+
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs", json=_COMPLETE_INPUTS, headers=ADMIN
+    )
+    monthly = client.get(f"/acquisitions/{acquisition_id}/proforma-monthly", headers=ADMIN).json()[
+        "months"
+    ]
+    assert len(monthly) == 60  # 5-yr hold × 12
+    assert monthly[0]["month"] == 1 and monthly[-1]["month"] == 60
+
+    annual = client.get(f"/acquisitions/{acquisition_id}/proforma", headers=ADMIN).json()["years"]
+    # The first 12 months roll up to the year-1 levered cash flow.
+    y1 = sum(float(m["levered_cf"]) for m in monthly[:12])
+    assert abs(y1 - float(annual[0]["levered_cf"])) < 1.0
