@@ -9,7 +9,13 @@ from decimal import Decimal
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.underwriting import Assumption, ProformaInput, ProformaResult, ProformaSummary
+from ..models.underwriting import (
+    Assumption,
+    ProformaInput,
+    ProformaResult,
+    ProformaSummary,
+    WaterfallTier,
+)
 from .engine import ProformaOutput
 
 
@@ -39,6 +45,18 @@ async def get_assumption(session: AsyncSession, acquisition_id: str, key: str) -
 
 async def get_proforma_input(session: AsyncSession, acquisition_id: str) -> ProformaInput | None:
     return await session.get(ProformaInput, acquisition_id)
+
+
+async def get_waterfall_tiers(
+    session: AsyncSession, acquisition_id: str
+) -> Sequence[WaterfallTier]:
+    """The acquisition's persisted promote tiers, ordered by tier (empty ⇒ engine defaults)."""
+    stmt = (
+        select(WaterfallTier)
+        .where(WaterfallTier.acquisition_id == acquisition_id)
+        .order_by(WaterfallTier.tier)
+    )
+    return (await session.execute(stmt)).scalars().all()
 
 
 async def upsert_proforma_input(

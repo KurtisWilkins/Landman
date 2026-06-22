@@ -7,10 +7,39 @@ rather than exact counts.
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 from fastapi.testclient import TestClient
 
 ADMIN = {"Authorization": "Bearer dev admin"}
+
+# A complete set of pro-forma inputs that makes a $10M acquisition computable (year-1 NOI 700k).
+_COMPLETE_INPUTS = {
+    "stabilized_revenue": "1200000",
+    "stabilized_opex": "500000",
+    "noi_growth": "0.03",
+    "exit_cap": "0.07",
+    "ltv": "0.65",
+    "loan_rate": "0.065",
+    "amort_months": 360,
+    "io_years": 0,
+    "hold_years": 5,
+}
+
+
+def _create_priced(client: TestClient, price: str = "10000000") -> str:
+    """Create an acquisition with a purchase price so debt can be sized."""
+    r = client.post(
+        "/acquisitions",
+        json={
+            "name": f"Wire Test {uuid.uuid4().hex[:6]}",
+            "property_type": "rv_resort",
+            "purchase_price": price,
+        },
+        headers=ADMIN,
+    )
+    assert r.status_code == 201, r.text
+    return r.json()["acquisition_id"]
 
 
 def _create(client: TestClient, name: str) -> str:
@@ -225,3 +254,96 @@ def test_patch_updates_purchase_price(migrated_db: str, client: TestClient) -> N
     # Persisted.
     again = client.get(f"/acquisitions/{acquisition_id}", headers=ADMIN).json()
     assert float(again["metadata"]["purchase_price"]) == 4100000.0
+
+
+# ── canonical-store wiring (Part 2) ──────────────────────────────────────────────
+
+
+def test_loan_amount_overrides_ltv(migrated_db: str, client: TestClient) -> None:
+    """A dollar loan_amount wins over LTV when sizing debt: equity = price − loan_amount."""
+    acquisition_id = _create_priced(client)
+    pf = client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs",
+        # LTV 0.65 would imply a $6.5M loan, but the $7M override must win → equity $3M (not $3.5M).
+        json={**_COMPLETE_INPUTS, "loan_amount": "7000000"},
+        headers=ADMIN,
+    )
+    assert pf.status_code == 200, pf.text
+    assert float(pf.json()["equity_basis"]) == 3000000.0
+
+
+def test_growth_split_applies_per_line(migrated_db: str, client: TestClient) -> None:
+    """revenue_growth / expense_growth escalate the revenue and opex lines independently of the
+    blended noi_growth (which only fills lines without their own rate)."""
+    acquisition_id = _create_priced(client)
+    pf = client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs",
+        json={**_COMPLETE_INPUTS, "revenue_growth": "0.05", "expense_growth": "0.01"},
+        headers=ADMIN,
+    )
+    assert pf.status_code == 200, pf.text
+    years = pf.json()["years"]
+    # Year 1 = stabilized; year 2 grows revenue +5% and opex +1% (not the 3% noi_growth).
+    assert float(years[1]["revenue"]) == 1260000.0  # 1,200,000 × 1.05
+    assert float(years[1]["opex"]) == 505000.0  # 500,000 × 1.01
+
+
+def test_persisted_coinvest_changes_returns(migrated_db: str, client: TestClient) -> None:
+    """A persisted rjourney_coinvest_pct flows into the promote (vs the engine default)."""
+    acquisition_id = _create_priced(client)
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs", json=_COMPLETE_INPUTS, headers=ADMIN
+    )
+    base = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    assert base["rjourney_moic"] is not None
+
+    # Bump the co-invest from the default 10% to 50% (partial PUT keeps the other inputs).
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs",
+        json={"rjourney_coinvest_pct": "0.5"},
+        headers=ADMIN,
+    )
+    bumped = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    assert bumped["rjourney_moic"] != base["rjourney_moic"]
+
+
+def test_persisted_waterfall_tiers_change_returns(migrated_db: str, client: TestClient) -> None:
+    """Persisted waterfall_tiers (hurdles/promotes) feed the promote instead of engine defaults."""
+    import asyncio
+
+    from rjacq.core import db as core_db
+    from rjacq.models.underwriting import WaterfallTier
+
+    acquisition_id = _create_priced(client)
+    client.put(
+        f"/acquisitions/{acquisition_id}/proforma-inputs", json=_COMPLETE_INPUTS, headers=ADMIN
+    )
+    base = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    assert base["promote_value"] is not None
+
+    # Seed an aggressive custom promote (low hurdles, 50% promote every tier) directly.
+    custom = [
+        (Decimal("0.05"), Decimal("0.50")),
+        (Decimal("0.10"), Decimal("0.50")),
+        (Decimal("0.15"), Decimal("0.50")),
+        (Decimal("0.15"), Decimal("0.50")),
+    ]
+
+    async def _seed() -> None:
+        async with core_db.SessionFactory() as s:
+            for i, (floor, gp) in enumerate(custom, start=1):
+                s.add(
+                    WaterfallTier(
+                        tier_id=f"wt_{uuid.uuid4().hex[:12]}",
+                        acquisition_id=acquisition_id,
+                        tier=i,
+                        irr_floor=floor,
+                        gp_split=gp,
+                        lp_split=Decimal("1") - gp,
+                    )
+                )
+            await s.commit()
+
+    asyncio.run(_seed())
+    after = client.get(f"/acquisitions/{acquisition_id}/returns", headers=ADMIN).json()
+    assert after["promote_value"] != base["promote_value"]
