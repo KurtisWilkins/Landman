@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import {
   useProforma,
   useProformaInputs,
+  useProformaMonthly,
   useSaveProformaInputs,
   useUnderwritingDefaults,
 } from "../../api/hooks";
@@ -32,6 +33,11 @@ const DEFAULTS: Inputs = {
   selling_cost_rate: 0.02,
   capex_reserve_rate: 0,
   hold_years: 5,
+  // Optional canonical-store overrides (blank → fall back): a dollar loan amount (else price × LTV)
+  // and per-line growth (else NOI growth). Promote terms live on the Promote tab.
+  loan_amount: null,
+  revenue_growth: null,
+  expense_growth: null,
 };
 
 function num(v: unknown): number {
@@ -64,6 +70,43 @@ function Field({
         onChange={(e) => onChange(kind === "pct" ? num(e.target.value) / 100 : num(e.target.value))}
         className="w-full rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
       />
+    </label>
+  );
+}
+
+/** Like Field but truly optional: empty input → null (use the fallback); a typed 0 stays 0. */
+function OptionalField({
+  label,
+  value,
+  onChange,
+  kind,
+  hint,
+}: {
+  label: string;
+  value: number | string | null;
+  onChange: (n: number | null) => void;
+  kind: "money" | "pct";
+  hint?: string;
+}) {
+  const shown = value == null ? "" : kind === "pct" ? num(value) * 100 : num(value);
+  return (
+    <label className="flex flex-col gap-1 text-xs">
+      <span className="opacity-70">
+        {label}
+        {kind === "pct" ? " (%)" : " ($)"} <span className="opacity-50">· optional</span>
+      </span>
+      <input
+        type="number"
+        aria-label={label}
+        value={shown}
+        step={kind === "pct" ? 0.25 : 100000}
+        onChange={(e) => {
+          const raw = e.target.value;
+          onChange(raw === "" ? null : kind === "pct" ? num(raw) / 100 : num(raw));
+        }}
+        className="w-full rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+      />
+      {hint && <span className="opacity-50">{hint}</span>}
     </label>
   );
 }
@@ -145,6 +188,22 @@ export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
             onChange={(n) => set({ hold_years: n })}
           />
         </Panel>
+        <Panel title="Growth (optional overrides)">
+          <OptionalField
+            label="Revenue growth"
+            kind="pct"
+            value={form.revenue_growth ?? null}
+            onChange={(n) => set({ revenue_growth: n })}
+            hint="blank → uses NOI growth"
+          />
+          <OptionalField
+            label="Expense growth"
+            kind="pct"
+            value={form.expense_growth ?? null}
+            onChange={(n) => set({ expense_growth: n })}
+            hint="blank → uses NOI growth"
+          />
+        </Panel>
         <Panel title="Debt">
           <Field
             label="LTV"
@@ -169,6 +228,13 @@ export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
             kind="int"
             value={form.io_years ?? null}
             onChange={(n) => set({ io_years: n })}
+          />
+          <OptionalField
+            label="Loan amount"
+            kind="money"
+            value={form.loan_amount ?? null}
+            onChange={(n) => set({ loan_amount: n })}
+            hint="overrides LTV when set"
           />
         </Panel>
         <Panel title="Exit">
@@ -257,9 +323,58 @@ export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
                 </tbody>
               </table>
             </div>
+            <MonthlyGrid acquisitionId={acquisitionId} />
           </>
         )}
       </div>
     </div>
+  );
+}
+
+/** The 60-month cash-flow grid (collapsed by default). Each 12-month block rolls up to a year. */
+function MonthlyGrid({ acquisitionId }: { acquisitionId: string }) {
+  const { data } = useProformaMonthly(acquisitionId);
+  const months = data?.months ?? [];
+  if (months.length === 0) return null;
+  const cols: { key: keyof (typeof months)[number]; label: string }[] = [
+    { key: "revenue", label: "Revenue" },
+    { key: "opex", label: "OpEx" },
+    { key: "noi", label: "NOI" },
+    { key: "debt_service", label: "Debt Service" },
+    { key: "capex", label: "CapEx" },
+    { key: "levered_cf", label: "Levered CF" },
+  ];
+  return (
+    <details className="mt-4">
+      <summary className="cursor-pointer text-sm font-medium">
+        {months.length}-month cash flow
+      </summary>
+      <div className="mt-2 max-h-96 overflow-auto">
+        <table className="min-w-[640px] border-collapse text-xs">
+          <thead className="sticky top-0 bg-surface">
+            <tr>
+              <th className="px-2 py-1 text-left font-medium">Month</th>
+              {cols.map((c) => (
+                <th key={c.key} className="px-2 py-1 text-right font-medium">
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="font-figure">
+            {months.map((m) => (
+              <tr key={m.month} className="border-t border-brand/10">
+                <td className="px-2 py-1">{m.month}</td>
+                {cols.map((c) => (
+                  <td key={c.key} className="px-2 py-1 text-right">
+                    {fmtUsd(m[c.key] as string | number | null)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }

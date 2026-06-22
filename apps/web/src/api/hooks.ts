@@ -196,6 +196,17 @@ export function useProforma(acquisitionId: string) {
   });
 }
 
+type ProformaMonthlyResults = Schemas["ProformaMonthlyResults"];
+
+export function useProformaMonthly(acquisitionId: string) {
+  // The 60-month grid; each 12-month block rolls up to the matching pro-forma year.
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "proforma-monthly"],
+    queryFn: () =>
+      apiFetch<ProformaMonthlyResults>(`/acquisitions/${acquisitionId}/proforma-monthly`),
+  });
+}
+
 type AcquisitionReturns = Schemas["AcquisitionReturns"];
 
 export function useAcquisitionReturns(acquisitionId: string) {
@@ -226,8 +237,11 @@ export function useSaveProformaInputs(acquisitionId: string) {
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
+      // Saving inputs re-sizes debt + re-runs the promote server-side: refresh every derived view.
       qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "proforma"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "proforma-monthly"] });
       qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "proforma-inputs"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "returns"] });
     },
   });
 }
