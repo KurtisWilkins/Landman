@@ -307,6 +307,31 @@ export function usePatchBudgetCell(acquisitionId: string) {
   });
 }
 
+function _invalidateBudgetAndDerived(qc: ReturnType<typeof useQueryClient>, id: string) {
+  // Locking/unlocking rolls the budget into stabilized NOI + recomputes downstream.
+  for (const key of ["budget", "proforma", "proforma-monthly", "returns"]) {
+    qc.invalidateQueries({ queryKey: ["acquisition", id, key] });
+  }
+}
+
+export function useLockBudget(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/lock`, { method: "POST" }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+
+export function useUnlockBudget(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/unlock`, { method: "POST" }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+
 export function useComps(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "comps"],
