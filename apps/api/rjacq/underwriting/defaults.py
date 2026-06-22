@@ -28,6 +28,10 @@ BUILT_IN: dict[str, Decimal | int] = {
     "amort_months": 360,
     "io_years": 0,
     "hold_years": 5,
+    # Org-wide JV terms (seed an acquisition's promote inputs; per-deal overrides win).
+    "rjourney_coinvest_pct": Decimal("0.10"),
+    "acquisition_fee_pct": Decimal("0"),
+    "mgmt_fee_pct": Decimal("0"),
 }
 _FIELDS = tuple(BUILT_IN.keys())
 

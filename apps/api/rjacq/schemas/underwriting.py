@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -71,9 +72,11 @@ class UnderwritingDoc(BaseModel):
 
 
 class ProformaInputs(ApiModel):
-    """GET/PUT /acquisitions/{id}/proforma-inputs — the underwriter-owned pro-forma assumptions.
-    All optional; the pro forma is computed once the required ones (revenue, opex, exit cap, LTV,
-    rate, amort term, hold) plus a purchase price are present. Percentages are decimals."""
+    """GET/PUT /acquisitions/{id}/proforma-inputs — the canonical per-acquisition assumptions the
+    pro forma, 60-month cash flow, and promote waterfall all read from. All optional; the pro forma
+    is computed once the required ones (revenue, opex, exit cap, LTV, rate, amort term, hold) plus a
+    purchase price are present. Percentages are decimals; null canonical-store fields fall back
+    (loan_amount → price × ltv; revenue/expense_growth → noi_growth; coinvest/fees → defaults)."""
 
     stabilized_revenue: Decimal | None = None
     stabilized_opex: Decimal | None = None
@@ -86,6 +89,13 @@ class ProformaInputs(ApiModel):
     selling_cost_rate: Decimal | None = None
     capex_reserve_rate: Decimal | None = None
     hold_years: int | None = None
+    loan_amount: Decimal | None = None
+    revenue_growth: Decimal | None = None
+    expense_growth: Decimal | None = None
+    rjourney_coinvest_pct: Decimal | None = None
+    acquisition_fee_pct: Decimal | None = None
+    mgmt_fee_pct: Decimal | None = None
+    start_date: date | None = None
 
     model_config = {"from_attributes": True}
 
@@ -127,6 +137,9 @@ class UnderwritingDefaults(ApiModel):
     amort_months: int | None = None
     io_years: int | None = None
     hold_years: int | None = None
+    rjourney_coinvest_pct: Decimal | None = None
+    acquisition_fee_pct: Decimal | None = None
+    mgmt_fee_pct: Decimal | None = None
 
     model_config = {"from_attributes": True}
 

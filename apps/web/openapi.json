@@ -3327,8 +3327,23 @@
         "type": "object"
       },
       "ProformaInputs": {
-        "description": "GET/PUT /acquisitions/{id}/proforma-inputs \u2014 the underwriter-owned pro-forma assumptions.\nAll optional; the pro forma is computed once the required ones (revenue, opex, exit cap, LTV,\nrate, amort term, hold) plus a purchase price are present. Percentages are decimals.",
+        "description": "GET/PUT /acquisitions/{id}/proforma-inputs \u2014 the canonical per-acquisition assumptions the\npro forma, 60-month cash flow, and promote waterfall all read from. All optional; the pro forma\nis computed once the required ones (revenue, opex, exit cap, LTV, rate, amort term, hold) plus a\npurchase price are present. Percentages are decimals; null canonical-store fields fall back\n(loan_amount \u2192 price \u00d7 ltv; revenue/expense_growth \u2192 noi_growth; coinvest/fees \u2192 defaults).",
         "properties": {
+          "acquisition_fee_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Fee Pct"
+          },
           "amort_months": {
             "anyOf": [
               {
@@ -3370,6 +3385,21 @@
             ],
             "title": "Exit Cap"
           },
+          "expense_growth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Growth"
+          },
           "hold_years": {
             "anyOf": [
               {
@@ -3391,6 +3421,21 @@
               }
             ],
             "title": "Io Years"
+          },
+          "loan_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Amount"
           },
           "loan_rate": {
             "anyOf": [
@@ -3422,6 +3467,21 @@
             ],
             "title": "Ltv"
           },
+          "mgmt_fee_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mgmt Fee Pct"
+          },
           "noi_growth": {
             "anyOf": [
               {
@@ -3436,6 +3496,36 @@
               }
             ],
             "title": "Noi Growth"
+          },
+          "revenue_growth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Growth"
+          },
+          "rjourney_coinvest_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rjourney Coinvest Pct"
           },
           "selling_cost_rate": {
             "anyOf": [
@@ -3481,6 +3571,18 @@
               }
             ],
             "title": "Stabilized Revenue"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
           }
         },
         "title": "ProformaInputs",
@@ -3489,6 +3591,18 @@
       "ProformaInputsOut": {
         "description": "Response shape for GET /proforma-inputs. A distinct (output-only) class so FastAPI emits\none stable component name instead of splitting the shared model into -Input/-Output.",
         "properties": {
+          "acquisition_fee_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Fee Pct"
+          },
           "amort_months": {
             "anyOf": [
               {
@@ -3524,6 +3638,18 @@
             ],
             "title": "Exit Cap"
           },
+          "expense_growth": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Growth"
+          },
           "hold_years": {
             "anyOf": [
               {
@@ -3545,6 +3671,18 @@
               }
             ],
             "title": "Io Years"
+          },
+          "loan_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loan Amount"
           },
           "loan_rate": {
             "anyOf": [
@@ -3570,6 +3708,18 @@
             ],
             "title": "Ltv"
           },
+          "mgmt_fee_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mgmt Fee Pct"
+          },
           "noi_growth": {
             "anyOf": [
               {
@@ -3581,6 +3731,30 @@
               }
             ],
             "title": "Noi Growth"
+          },
+          "revenue_growth": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Growth"
+          },
+          "rjourney_coinvest_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rjourney Coinvest Pct"
           },
           "selling_cost_rate": {
             "anyOf": [
@@ -3617,6 +3791,18 @@
               }
             ],
             "title": "Stabilized Revenue"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
           }
         },
         "title": "ProformaInputsOut",
@@ -4291,6 +4477,21 @@
       "UnderwritingDefaults": {
         "description": "Global pro-forma defaults that seed each acquisition's inputs. PUT body (all optional); the\nGET response (UnderwritingDefaultsOut) returns effective values (built-ins fill any nulls).",
         "properties": {
+          "acquisition_fee_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Fee Pct"
+          },
           "amort_months": {
             "anyOf": [
               {
@@ -4384,6 +4585,21 @@
             ],
             "title": "Ltv"
           },
+          "mgmt_fee_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mgmt Fee Pct"
+          },
           "noi_growth": {
             "anyOf": [
               {
@@ -4398,6 +4614,21 @@
               }
             ],
             "title": "Noi Growth"
+          },
+          "rjourney_coinvest_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rjourney Coinvest Pct"
           },
           "selling_cost_rate": {
             "anyOf": [
@@ -4421,6 +4652,18 @@
       "UnderwritingDefaultsOut": {
         "description": "GET response \u2014 distinct (output-only) name avoids the -Input/-Output schema split.",
         "properties": {
+          "acquisition_fee_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acquisition Fee Pct"
+          },
           "amort_months": {
             "anyOf": [
               {
@@ -4502,6 +4745,18 @@
             ],
             "title": "Ltv"
           },
+          "mgmt_fee_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mgmt Fee Pct"
+          },
           "noi_growth": {
             "anyOf": [
               {
@@ -4513,6 +4768,18 @@
               }
             ],
             "title": "Noi Growth"
+          },
+          "rjourney_coinvest_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rjourney Coinvest Pct"
           },
           "selling_cost_rate": {
             "anyOf": [

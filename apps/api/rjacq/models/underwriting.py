@@ -7,9 +7,10 @@ literals baked into code ([DECISION] A-1/A-2).
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -81,6 +82,15 @@ class ProformaInput(Base):
     selling_cost_rate: Mapped[Decimal | None] = mapped_column(Numeric)
     capex_reserve_rate: Mapped[Decimal | None] = mapped_column(Numeric)
     hold_years: Mapped[int | None] = mapped_column(Integer)
+    # Canonical-store additions. All nullable; a null falls back to today's behavior so every
+    # existing acquisition computes identically until a value is set (one write, many reads).
+    loan_amount: Mapped[Decimal | None] = mapped_column(Numeric)  # null → purchase_price × ltv
+    revenue_growth: Mapped[Decimal | None] = mapped_column(Numeric)  # null → noi_growth
+    expense_growth: Mapped[Decimal | None] = mapped_column(Numeric)  # null → noi_growth
+    rjourney_coinvest_pct: Mapped[Decimal | None] = mapped_column(Numeric)  # GP equity share
+    acquisition_fee_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    mgmt_fee_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    start_date: Mapped[date | None] = mapped_column(Date)  # drives the monthly series + XIRR
 
 
 class ProformaResult(Base):
@@ -130,3 +140,7 @@ class UnderwritingDefaults(Base):
     amort_months: Mapped[int | None] = mapped_column(Integer)
     io_years: Mapped[int | None] = mapped_column(Integer)
     hold_years: Mapped[int | None] = mapped_column(Integer)
+    # Org-wide JV terms that seed a new acquisition's promote inputs (null → built-in best-guess).
+    rjourney_coinvest_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    acquisition_fee_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    mgmt_fee_pct: Mapped[Decimal | None] = mapped_column(Numeric)
