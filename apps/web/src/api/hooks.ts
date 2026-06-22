@@ -179,7 +179,11 @@ export function useUpdateAcquisition(acquisitionId: string) {
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
+      // A price edit re-sizes debt + re-runs the promote server-side. The prefix key below already
+      // covers the proforma/returns children, but list them explicitly so the data-flow is clear.
       qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "proforma"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "returns"] });
       qc.invalidateQueries({ queryKey: ["acquisitions"] });
     },
   });
