@@ -1611,33 +1611,49 @@ export interface components {
         };
         /**
          * ProformaInputs
-         * @description GET/PUT /acquisitions/{id}/proforma-inputs — the underwriter-owned pro-forma assumptions.
-         *     All optional; the pro forma is computed once the required ones (revenue, opex, exit cap, LTV,
-         *     rate, amort term, hold) plus a purchase price are present. Percentages are decimals.
+         * @description GET/PUT /acquisitions/{id}/proforma-inputs — the canonical per-acquisition assumptions the
+         *     pro forma, 60-month cash flow, and promote waterfall all read from. All optional; the pro forma
+         *     is computed once the required ones (revenue, opex, exit cap, LTV, rate, amort term, hold) plus a
+         *     purchase price are present. Percentages are decimals; null canonical-store fields fall back
+         *     (loan_amount → price × ltv; revenue/expense_growth → noi_growth; coinvest/fees → defaults).
          */
         ProformaInputs: {
+            /** Acquisition Fee Pct */
+            acquisition_fee_pct?: number | string | null;
             /** Amort Months */
             amort_months?: number | null;
             /** Capex Reserve Rate */
             capex_reserve_rate?: number | string | null;
             /** Exit Cap */
             exit_cap?: number | string | null;
+            /** Expense Growth */
+            expense_growth?: number | string | null;
             /** Hold Years */
             hold_years?: number | null;
             /** Io Years */
             io_years?: number | null;
+            /** Loan Amount */
+            loan_amount?: number | string | null;
             /** Loan Rate */
             loan_rate?: number | string | null;
             /** Ltv */
             ltv?: number | string | null;
+            /** Mgmt Fee Pct */
+            mgmt_fee_pct?: number | string | null;
             /** Noi Growth */
             noi_growth?: number | string | null;
+            /** Revenue Growth */
+            revenue_growth?: number | string | null;
+            /** Rjourney Coinvest Pct */
+            rjourney_coinvest_pct?: number | string | null;
             /** Selling Cost Rate */
             selling_cost_rate?: number | string | null;
             /** Stabilized Opex */
             stabilized_opex?: number | string | null;
             /** Stabilized Revenue */
             stabilized_revenue?: number | string | null;
+            /** Start Date */
+            start_date?: string | null;
         };
         /**
          * ProformaInputsOut
@@ -1645,28 +1661,42 @@ export interface components {
          *     one stable component name instead of splitting the shared model into -Input/-Output.
          */
         ProformaInputsOut: {
+            /** Acquisition Fee Pct */
+            acquisition_fee_pct?: string | null;
             /** Amort Months */
             amort_months?: number | null;
             /** Capex Reserve Rate */
             capex_reserve_rate?: string | null;
             /** Exit Cap */
             exit_cap?: string | null;
+            /** Expense Growth */
+            expense_growth?: string | null;
             /** Hold Years */
             hold_years?: number | null;
             /** Io Years */
             io_years?: number | null;
+            /** Loan Amount */
+            loan_amount?: string | null;
             /** Loan Rate */
             loan_rate?: string | null;
             /** Ltv */
             ltv?: string | null;
+            /** Mgmt Fee Pct */
+            mgmt_fee_pct?: string | null;
             /** Noi Growth */
             noi_growth?: string | null;
+            /** Revenue Growth */
+            revenue_growth?: string | null;
+            /** Rjourney Coinvest Pct */
+            rjourney_coinvest_pct?: string | null;
             /** Selling Cost Rate */
             selling_cost_rate?: string | null;
             /** Stabilized Opex */
             stabilized_opex?: string | null;
             /** Stabilized Revenue */
             stabilized_revenue?: string | null;
+            /** Start Date */
+            start_date?: string | null;
         };
         /** ProformaResults */
         ProformaResults: {
@@ -1892,6 +1922,8 @@ export interface components {
          *     GET response (UnderwritingDefaultsOut) returns effective values (built-ins fill any nulls).
          */
         UnderwritingDefaults: {
+            /** Acquisition Fee Pct */
+            acquisition_fee_pct?: number | string | null;
             /** Amort Months */
             amort_months?: number | null;
             /** Capex Reserve Rate */
@@ -1906,8 +1938,12 @@ export interface components {
             loan_rate?: number | string | null;
             /** Ltv */
             ltv?: number | string | null;
+            /** Mgmt Fee Pct */
+            mgmt_fee_pct?: number | string | null;
             /** Noi Growth */
             noi_growth?: number | string | null;
+            /** Rjourney Coinvest Pct */
+            rjourney_coinvest_pct?: number | string | null;
             /** Selling Cost Rate */
             selling_cost_rate?: number | string | null;
         };
@@ -1916,6 +1952,8 @@ export interface components {
          * @description GET response — distinct (output-only) name avoids the -Input/-Output schema split.
          */
         UnderwritingDefaultsOut: {
+            /** Acquisition Fee Pct */
+            acquisition_fee_pct?: string | null;
             /** Amort Months */
             amort_months?: number | null;
             /** Capex Reserve Rate */
@@ -1930,8 +1968,12 @@ export interface components {
             loan_rate?: string | null;
             /** Ltv */
             ltv?: string | null;
+            /** Mgmt Fee Pct */
+            mgmt_fee_pct?: string | null;
             /** Noi Growth */
             noi_growth?: string | null;
+            /** Rjourney Coinvest Pct */
+            rjourney_coinvest_pct?: string | null;
             /** Selling Cost Rate */
             selling_cost_rate?: string | null;
         };

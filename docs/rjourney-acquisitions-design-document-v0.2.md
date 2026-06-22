@@ -450,12 +450,26 @@ assumptions( assumption_id PK, acquisition_id FK→acquisitions, key, label, bas
 hurdles( hurdle_id PK, acquisition_id FK→acquisitions, metric, default_threshold numeric,
   deal_threshold numeric, actual_value numeric, passes bool )
 waterfall_tiers( tier_id PK, acquisition_id FK→acquisitions, tier int, irr_floor numeric,
-  irr_ceiling numeric NULL, lp_split numeric, gp_split numeric )
+  irr_ceiling numeric NULL, lp_split numeric, gp_split numeric )  -- per-acquisition promote:
+  -- irr_floor = hurdle rate, gp_split = promote share; defaults seeded from config (A-1/A-2)
+proforma_inputs( acquisition_id PK FK→acquisitions, stabilized_revenue numeric, stabilized_opex numeric,
+  noi_growth numeric, revenue_growth numeric NULL, expense_growth numeric NULL, exit_cap numeric,
+  ltv numeric, loan_amount numeric NULL, loan_rate numeric, amort_months int, io_years int,
+  hold_years int, selling_cost_rate numeric, capex_reserve_rate numeric,
+  rjourney_coinvest_pct numeric NULL, acquisition_fee_pct numeric NULL, mgmt_fee_pct numeric NULL,
+  start_date date NULL )  -- CANONICAL per-acquisition assumptions (single source of truth); the
+  -- pro forma, 60-month cash flow, and promote all read from here. Nulls fall back (loan_amount→
+  -- price×ltv; revenue/expense_growth→noi_growth; coinvest/fees→underwriting_defaults). Price
+  -- itself stays on acquisitions (read-through purchase_price ?? ask_price), never copied here.
 proforma_results( result_id PK, acquisition_id FK→acquisitions, yr int, revenue numeric, opex numeric,
-  noi numeric, debt_service numeric, capex numeric, levered_cf numeric )
+  noi numeric, debt_service numeric, capex numeric, levered_cf numeric )  -- derived output cache
 proforma_summary( acquisition_id PK FK→acquisitions, levered_irr numeric, equity_multiple numeric,
   equity_basis numeric, exit_year int, exit_cap numeric, exit_gross_value numeric,
-  exit_net_proceeds numeric )
+  exit_net_proceeds numeric )  -- derived output cache (recomputed on write)
+underwriting_defaults( id PK, ltv numeric, loan_rate numeric, noi_growth numeric, exit_cap numeric,
+  selling_cost_rate numeric, capex_reserve_rate numeric, amort_months int, io_years int, hold_years int,
+  rjourney_coinvest_pct numeric, acquisition_fee_pct numeric, mgmt_fee_pct numeric )  -- singleton
+  -- (id='default') of admin-set global defaults that seed a new acquisition's inputs; null→built-in
 
 -- ── Market (population rings) ────────────────────────
 population_rings( ring_id PK, acquisition_id FK→acquisitions, radius_mi int (25|50|100|150),
