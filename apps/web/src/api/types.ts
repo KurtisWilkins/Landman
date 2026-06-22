@@ -226,6 +226,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/mapping/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Split Mapping
+         * @description Split one seller line across multiple GLs; the parts must sum to the line's amount.
+         */
+        post: operations["split_mapping_acquisitions__acquisition_id__mapping_split_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/phase": {
         parameters: {
             query?: never;
@@ -1534,6 +1554,28 @@ export interface components {
             reviewed_at?: string | null;
             /** Seller Source Line */
             seller_source_line?: string | null;
+        };
+        /**
+         * MappingSplit
+         * @description Split one seller line across multiple GLs (parts must sum to the line's amount).
+         */
+        MappingSplit: {
+            /** Line Id */
+            line_id: string;
+            /** Parts */
+            parts?: components["schemas"]["MappingSplitPart"][];
+        };
+        /**
+         * MappingSplitPart
+         * @description One destination of a split: a slice of the seller line's amount mapped to a GL.
+         */
+        MappingSplitPart: {
+            /** Account Code */
+            account_code: string;
+            account_level: components["schemas"]["AccountLevel"];
+            /** Amount */
+            amount: number | string;
+            noi_placement: components["schemas"]["NoiPlacement"];
         };
         /** NoiBridge */
         NoiBridge: {
@@ -3258,6 +3300,97 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MappingConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MappingReview"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    split_mapping_acquisitions__acquisition_id__mapping_split_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingSplit"];
             };
         };
         responses: {

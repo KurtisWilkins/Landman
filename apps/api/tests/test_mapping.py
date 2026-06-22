@@ -6,6 +6,7 @@ import uuid
 from collections.abc import AsyncIterator
 from decimal import Decimal
 
+import pytest
 import pytest_asyncio
 from rjacq.mapping import noi, service
 from rjacq.mapping import repository as repo
@@ -414,3 +415,58 @@ async def test_build_review_enriches_proposed_name_and_reviewed_at(session: Asyn
     assert row.proposed_account_code == code
     assert row.proposed_account_name == f"Acct {code}"  # resolved from the chart
     assert row.reviewed_at is not None  # drives the "Confirmed" bucket in the UI
+
+
+# ── split: one seller line → many GLs ───────────────────────────────────────
+
+
+def test_allocate_split_validates_sum() -> None:
+    from rjacq.mapping.service import MappingError, allocate_split
+
+    allocate_split(Decimal("100"), [Decimal("60"), Decimal("40")])  # ties out → no raise
+    with pytest.raises(MappingError):
+        allocate_split(Decimal("100"), [Decimal("60"), Decimal("30")])  # 90 != 100
+    with pytest.raises(MappingError):
+        allocate_split(Decimal("100"), [Decimal("100")])  # fewer than two parts
+
+
+async def test_split_creates_children_and_excludes_parent(session: AsyncSession) -> None:
+    from rjacq.schemas.financials import MappingSplitPart
+
+    acquisition_id, period_id = await _acquisition(session)
+    a1 = f"a{uuid.uuid4().hex[:8]}"
+    a2 = f"b{uuid.uuid4().hex[:8]}"
+    await _account(session, a1, level=AccountLevel.LEAF, section="Income", placement="above")
+    await _account(session, a2, level=AccountLevel.LEAF, section="Income", placement="above")
+    parent = await _line(session, acquisition_id, period_id, "Other Income", "1000")
+
+    await service.split(
+        session,
+        line_id=parent.line_id,
+        parts=[
+            MappingSplitPart(
+                account_code=a1,
+                account_level=AccountLevel.LEAF,
+                amount=Decimal("600"),
+                noi_placement=NoiPlacement.ABOVE,
+            ),
+            MappingSplitPart(
+                account_code=a2,
+                account_level=AccountLevel.LEAF,
+                amount=Decimal("400"),
+                noi_placement=NoiPlacement.ABOVE,
+            ),
+        ],
+        confirmed_by="kurtis",
+    )
+
+    assert parent.account_code is None  # parent is now a non-counted container
+
+    review = await service.build_review(session, acquisition_id)
+    assert parent.line_id not in {r.line_id for r in review.lines}  # parent excluded
+    children = [r for r in review.lines if r.proposed_account_code in (a1, a2)]
+    assert len(children) == 2 and all(c.reviewed_at is not None for c in children)
+
+    # NOI counts the children (600 + 400), not the parent.
+    bridge = await noi.noi_bridge_for_acquisition(session, acquisition_id)
+    assert bridge.gross_revenue == Decimal("1000")

@@ -5,7 +5,7 @@
  * learn for reuse. Lines are bucketed by status so the unmatched/ambiguous ones surface first.
  */
 import { useMemo, useState } from "react";
-import { useConfirmMapping, useGlAccounts, useMapping } from "../../api/hooks";
+import { useConfirmMapping, useGlAccounts, useMapping, useSplitMapping } from "../../api/hooks";
 import type { Schemas } from "../../api/client";
 import { fmtUsd } from "../../lib/format";
 import { DocUpload } from "./DocUpload";
@@ -37,6 +37,7 @@ function MappingWorkstation({ acquisitionId }: { acquisitionId: string }) {
   const { data, isLoading, error } = useMapping(acquisitionId);
   const { data: accounts } = useGlAccounts();
   const confirm = useConfirmMapping(acquisitionId);
+  const split = useSplitMapping(acquisitionId);
 
   const lines = useMemo(() => data?.lines ?? [], [data]);
   const buckets = useMemo(() => {
@@ -100,14 +101,25 @@ function MappingWorkstation({ acquisitionId }: { acquisitionId: string }) {
       )}
 
       <Bucket title="Needs review" lines={buckets.needsReview}>
-        {(l) => <Row key={l.line_id} line={l} accounts={accountOptions} confirm={confirm} />}
+        {(l) => (
+          <Row key={l.line_id} line={l} accounts={accountOptions} confirm={confirm} split={split} />
+        )}
       </Bucket>
       <Bucket title="Auto-mapped — confirm" lines={buckets.autoMapped}>
-        {(l) => <Row key={l.line_id} line={l} accounts={accountOptions} confirm={confirm} />}
+        {(l) => (
+          <Row key={l.line_id} line={l} accounts={accountOptions} confirm={confirm} split={split} />
+        )}
       </Bucket>
       <Bucket title="Confirmed" lines={buckets.confirmed}>
         {(l) => (
-          <Row key={l.line_id} line={l} accounts={accountOptions} confirm={confirm} confirmed />
+          <Row
+            key={l.line_id}
+            line={l}
+            accounts={accountOptions}
+            confirm={confirm}
+            split={split}
+            confirmed
+          />
         )}
       </Bucket>
     </div>
@@ -136,13 +148,16 @@ function Row({
   line,
   accounts,
   confirm,
+  split,
   confirmed = false,
 }: {
   line: ReviewLine;
   accounts: GlAccount[];
   confirm: ReturnType<typeof useConfirmMapping>;
+  split: ReturnType<typeof useSplitMapping>;
   confirmed?: boolean;
 }) {
+  const [splitting, setSplitting] = useState(false);
   const [accountCode, setAccountCode] = useState(line.proposed_account_code ?? "");
   const selected = accounts.find((a) => a.account_code === accountCode);
   const [noi, setNoi] = useState<Noi>(
@@ -213,7 +228,125 @@ function Row({
         >
           {confirmed ? "Re-confirm" : "Confirm"}
         </button>
+        {line.amount != null && (
+          <button
+            type="button"
+            onClick={() => setSplitting((v) => !v)}
+            className="rounded border border-brand/30 px-2 py-1 text-xs"
+          >
+            {splitting ? "Cancel split" : "Split"}
+          </button>
+        )}
         {confirmed && <span className="text-xs text-success">✓ confirmed</span>}
+      </div>
+      {splitting && (
+        <SplitEditor
+          line={line}
+          accounts={accounts}
+          split={split}
+          onClose={() => setSplitting(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SplitEditor({
+  line,
+  accounts,
+  split,
+  onClose,
+}: {
+  line: ReviewLine;
+  accounts: GlAccount[];
+  split: ReturnType<typeof useSplitMapping>;
+  onClose: () => void;
+}) {
+  const amount = Number(line.amount ?? 0);
+  const [parts, setParts] = useState<{ code: string; amt: string }[]>([
+    { code: "", amt: "" },
+    { code: "", amt: "" },
+  ]);
+  const sum = parts.reduce((s, p) => s + (Number(p.amt) || 0), 0);
+  const remaining = amount - sum;
+  const valid =
+    parts.length >= 2 &&
+    parts.every((p) => p.code && Number(p.amt) > 0) &&
+    Math.abs(remaining) < 0.005;
+  const setPart = (i: number, patch: Partial<{ code: string; amt: string }>) =>
+    setParts((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+
+  const apply = () => {
+    const body = {
+      line_id: line.line_id,
+      parts: parts.map((p) => {
+        const acct = accounts.find((a) => a.account_code === p.code);
+        return {
+          account_code: p.code,
+          account_level: acct?.level ?? "leaf",
+          amount: p.amt,
+          noi_placement: acct?.noi_placement ?? "above",
+        };
+      }),
+    };
+    split.mutate(body, { onSuccess: onClose });
+  };
+
+  return (
+    <div className="mt-2 space-y-2 rounded border border-brand/15 bg-surface p-2">
+      <p className="text-xs opacity-70">
+        Split {fmtUsd(line.amount)} across GLs · remaining {fmtUsd(remaining)}
+      </p>
+      {parts.map((p, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label={`Split part ${i + 1} account`}
+            value={p.code}
+            onChange={(e) => setPart(i, { code: e.target.value })}
+            className="min-w-[200px] rounded border border-brand/20 bg-surface px-2 py-1 text-sm"
+          >
+            <option value="">Choose GL…</option>
+            {accounts.map((a) => (
+              <option key={a.account_code} value={a.account_code}>
+                {a.account_code} · {a.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            aria-label={`Split part ${i + 1} amount`}
+            value={p.amt}
+            onChange={(e) => setPart(i, { amt: e.target.value })}
+            className="w-32 rounded border border-brand/20 bg-surface px-2 py-1 text-sm"
+          />
+          {parts.length > 2 && (
+            <button
+              type="button"
+              onClick={() => setParts((ps) => ps.filter((_, j) => j !== i))}
+              className="text-xs opacity-60"
+            >
+              remove
+            </button>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setParts((ps) => [...ps, { code: "", amt: "" }])}
+          className="rounded border border-brand/30 px-2 py-1 text-xs"
+        >
+          Add part
+        </button>
+        <button
+          type="button"
+          disabled={!valid || split.isPending}
+          onClick={apply}
+          className="rounded bg-brand px-3 py-1 text-sm text-surface disabled:opacity-50"
+        >
+          Apply split
+        </button>
+        {split.isError && <span className="text-xs text-danger">Parts must sum to the line.</span>}
       </div>
     </div>
   );
