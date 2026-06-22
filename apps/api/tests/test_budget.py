@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Any
 
+import pytest
 import pytest_asyncio
 from rjacq.models.acquisitions import Acquisition
 from rjacq.models.enums import AccountLevel, AcquisitionStatus, NoiPlacement, Phase, PropertyType
@@ -151,3 +152,83 @@ async def test_patch_cell_flips_override(session: AsyncSession) -> None:
     assert row.is_overridden is True
     # Prior year (read-only) is unchanged.
     assert row.prior_months[0] == Decimal("100")
+
+
+# ── lock + flow-through ───────────────────────────────────────────────────────
+
+
+async def test_lock_rolls_budget_into_stabilized(session: AsyncSession) -> None:
+    from rjacq.underwriting import service as uw
+
+    acquisition_id, period_id = await _acquisition(session)
+    rev = f"r{uuid.uuid4().hex[:8]}"
+    op = f"o{uuid.uuid4().hex[:8]}"
+    await _account(session, rev, "Income")
+    await _account(session, op, "Expense")
+    await _mapped_line(
+        session,
+        acquisition_id,
+        period_id,
+        rev,
+        {"JAN 25": "100", "FEB 25": "100", "_seller_line": "Rent"},
+    )
+    await _mapped_line(
+        session,
+        acquisition_id,
+        period_id,
+        op,
+        {"JAN 25": "30", "FEB 25": "30", "_seller_line": "Utils"},
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+
+    assert await budget_service.locked_stabilized(session, acquisition_id) is None  # draft
+    await budget_service.lock(session, acquisition_id, by="kurtis")
+    assert await budget_service.locked_stabilized(session, acquisition_id) == (
+        Decimal("200"),
+        Decimal("60"),
+    )
+    # effective_stabilized now prefers the locked budget over the NOI bridge.
+    revenue, opex = await uw.effective_stabilized(session, acquisition_id, None)
+    assert revenue == Decimal("200") and opex == Decimal("60")
+
+
+async def test_lock_blocked_by_unmapped(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, "Income")
+    await _mapped_line(
+        session, acquisition_id, period_id, code, {"JAN 25": "100", "_seller_line": "Rent"}
+    )
+    session.add(
+        FinancialLine(
+            line_id=f"fl_{uuid.uuid4().hex[:12]}",
+            acquisition_id=acquisition_id,
+            period_id=period_id,
+            seller_source_line="Mystery",
+            amount=Decimal("5"),  # account_code None → unmapped
+        )
+    )
+    await session.flush()
+    await budget_service.seed_budget(session, acquisition_id)
+    with pytest.raises(budget_service.BudgetError):
+        await budget_service.lock(session, acquisition_id, by="kurtis")
+
+
+async def test_edit_invalidates_lock(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, "Income")
+    await _mapped_line(
+        session, acquisition_id, period_id, code, {"JAN 25": "100", "_seller_line": "Rent"}
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+    await budget_service.lock(session, acquisition_id, by="kurtis")
+    assert (await budget_service.get_budget(session, acquisition_id)).status == "locked"
+
+    await budget_service.patch_cell(
+        session,
+        acquisition_id,
+        BudgetCellUpdate(account_code=code, month_index=1, year1_amount=Decimal("999")),
+        actor="kurtis",
+    )
+    assert (await budget_service.get_budget(session, acquisition_id)).status == "draft"

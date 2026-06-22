@@ -14,11 +14,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..mapping import repository as mapping_repo
 from ..models.budget import Budget, BudgetLine
-from ..models.enums import BudgetSource
+from ..models.enums import BudgetSource, BudgetStatus
 from ..schemas.budget import BudgetCellUpdate, BudgetDoc, BudgetRow, BudgetTotals
 from .budget import bucket_line_months, variance
+from .engine import NoiLine, normalized_noi
 
 _ZERO = Decimal(0)
+
+
+class BudgetError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 def _new_id(prefix: str) -> str:
@@ -122,8 +130,15 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
             )
         )
     totals = _totals(rows, {c: (a.section if a else None) for c, a in accounts.items()})
-    status = header.status if header else "draft"
-    return BudgetDoc(status=status, rows=rows, totals=totals)
+    status = header.status if header else BudgetStatus.DRAFT.value
+    placeholders, unmapped = await readiness(session, acquisition_id)
+    return BudgetDoc(
+        status=status,
+        rows=rows,
+        totals=totals,
+        placeholder_count=placeholders,
+        unmapped_count=unmapped,
+    )
 
 
 async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
@@ -184,5 +199,81 @@ async def patch_cell(
     line.overridden_at = now
     if body.note is not None:
         line.note = body.note
+    header = await _header(session, acquisition_id)
+    if header is not None and header.status == BudgetStatus.LOCKED.value:
+        header.status = BudgetStatus.DRAFT.value  # editing a locked budget forces a re-lock
+        header.locked_by = None
+        header.locked_at = None
     await session.commit()
     return await get_budget(session, acquisition_id)
+
+
+async def readiness(session: AsyncSession, acquisition_id: str) -> tuple[int, int]:
+    """(unresolved placeholders, unmapped financial lines). Both must be 0 to lock."""
+    placeholders = sum(
+        1
+        for bl in await _lines(session, acquisition_id)
+        if bl.source == BudgetSource.PLACEHOLDER.value and not bl.is_overridden
+    )
+    unmapped = sum(
+        1
+        for line in await mapping_repo.list_lines(session, acquisition_id)
+        if line.account_code is None
+    )
+    return placeholders, unmapped
+
+
+async def locked_stabilized(
+    session: AsyncSession, acquisition_id: str
+) -> tuple[Decimal, Decimal] | None:
+    """Stabilized (revenue, opex) rolled up from a LOCKED budget via the SAME normalized_noi
+    machinery the NOI bridge uses (so the two stabilized paths reconcile). None unless locked."""
+    header = await _header(session, acquisition_id)
+    if header is None or header.status != BudgetStatus.LOCKED.value:
+        return None
+    lines = await _lines(session, acquisition_id)
+    if not lines:
+        return None
+    accounts = {a.account_code: a for a in await mapping_repo.list_accounts(session)}
+    noi_lines: list[NoiLine] = []
+    for bl in lines:
+        if bl.year1_amount is None:
+            continue
+        acct = accounts.get(bl.account_code)
+        placement = bl.noi_placement or (acct.default_noi_placement if acct else None) or "above"
+        noi_lines.append(
+            NoiLine(
+                amount=bl.year1_amount,
+                noi_placement=placement,
+                is_expense=bool(acct and acct.section == "Expense"),
+                is_addback=False,
+            )
+        )
+    bridge = normalized_noi(noi_lines)
+    return bridge.gross_revenue, bridge.operating_expense
+
+
+async def lock(session: AsyncSession, acquisition_id: str, *, by: str | None) -> None:
+    """Lock the budget (gated on zero placeholders + zero unmapped). The caller then recomputes."""
+    header = await _header(session, acquisition_id)
+    if header is None:
+        raise BudgetError("not_seeded", "Seed the budget before locking.")
+    placeholders, unmapped = await readiness(session, acquisition_id)
+    if placeholders or unmapped:
+        raise BudgetError(
+            "not_ready",
+            f"{placeholders} placeholder(s) and {unmapped} unmapped line(s) must be cleared.",
+        )
+    header.status = BudgetStatus.LOCKED.value
+    header.locked_by = by
+    header.locked_at = datetime.now(UTC)
+    await session.commit()
+
+
+async def unlock(session: AsyncSession, acquisition_id: str) -> None:
+    header = await _header(session, acquisition_id)
+    if header is not None:
+        header.status = BudgetStatus.DRAFT.value
+        header.locked_by = None
+        header.locked_at = None
+        await session.commit()

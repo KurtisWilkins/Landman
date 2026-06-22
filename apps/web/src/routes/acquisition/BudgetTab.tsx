@@ -6,7 +6,13 @@
  * June). Year-one edits flip the cell to an override; the budget rolls up to the stabilized NOI.
  */
 import { useState } from "react";
-import { useBudget, usePatchBudgetCell, useSeedBudget } from "../../api/hooks";
+import {
+  useBudget,
+  useLockBudget,
+  usePatchBudgetCell,
+  useSeedBudget,
+  useUnlockBudget,
+} from "../../api/hooks";
 import type { Schemas } from "../../api/client";
 import { fmtPct, fmtUsd } from "../../lib/format";
 
@@ -27,10 +33,16 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const { data, isLoading } = useBudget(acquisitionId);
   const seed = useSeedBudget(acquisitionId);
   const patch = usePatchBudgetCell(acquisitionId);
+  const lock = useLockBudget(acquisitionId);
+  const unlock = useUnlockBudget(acquisitionId);
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   const rows = data?.rows ?? [];
   const totals = data?.totals;
+  const locked = data?.status === "locked";
+  const placeholders = data?.placeholder_count ?? 0;
+  const unmapped = data?.unmapped_count ?? 0;
+  const ready = placeholders === 0 && unmapped === 0;
 
   return (
     <div className="space-y-4">
@@ -45,14 +57,41 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
             <span className="font-figure">{fmtUsd(totals.prior_noi)}</span>
           </span>
         )}
-        <button
-          type="button"
-          disabled={seed.isPending}
-          onClick={() => seed.mutate()}
-          className="ml-auto rounded border border-brand/30 px-3 py-1.5 text-sm disabled:opacity-50"
-        >
-          {seed.isPending ? "Seeding…" : rows.length === 0 ? "Seed from actuals" : "Re-seed gaps"}
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {!locked && rows.length > 0 && !ready && (
+            <span className="text-xs text-accent-ink">
+              {placeholders} to review · {unmapped} unmapped
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={seed.isPending}
+            onClick={() => seed.mutate()}
+            className="rounded border border-brand/30 px-3 py-1.5 text-sm disabled:opacity-50"
+          >
+            {seed.isPending ? "Seeding…" : rows.length === 0 ? "Seed from actuals" : "Re-seed gaps"}
+          </button>
+          {rows.length > 0 &&
+            (locked ? (
+              <button
+                type="button"
+                disabled={unlock.isPending}
+                onClick={() => unlock.mutate()}
+                className="rounded border border-brand/30 px-3 py-1.5 text-sm disabled:opacity-50"
+              >
+                {unlock.isPending ? "Unlocking…" : "Unlock"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={!ready || lock.isPending}
+                onClick={() => lock.mutate()}
+                className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
+              >
+                {lock.isPending ? "Locking…" : "Lock budget"}
+              </button>
+            ))}
+        </div>
       </div>
 
       {rows.length === 0 ? (

@@ -24,6 +24,7 @@ from ..schemas.underwriting import (
     ProformaYear,
     WaterfallTier,
 )
+from . import budget_service
 from . import promote as promote_engine
 from . import repository as repo
 from .engine import ProformaOutput
@@ -59,13 +60,19 @@ async def noi_bridge_totals(session: AsyncSession, acquisition_id: str) -> tuple
 async def effective_stabilized(
     session: AsyncSession, acquisition_id: str, inp: ProformaInput | None
 ) -> tuple[Decimal | None, Decimal | None]:
-    """Stabilized revenue/opex to use: the manually-saved values, else the NOI-bridge totals from
-    the GL-mapped P&L (extraction-first). A bridge with no revenue stays None (no fabrication)."""
-    bridge_rev, bridge_opex = await noi_bridge_totals(session, acquisition_id)
+    """Stabilized revenue/opex by precedence: a manual override on the inputs wins; else a LOCKED
+    year-one budget rollup; else the GL-mapped P&L's NOI bridge (extraction-first). No fabrication:
+    with none of those, returns None. If no budget is locked, behavior is unchanged from before."""
     saved_rev = inp.stabilized_revenue if inp is not None else None
     saved_opex = inp.stabilized_opex if inp is not None else None
-    revenue = saved_rev if saved_rev is not None else (bridge_rev if bridge_rev > 0 else None)
-    opex = saved_opex if saved_opex is not None else (bridge_opex if revenue is not None else None)
+    if saved_rev is not None:  # manual override wins entirely
+        return saved_rev, (saved_opex if saved_opex is not None else _ZERO)
+    locked = await budget_service.locked_stabilized(session, acquisition_id)
+    if locked is not None:  # a locked budget feeds stabilized NOI
+        return locked
+    bridge_rev, bridge_opex = await noi_bridge_totals(session, acquisition_id)
+    revenue = bridge_rev if bridge_rev > 0 else None
+    opex = bridge_opex if revenue is not None else None
     return revenue, opex
 
 

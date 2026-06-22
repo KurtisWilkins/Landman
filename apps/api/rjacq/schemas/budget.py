@@ -38,6 +38,8 @@ class BudgetDoc(BaseModel):
     status: str  # draft | locked
     rows: list[BudgetRow] = Field(default_factory=list)
     totals: BudgetTotals
+    placeholder_count: int = 0  # unresolved "to review" lines (block the lock)
+    unmapped_count: int = 0  # seller lines still unmapped (block the lock)
 
 
 class BudgetCellUpdate(BaseModel):
