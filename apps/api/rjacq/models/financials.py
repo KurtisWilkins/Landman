@@ -62,3 +62,6 @@ class FinancialLine(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String)
     reviewed_at: Mapped[datetime | None] = mapped_column()
     raw_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Set on a child line when one seller line is split across GLs; the parent row is kept as a
+    # non-counted container (account_code NULL, so the NOI bridge skips it). NULL = not a split.
+    split_parent_id: Mapped[str | None] = mapped_column(ForeignKey("financial_lines.line_id"))

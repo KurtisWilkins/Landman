@@ -12,7 +12,7 @@ from ..mapping import service
 from ..mapping.providers import build_embedder
 from ..mapping.service import MappingError
 from ..models.acquisitions import Acquisition
-from ..schemas.financials import GlAccountOption, MappingConfirm, MappingReview
+from ..schemas.financials import GlAccountOption, MappingConfirm, MappingReview, MappingSplit
 
 router = APIRouter(tags=["mapping"])
 
@@ -62,6 +62,32 @@ async def confirm_mapping(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": {"code": exc.code, "message": exc.message}},
+        ) from exc
+    await session.commit()
+    return await service.build_review(session, acquisition_id, embedder=build_embedder())
+
+
+@router.post("/acquisitions/{acquisition_id}/mapping/split", response_model=MappingReview)
+async def split_mapping(
+    acquisition_id: str,
+    body: MappingSplit,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.MAPPING_CONFIRM)),
+) -> MappingReview:
+    """Split one seller line across multiple GLs; the parts must sum to the line's amount."""
+    try:
+        await service.split(
+            session, line_id=body.line_id, parts=body.parts, confirmed_by=principal.user_id
+        )
+    except MappingError as exc:
+        await session.rollback()
+        code = (
+            status.HTTP_404_NOT_FOUND
+            if exc.code == "line_not_found"
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(
+            status_code=code, detail={"error": {"code": exc.code, "message": exc.message}}
         ) from exc
     await session.commit()
     return await service.build_review(session, acquisition_id, embedder=build_embedder())

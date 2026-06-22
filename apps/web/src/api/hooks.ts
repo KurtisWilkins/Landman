@@ -314,6 +314,23 @@ export function useConfirmMapping(acquisitionId: string) {
   });
 }
 
+type MappingSplit = Schemas["MappingSplit"];
+
+export function useSplitMapping(acquisitionId: string) {
+  // Split one seller line across GLs (parts must sum to the line); refresh the review queue.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: MappingSplit) =>
+      apiFetch<MappingReview>(`/acquisitions/${acquisitionId}/mapping/split`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "mapping"] });
+    },
+  });
+}
+
 export function usePopulationRings(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "population-rings"],

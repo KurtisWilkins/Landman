@@ -109,3 +109,19 @@ class MappingConfirm(BaseModel):
     account_level: AccountLevel
     noi_placement: NoiPlacement
     learn: bool = True  # persist seller_phrase → account_code for reuse
+
+
+class MappingSplitPart(BaseModel):
+    """One destination of a split: a slice of the seller line's amount mapped to a GL."""
+
+    account_code: str
+    account_level: AccountLevel
+    amount: Decimal
+    noi_placement: NoiPlacement
+
+
+class MappingSplit(BaseModel):
+    """Split one seller line across multiple GLs (parts must sum to the line's amount)."""
+
+    line_id: str
+    parts: list[MappingSplitPart] = Field(default_factory=list)

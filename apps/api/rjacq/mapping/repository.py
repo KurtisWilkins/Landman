@@ -101,6 +101,15 @@ async def get_line(session: AsyncSession, line_id: str) -> FinancialLine | None:
     return await session.get(FinancialLine, line_id)
 
 
+async def split_parent_ids(session: AsyncSession, acquisition_id: str) -> set[str]:
+    """Line ids that have split children (the non-counted container rows) for an acquisition."""
+    stmt = select(FinancialLine.split_parent_id).where(
+        FinancialLine.acquisition_id == acquisition_id,
+        FinancialLine.split_parent_id.isnot(None),
+    )
+    return {pid for pid in (await session.execute(stmt)).scalars().all() if pid}
+
+
 async def list_lines(session: AsyncSession, acquisition_id: str) -> Sequence[FinancialLine]:
     """Lines for the acquisition's *active* financial version only (older uploads stay queryable but
     don't bleed into the mapping view)."""

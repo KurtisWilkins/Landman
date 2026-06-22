@@ -5,6 +5,7 @@ Provenance: every line keeps its seller text, mapped account, confidence, and NO
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -18,6 +19,7 @@ from ..schemas.financials import (
     MappingCandidate,
     MappingReview,
     MappingReviewLine,
+    MappingSplitPart,
 )
 from . import repository as repo
 from .providers import Candidate, Classifier, Embedder
@@ -121,8 +123,11 @@ async def build_review(
     fresh candidate shortlist."""
     lines = await repo.list_lines(session, acquisition_id)
     accounts = {a.account_code: a for a in await repo.list_accounts(session)}  # 1 query for names
+    split_parents = await repo.split_parent_ids(session, acquisition_id)
     review_lines: list[MappingReviewLine] = []
     for line in lines:
+        if line.line_id in split_parents:
+            continue  # a split parent is a non-counted container; its children stand in for it
         candidates: list[MappingCandidate] = []
         if embedder is not None and line.seller_source_line:
             shortlist = await repo.shortlist_accounts(
@@ -207,3 +212,59 @@ async def confirm(
     await session.flush()
     log.info("mapping.confirmed", line_id=line_id, account_code=account_code, learned=learn)
     return line
+
+
+def allocate_split(parent_amount: Decimal, part_amounts: list[Decimal]) -> None:
+    """Validate that split parts reconcile to the parent line (provenance must tie out). Pure +
+    unit-tested; raises MappingError on a bad split rather than silently mis-allocating."""
+    if len(part_amounts) < 2:
+        raise MappingError("split_too_few", "A split needs at least two parts.")
+    total = sum(part_amounts, Decimal(0))
+    if total != parent_amount:
+        raise MappingError(
+            "split_mismatch", f"Split parts sum to {total}, but the line is {parent_amount}."
+        )
+
+
+async def split(
+    session: AsyncSession,
+    *,
+    line_id: str,
+    parts: list[MappingSplitPart],
+    confirmed_by: str | None,
+) -> None:
+    """Split one seller line across GLs (§5.3). The parent becomes a non-counted container
+    (account_code NULL → the NOI bridge skips it) and one confirmed child line is inserted per
+    part. One atomic transaction; the parts must sum to the parent amount (allocate_split)."""
+    parent = await repo.get_line(session, line_id)
+    if parent is None:
+        raise MappingError("line_not_found", "Financial line not found.")
+    if parent.amount is None:
+        raise MappingError("split_no_amount", "Cannot split a line with no amount.")
+    allocate_split(parent.amount, [p.amount for p in parts])
+
+    parent.account_code = None
+    parent.account_level = None
+    parent.map_confidence = None
+    parent.map_confidence_score = None
+    now = datetime.now(UTC)
+    for part in parts:
+        session.add(
+            FinancialLine(
+                line_id=f"fl_{uuid.uuid4().hex[:16]}",
+                acquisition_id=parent.acquisition_id,
+                period_id=parent.period_id,
+                account_code=part.account_code,
+                account_level=part.account_level,
+                amount=part.amount,
+                seller_source_line=f"{parent.seller_source_line or ''} (split)".strip(),
+                map_confidence=_confidence_for_level(part.account_level.value),
+                noi_placement=part.noi_placement,
+                reviewed_by=confirmed_by,
+                reviewed_at=now,
+                split_parent_id=parent.line_id,
+                raw_payload={"_split_from": parent.line_id},
+            )
+        )
+    await session.flush()
+    log.info("mapping.split", line_id=line_id, parts=len(parts))
