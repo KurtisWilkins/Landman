@@ -232,3 +232,22 @@ async def test_edit_invalidates_lock(session: AsyncSession) -> None:
         actor="kurtis",
     )
     assert (await budget_service.get_budget(session, acquisition_id)).status == "draft"
+
+
+async def test_seed_applies_shield_default(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A configured default rule fills a GL the actuals lack (no-op until config is set)."""
+    from rjacq.core.config import settings as cfg
+
+    acquisition_id, _period_id = await _acquisition(session)
+    shield = f"sh{uuid.uuid4().hex[:8]}"
+    await _account(session, shield, "Expense")
+    monkeypatch.setattr(cfg, "shield_account_code", shield)
+    monkeypatch.setattr(cfg, "shield_monthly", Decimal("1000"))
+
+    await budget_service.seed_budget(session, acquisition_id)
+    doc = await budget_service.get_budget(session, acquisition_id)
+    row = next(r for r in doc.rows if r.account_code == shield)
+    assert row.source == "default"
+    assert row.year1_annual == Decimal("12000")  # $1,000/mo × 12

@@ -8,6 +8,7 @@ unresolved design-doc §14 item are intentionally left without a default and car
 
 from __future__ import annotations
 
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -112,6 +113,23 @@ class Settings(BaseSettings):
     # engine surfaces "unconfigured" rather than computing against a guessed number.
     default_hurdles_config_path: str | None = None  # TODO(decision: §14 A-1/A-2)
     underwriting_defaults_config_path: str | None = None  # TODO(decision: §14 A-3/A-4)
+
+    # ── Budget defaults engine (§5.5 Part 3) — OUR numbers, not the seller's ──
+    # Formulas are code; these rates are config. The Shield/marketing amounts are the confirmed
+    # values; the PPC rate/volume/% and every target GL account code stay None until set (the full
+    # GL chart is B-13), so the defaults engine no-ops until configured rather than guessing.
+    shield_monthly: Decimal = Decimal("1000")  # fixed; ignores historical Shield charges
+    mktg_website_monthly: Decimal = Decimal("825")
+    mktg_secondary_monthly: Decimal = Decimal("850")
+    ppc_rate: Decimal | None = None  # $ per (site × target_volume) unit — admin sets
+    ppc_target_volume: Decimal | None = None  # targeted booked site-nights per site per month
+    ppc_intercompany_pct: Decimal | None = None  # RJourney markup fraction on the Google spend
+    # Target GL account codes per rule (None until the full RJourney chart loads, §14 B-13).
+    shield_account_code: str | None = None
+    mktg_website_account_code: str | None = None
+    mktg_secondary_account_code: str | None = None
+    ppc_google_account_code: str | None = None
+    ppc_intercompany_account_code: str | None = None
 
     # ── Reference data ─────────────────────  TODO(decision: §14 B-13/A-8/A-9)
     # The full ~235-line GL chart and the re-mastered DD/gate question sets are not yet

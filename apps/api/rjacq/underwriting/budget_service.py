@@ -12,11 +12,14 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.config import settings
 from ..mapping import repository as mapping_repo
+from ..models.acquisitions import Acquisition
 from ..models.budget import Budget, BudgetLine
 from ..models.enums import BudgetSource, BudgetStatus
 from ..schemas.budget import BudgetCellUpdate, BudgetDoc, BudgetRow, BudgetTotals
 from .budget import bucket_line_months, variance
+from .budget_defaults import DefaultsContext, all_defaults
 from .engine import NoiLine, normalized_noi
 
 _ZERO = Decimal(0)
@@ -141,10 +144,29 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     )
 
 
+async def _defaults_context(session: AsyncSession, acquisition_id: str) -> DefaultsContext:
+    acq = await session.get(Acquisition, acquisition_id)
+    return DefaultsContext(
+        site_count=acq.site_count if acq else None,
+        shield_monthly=settings.shield_monthly,
+        shield_account_code=settings.shield_account_code,
+        mktg_website_monthly=settings.mktg_website_monthly,
+        mktg_website_account_code=settings.mktg_website_account_code,
+        mktg_secondary_monthly=settings.mktg_secondary_monthly,
+        mktg_secondary_account_code=settings.mktg_secondary_account_code,
+        ppc_rate=settings.ppc_rate,
+        ppc_target_volume=settings.ppc_target_volume,
+        ppc_intercompany_pct=settings.ppc_intercompany_pct,
+        ppc_google_account_code=settings.ppc_google_account_code,
+        ppc_intercompany_account_code=settings.ppc_intercompany_account_code,
+    )
+
+
 async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
-    """Prefill year-one from the prior-year mapped actuals (source=actuals), idempotently — never
-    clobbering a cell a human has overridden. (Defaults + placeholders arrive with the defaults
-    engine.)"""
+    """Prefill year-one, idempotently and without clobbering human overrides: (1) prior-year mapped
+    actuals (source=actuals); (2) the defaults engine for GLs the actuals lack (source=default) —
+    Shield supersedes any historical line. Unconfigured default rules produce nothing, so this is
+    actuals-only until the GL account codes + PPC params are set."""
     header = await _header(session, acquisition_id)
     if header is None:
         period_id = await mapping_repo.current_period_id(session, acquisition_id)
@@ -153,22 +175,49 @@ async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
         )
         session.add(header)
 
-    existing = {(bl.account_code, bl.month_index) for bl in await _lines(session, acquisition_id)}
+    cells = {(bl.account_code, bl.month_index): bl for bl in await _lines(session, acquisition_id)}
+
+    # 1) Prior-year actuals.
     prior = await _prior_by_account(session, acquisition_id)
     for code, months in prior.items():
         for idx, amount in months.items():
-            if (code, idx) in existing:
-                continue  # don't overwrite (especially human overrides)
-            session.add(
-                BudgetLine(
-                    budget_line_id=_new_id("bl"),
-                    acquisition_id=acquisition_id,
-                    account_code=code,
-                    month_index=idx,
-                    year1_amount=amount,
-                    source=BudgetSource.ACTUALS.value,
-                )
+            if (code, idx) in cells:
+                continue
+            line = BudgetLine(
+                budget_line_id=_new_id("bl"),
+                acquisition_id=acquisition_id,
+                account_code=code,
+                month_index=idx,
+                year1_amount=amount,
+                source=BudgetSource.ACTUALS.value,
             )
+            session.add(line)
+            cells[(code, idx)] = line
+
+    # 2) Defaults (our numbers). No-op until the rates/codes are configured.
+    ctx = await _defaults_context(session, acquisition_id)
+    for dl in all_defaults(ctx):
+        for idx in range(1, 13):
+            existing_cell = cells.get((dl.account_code, idx))
+            if existing_cell is not None:
+                # Shield overrides history; never touch a human override or a gap-fill that exists.
+                if dl.overrides_actuals and not existing_cell.is_overridden:
+                    existing_cell.year1_amount = dl.monthly_amount
+                    existing_cell.source = BudgetSource.DEFAULT.value
+                    existing_cell.default_rule_key = dl.default_rule_key
+                continue
+            line = BudgetLine(
+                budget_line_id=_new_id("bl"),
+                acquisition_id=acquisition_id,
+                account_code=dl.account_code,
+                month_index=idx,
+                year1_amount=dl.monthly_amount,
+                source=BudgetSource.DEFAULT.value,
+                default_rule_key=dl.default_rule_key,
+            )
+            session.add(line)
+            cells[(dl.account_code, idx)] = line
+
     await session.commit()
     return await get_budget(session, acquisition_id)
 
