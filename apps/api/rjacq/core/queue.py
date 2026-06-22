@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from arq import create_pool
 from arq.connections import RedisSettings
 
+from ..mapping.jobs import classify_acquisition_mappings
 from ..shield.jobs import sync_shield_baselines
 from .config import settings
 from .logging import configure_logging, correlation_id_var, get_logger
@@ -19,6 +21,24 @@ log = get_logger("worker")
 
 def redis_settings() -> RedisSettings:
     return RedisSettings.from_dsn(settings.redis_url)
+
+
+async def enqueue(function: str, *args: Any) -> bool:
+    """Best-effort enqueue from the API. A queue hiccup must never fail the request that triggered
+    it, so a connection/enqueue error is logged and swallowed (the work can be re-triggered)."""
+    try:
+        pool = await create_pool(redis_settings())
+    except Exception as exc:  # redis unreachable / misconfigured
+        log.warning("worker.enqueue_unavailable", function=function, error=type(exc).__name__)
+        return False
+    try:
+        await pool.enqueue_job(function, *args)
+        return True
+    except Exception as exc:  # pragma: no cover - defensive
+        log.warning("worker.enqueue_failed", function=function, error=type(exc).__name__)
+        return False
+    finally:
+        await pool.close()
 
 
 async def healthcheck(ctx: dict[str, Any]) -> str:
@@ -44,7 +64,7 @@ class WorkerSettings:
     no-ops until C-14/C-15 are configured (see shield.jobs).
     """
 
-    functions = [healthcheck, sync_shield_baselines]
+    functions = [healthcheck, sync_shield_baselines, classify_acquisition_mappings]
     on_startup = on_startup
     on_job_start = on_job_start
     redis_settings = redis_settings()

@@ -399,6 +399,12 @@ async def upload_document(
             detail={"error": {"code": exc.code, "message": exc.message}},
         ) from exc
     await session.commit()
+    # Auto-map the freshly-loaded lines off the request path (§5.3) — best-effort, never fails the
+    # upload. Learned phrases resolve immediately; new lines await the AI providers (C-20).
+    if result.financial_lines_loaded > 0:
+        from ..core import queue
+
+        await queue.enqueue("classify_acquisition_mappings", acquisition_id)
     return {
         "status": "loaded",
         "sheet_type": result.sheet_type,

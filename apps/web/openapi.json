@@ -6737,7 +6737,7 @@
     },
     "/acquisitions/{acquisition_id}/mapping/confirm": {
       "post": {
-        "description": "Human accepts a mapping \u2192 writes a learned mapping for reuse (\u00a75.3.5).",
+        "description": "Human accepts a mapping \u2192 writes a learned mapping for reuse (\u00a75.3.5), scoped to the\nacquisition's seller so re-uploads from the same seller resolve without the LLM.",
         "operationId": "confirm_mapping_acquisitions__acquisition_id__mapping_confirm_post",
         "parameters": [
           {
