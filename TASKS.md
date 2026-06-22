@@ -17,11 +17,34 @@ _Last updated: 2026-06-22._
 - [x] **Pro forma UI** — new fields + the collapsible 60-month grid. _(#45)_
 - [x] **Promote persistence** — `GET/PUT /waterfall-tiers`; PromoteTab loads + saves promote terms. _(#46)_
 
+## Done — underwriting page (PRs #48–#54)
+
+- [x] **Auto-map in a worker + seller-scoped learned mappings** — wired `propose_for_line` (it had
+      no caller) into a background Arq job after upload; learned per seller with a global fallback. _(#48)_
+- [x] **GL mapping confirm workstation** — buckets, GL-chart picker (`GET /gl-accounts`), NOI/learn,
+      bulk confirm. _(#49)_
+- [x] **Split one seller line across GLs** — `financial_lines.split_parent_id`, pure
+      `allocate_split`, `POST …/mapping/split`; merge = confirm-many-to-one. _(#50, migration `d4e5f6a7b8c9`)_
+- [x] **Prior-year-vs-year-one budget** — `budgets` + `budget_lines` (editable year-one cells;
+      prior-year computed on read from `raw_payload`), grid with variance + provenance + monthly
+      expand, seed/patch. _(#51 + #52, migration `e5f6a7b8c9d0`)_
+- [x] **Budget lock + flow-through** — `effective_stabilized` precedence manual > locked budget >
+      bridge; lock gated on zero placeholders + unmapped; lock/unlock recompute. _(#53)_
+- [x] **Defaults engine** — pure Shield / marketing / PPC; formulas in code, numbers in config;
+      no-op until configured. _(#54)_
+
 ## Next
 
-- [ ] **Deploy to Azure** — run the migrate job (applies `b2c3d4e5f6a7` + `c3d4e5f6a7b8`; both
-      additive), then roll api/worker/web. Back up Postgres first (CLAUDE.md). Deploy recipe is in
-      `docs/DEPLOYMENT.md` (use `--build-arg BASE_REGISTRY=mirror.gcr.io/library/`).
+- [ ] **Deploy to Azure** — the SSOT migrations are live (SHA `8bb2b59`); the next deploy applies the
+      Underwriting-page migrations `d4e5f6a7b8c9` + `e5f6a7b8c9d0` (both additive), then rolls
+      api/worker/web. Back up Postgres first. Recipe in `docs/DEPLOYMENT.md`
+      (`--build-arg BASE_REGISTRY=mirror.gcr.io/library/`).
+- [ ] **Activate the defaults engine** — set config: the five `*_account_code` (from the GL chart,
+      §14 B-13) + `ppc_rate` / `ppc_target_volume` / `ppc_intercompany_pct`. Until then the budget
+      seeds from actuals only. _Needs the GL chart + PPC params from the user._
+- [ ] **First-time AI mapping suggestions (§14 C-20)** — build the Voyage embedder + Claude
+      classifier so non-learned lines get auto-suggestions (a provider/key + cost decision). Until
+      then the worker does learned reuse only.
 
 ## Future enhancements (not yet scheduled)
 
@@ -31,7 +54,8 @@ _Last updated: 2026-06-22._
 - [ ] **P&L / T-12 parsing guards (UX)** — the parser is deliberately conservative; these need a
       human confirmation step in the mapping UI:
   - [ ] Confirm **which amount column** is the annualized/stabilized figure on multi-column T-12s.
-  - [ ] Clear the **GL mapping queue** — unmapped lines are silently excluded from NOI.
+  - [x] Clear the **GL mapping queue** — the confirm workstation surfaces unmapped lines and the
+        budget lock is gated on zero unmapped (#49, #53).
   - [ ] Make **add-backs** (`is_addback` / `addback_amount`) user-editable at confirm time
         (owner salary, one-time items) — currently observed but not editable.
   - [ ] Guard **subtotal rows** and **expense sign** at confirm (double-counting / inverted NOI).
