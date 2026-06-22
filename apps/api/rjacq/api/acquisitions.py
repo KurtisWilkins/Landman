@@ -44,6 +44,8 @@ from ..schemas.underwriting import (
     ProformaInputsOut,
     ProformaMonthlyResults,
     ProformaResults,
+    WaterfallTier,
+    WaterfallTiersUpdate,
 )
 from ..underwriting import service as underwriting
 from ..underwriting.service import UnderwritingError
@@ -495,6 +497,32 @@ async def get_acquisition_returns(
     value) computed from the persisted pro forma + the standard promote. Empty until computed."""
     await _require_acquisition(session, acquisition_id)
     return await underwriting.acquisition_returns(session, acquisition_id)
+
+
+@router.get("/acquisitions/{acquisition_id}/waterfall-tiers", response_model=list[WaterfallTier])
+async def get_waterfall_tiers(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(get_current_principal),
+) -> list[WaterfallTier]:
+    """The acquisition's persisted promote tiers (hurdle rate + GP promote share per tier). Empty
+    until set — the promote then uses the configured defaults."""
+    await _require_acquisition(session, acquisition_id)
+    return await underwriting.get_waterfall_tiers_doc(session, acquisition_id)
+
+
+@router.put("/acquisitions/{acquisition_id}/waterfall-tiers", response_model=list[WaterfallTier])
+async def put_waterfall_tiers(
+    acquisition_id: str,
+    body: WaterfallTiersUpdate,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> list[WaterfallTier]:
+    """Replace the acquisition's promote tiers; the headline returns reflect them immediately."""
+    await _require_acquisition(session, acquisition_id)
+    return await underwriting.save_waterfall_tiers(
+        session, acquisition_id, body.hurdles, body.promotes
+    )
 
 
 @router.get("/acquisitions/{acquisition_id}/proforma-inputs", response_model=ProformaInputsOut)

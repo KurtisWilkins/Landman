@@ -246,6 +246,33 @@ export function useSaveProformaInputs(acquisitionId: string) {
   });
 }
 
+type WaterfallTier = Schemas["WaterfallTier"];
+type WaterfallTiersUpdate = Schemas["WaterfallTiersUpdate"];
+
+export function useWaterfallTiers(acquisitionId: string) {
+  // The acquisition's persisted promote tiers (empty → the promote uses the configured defaults).
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "waterfall-tiers"],
+    queryFn: () => apiFetch<WaterfallTier[]>(`/acquisitions/${acquisitionId}/waterfall-tiers`),
+  });
+}
+
+export function useSaveWaterfallTiers(acquisitionId: string) {
+  // Persist the promote hurdles/promotes; the headline returns then reflect them.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: WaterfallTiersUpdate) =>
+      apiFetch<WaterfallTier[]>(`/acquisitions/${acquisitionId}/waterfall-tiers`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "waterfall-tiers"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "returns"] });
+    },
+  });
+}
+
 export function useComps(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "comps"],
