@@ -176,7 +176,7 @@ export interface paths {
         put?: never;
         /**
          * Unlock Budget
-         * @description Re-open a locked budget for editing; the pro forma reverts to the NOI bridge until re-lock.
+         * @description Re-open a locked budget for editing; pro forma reverts to the bridge until re-lock.
          */
         post: operations["unlock_budget_acquisitions__acquisition_id__budget_unlock_post"];
         delete?: never;
