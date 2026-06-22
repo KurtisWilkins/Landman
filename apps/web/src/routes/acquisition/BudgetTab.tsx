@@ -29,12 +29,25 @@ function badge(source: string, overridden: boolean): { label: string; cls: strin
   return { label: source, cls: "bg-ink/10 text-ink/70" };
 }
 
+// The over/under review loop: a line needs attention if it's an unresolved placeholder or its
+// year-one swings more than this band off prior year.
+const VARIANCE_BAND = 0.15;
+
+function isOverUnder(row: BudgetRow): boolean {
+  return row.var_pct != null && Math.abs(Number(row.var_pct)) > VARIANCE_BAND;
+}
+
+function needsReview(row: BudgetRow): boolean {
+  return row.source === "placeholder" || isOverUnder(row);
+}
+
 export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const { data, isLoading } = useBudget(acquisitionId);
   const seed = useSeedBudget(acquisitionId);
   const patch = usePatchBudgetCell(acquisitionId);
   const lock = useLockBudget(acquisitionId);
   const unlock = useUnlockBudget(acquisitionId);
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   const rows = data?.rows ?? [];
@@ -43,6 +56,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const placeholders = data?.placeholder_count ?? 0;
   const unmapped = data?.unmapped_count ?? 0;
   const ready = placeholders === 0 && unmapped === 0;
+  const flaggedCount = rows.filter(needsReview).length;
 
   return (
     <div className="space-y-4">
@@ -62,6 +76,19 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
             <span className="text-xs text-accent-ink">
               {placeholders} to review · {unmapped} unmapped
             </span>
+          )}
+          {rows.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOnlyFlagged((v) => !v)}
+              className={`rounded border px-3 py-1.5 text-sm ${
+                onlyFlagged ? "border-accent bg-accent/15 text-accent-ink" : "border-brand/30"
+              }`}
+            >
+              {onlyFlagged
+                ? "Show all"
+                : `Overs & unders${flaggedCount ? ` (${flaggedCount})` : ""}`}
+            </button>
           )}
           <button
             type="button"
@@ -101,16 +128,23 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
         </p>
       ) : (
         <>
-          <Section title="Income" rows={rows.filter((r) => r.section === "Income")} patch={patch} />
+          <Section
+            title="Income"
+            rows={rows.filter((r) => r.section === "Income")}
+            patch={patch}
+            onlyFlagged={onlyFlagged}
+          />
           <Section
             title="Expense"
             rows={rows.filter((r) => r.section === "Expense")}
             patch={patch}
+            onlyFlagged={onlyFlagged}
           />
           <Section
             title="Other"
             rows={rows.filter((r) => r.section !== "Income" && r.section !== "Expense")}
             patch={patch}
+            onlyFlagged={onlyFlagged}
           />
           {totals && (
             <div className="grid grid-cols-[1fr_repeat(4,minmax(72px,1fr))] gap-2 border-t border-brand/20 px-2 pt-2 text-sm font-medium">
@@ -129,8 +163,19 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   );
 }
 
-function Section({ title, rows, patch }: { title: string; rows: BudgetRow[]; patch: Patch }) {
-  if (rows.length === 0) return null;
+function Section({
+  title,
+  rows,
+  patch,
+  onlyFlagged,
+}: {
+  title: string;
+  rows: BudgetRow[];
+  patch: Patch;
+  onlyFlagged: boolean;
+}) {
+  const shown = onlyFlagged ? rows.filter(needsReview) : rows;
+  if (shown.length === 0) return null;
   return (
     <div>
       <div className="grid grid-cols-[1fr_repeat(4,minmax(72px,1fr))] gap-2 px-2 pb-1 text-xs uppercase tracking-wide opacity-60">
@@ -141,19 +186,20 @@ function Section({ title, rows, patch }: { title: string; rows: BudgetRow[]; pat
         <span className="text-right">% var</span>
       </div>
       <div className="space-y-1">
-        {rows.map((r) => (
-          <Row key={r.account_code} row={r} patch={patch} />
+        {shown.map((r) => (
+          <Row key={r.account_code} row={r} patch={patch} flagged={needsReview(r)} />
         ))}
       </div>
     </div>
   );
 }
 
-function Row({ row, patch }: { row: BudgetRow; patch: Patch }) {
+function Row({ row, patch, flagged }: { row: BudgetRow; patch: Patch; flagged: boolean }) {
   const [open, setOpen] = useState(false);
   const b = badge(row.source, row.is_overridden);
+  const over = isOverUnder(row);
   return (
-    <div className="rounded-md border border-brand/10">
+    <div className={`rounded-md border ${flagged ? "border-accent/60" : "border-brand/10"}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -166,7 +212,7 @@ function Row({ row, patch }: { row: BudgetRow; patch: Patch }) {
         <span className="text-right font-figure opacity-70">{fmtUsd(row.prior_annual)}</span>
         <span className="text-right font-figure">{fmtUsd(row.year1_annual)}</span>
         <span className="text-right font-figure opacity-70">{fmtUsd(row.var_abs)}</span>
-        <span className="text-right font-figure opacity-70">
+        <span className={`text-right font-figure ${over ? "text-accent-ink" : "opacity-70"}`}>
           {row.var_pct == null ? "—" : fmtPct(row.var_pct)}
         </span>
       </button>
