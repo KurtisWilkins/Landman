@@ -6,7 +6,7 @@
  *
  * Presentational; the calculation lives server-side. No browser storage.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useProforma,
   useProformaInputs,
@@ -130,19 +130,37 @@ function stripNulls(obj: Inputs): Partial<Inputs> {
 }
 
 export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
-  const { data: saved } = useProformaInputs(acquisitionId);
-  const { data: uwDefaults } = useUnderwritingDefaults();
+  const inputsQuery = useProformaInputs(acquisitionId);
+  const defaultsQuery = useUnderwritingDefaults();
+  const { data: saved } = inputsQuery;
+  const { data: uwDefaults } = defaultsQuery;
   const { data: results } = useProforma(acquisitionId);
   const save = useSaveProformaInputs(acquisitionId);
   const [form, setForm] = useState<Inputs>(DEFAULTS);
+  // Fields the user has edited; the seed effect must not clobber these even if the GETs land late.
+  const touched = useRef<Set<keyof Inputs>>(new Set());
+  const hasSeeded = useRef(false);
 
   // Seed precedence: built-in fallback < admin defaults (Settings) < this acquisition's saved inputs.
+  // Seed exactly once, and only after both GETs settle so the full precedence chain is visible — but
+  // preserve any field the user already edited during the sub-second load window (don't overwrite it).
   useEffect(() => {
+    if (hasSeeded.current || inputsQuery.isPending || defaultsQuery.isPending) return;
+    hasSeeded.current = true;
     const base: Inputs = { ...DEFAULTS, ...(uwDefaults ? stripNulls(uwDefaults) : {}) };
-    setForm(saved ? { ...base, ...stripNulls(saved) } : base);
-  }, [saved, uwDefaults]);
+    const seeded = saved ? { ...base, ...stripNulls(saved) } : base;
+    setForm((f) => {
+      const preserved = Object.fromEntries(
+        [...touched.current].map((k) => [k, f[k]]),
+      ) as Partial<Inputs>;
+      return { ...seeded, ...preserved };
+    });
+  }, [inputsQuery.isPending, defaultsQuery.isPending, saved, uwDefaults]);
 
-  const set = (patch: Partial<Inputs>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: Partial<Inputs>) => {
+    (Object.keys(patch) as (keyof Inputs)[]).forEach((k) => touched.current.add(k));
+    setForm((f) => ({ ...f, ...patch }));
+  };
   const years = results?.years ?? [];
   const rows: { key: keyof (typeof years)[number]; label: string }[] = [
     { key: "revenue", label: "Revenue" },
