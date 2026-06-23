@@ -248,13 +248,13 @@ async def test_seed_applies_shield_default(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A configured default rule fills a GL the actuals lack (no-op until config is set)."""
-    from rjacq.core.config import settings as cfg
-
     acquisition_id, _period_id = await _acquisition(session)
     shield = f"sh{uuid.uuid4().hex[:8]}"
     await _account(session, shield, "Expense")
-    monkeypatch.setattr(cfg, "shield_account_code", shield)
-    monkeypatch.setattr(cfg, "shield_monthly", Decimal("1000"))
+    # budget_service binds `settings` at import and conftest rebinds core.config.settings to a fresh
+    # instance — so patch the object the service actually reads, not core.config.settings.
+    monkeypatch.setattr(budget_service.settings, "shield_account_code", shield)
+    monkeypatch.setattr(budget_service.settings, "shield_monthly", Decimal("1000"))
 
     await budget_service.seed_budget(session, acquisition_id)
     doc = await budget_service.get_budget(session, acquisition_id)
