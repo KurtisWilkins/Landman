@@ -272,6 +272,30 @@ async def test_confirm_scopes_learned_to_seller(session: AsyncSession) -> None:
     assert await repo.find_learned(session, seller_phrase=phrase, source_seller=None) is None
 
 
+async def test_find_learned_global_excludes_seller_scoped(session: AsyncSession) -> None:
+    """The global lookup (source_seller=None) returns only global rows — never another seller's."""
+    g = f"a{uuid.uuid4().hex[:8]}"
+    s = f"b{uuid.uuid4().hex[:8]}"
+    phrase = f"Pad Rent {uuid.uuid4().hex[:6]}"
+    await _account(session, g, level=AccountLevel.LEAF, section="Income", placement="above")
+    await _account(session, s, level=AccountLevel.LEAF, section="Income", placement="above")
+    for code, seller in ((g, None), (s, "Acme Holdings")):
+        session.add(
+            GLMappingLearned(
+                mapping_id=f"gm_{uuid.uuid4().hex[:8]}",
+                seller_phrase=phrase,
+                source_seller=seller,
+                account_code=code,
+                hit_count=1,
+            )
+        )
+    await session.flush()
+    glob = await repo.find_learned(session, seller_phrase=phrase, source_seller=None)
+    assert glob is not None and glob.account_code == g  # the global row, not the seller-scoped one
+    scoped = await repo.find_learned(session, seller_phrase=phrase, source_seller="Acme Holdings")
+    assert scoped is not None and scoped.account_code == s
+
+
 async def test_propose_falls_back_to_global_learned(session: AsyncSession) -> None:
     acquisition_id, period_id = await _acquisition(session)
     code = f"a{uuid.uuid4().hex[:8]}"

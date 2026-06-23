@@ -61,22 +61,40 @@ def shield_default(ctx: DefaultsContext) -> DefaultLine | None:
 
 
 def marketing_defaults(ctx: DefaultsContext) -> list[DefaultLine]:
-    """Website + a second marketing type, as two separate, independently-editable lines."""
+    """Website + a second marketing type as two separately-editable lines — unless both post to the
+    same GL, in which case one combined line (two cells on one account/month would collide and the
+    second would be silently dropped)."""
+    website = ctx.mktg_website_account_code
+    secondary = ctx.mktg_secondary_account_code
+    if website is not None and website == secondary:
+        combined = ctx.mktg_website_monthly + ctx.mktg_secondary_monthly
+        return [
+            DefaultLine(
+                account_code=website,
+                label="Marketing",
+                default_rule_key="mktg_combined",
+                monthly_amount=combined,
+                explain=(
+                    f"Marketing ${ctx.mktg_website_monthly}/mo website + "
+                    f"${ctx.mktg_secondary_monthly}/mo secondary = ${combined}/mo"
+                ),
+            )
+        ]
     out: list[DefaultLine] = []
-    if ctx.mktg_website_account_code is not None:
+    if website is not None:
         out.append(
             DefaultLine(
-                account_code=ctx.mktg_website_account_code,
+                account_code=website,
                 label="Marketing — website",
                 default_rule_key="mktg_website",
                 monthly_amount=ctx.mktg_website_monthly,
                 explain=f"Website marketing ${ctx.mktg_website_monthly}/mo",
             )
         )
-    if ctx.mktg_secondary_account_code is not None:
+    if secondary is not None:
         out.append(
             DefaultLine(
-                account_code=ctx.mktg_secondary_account_code,
+                account_code=secondary,
                 label="Marketing — secondary",
                 default_rule_key="mktg_secondary",
                 monthly_amount=ctx.mktg_secondary_monthly,

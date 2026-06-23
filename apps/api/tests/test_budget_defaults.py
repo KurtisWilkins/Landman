@@ -11,6 +11,7 @@ from typing import Any
 from rjacq.underwriting.budget_defaults import (
     DefaultsContext,
     all_defaults,
+    marketing_defaults,
     ppc_defaults,
     shield_default,
 )
@@ -51,6 +52,17 @@ def test_marketing_two_independent_lines() -> None:
     lines = all_defaults(_ctx(mktg_website_account_code="5000", mktg_secondary_account_code="5001"))
     amounts = {line.default_rule_key: line.monthly_amount for line in lines}
     assert amounts == {"mktg_website": Decimal("825"), "mktg_secondary": Decimal("850")}
+
+
+def test_marketing_combined_when_same_account() -> None:
+    # Both marketing lines on one GL → a single combined line (else the second cell is dropped).
+    lines = marketing_defaults(
+        _ctx(mktg_website_account_code="601010", mktg_secondary_account_code="601010")
+    )
+    assert len(lines) == 1
+    assert lines[0].account_code == "601010"
+    assert lines[0].default_rule_key == "mktg_combined"
+    assert lines[0].monthly_amount == Decimal("1675")  # 825 + 850
 
 
 def test_ppc_two_line_linear_formula() -> None:

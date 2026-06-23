@@ -263,9 +263,9 @@ function SplitEditor({
   onClose: () => void;
 }) {
   const amount = Number(line.amount ?? 0);
-  const [parts, setParts] = useState<{ code: string; amt: string }[]>([
-    { code: "", amt: "" },
-    { code: "", amt: "" },
+  const [parts, setParts] = useState<{ id: string; code: string; amt: string }[]>([
+    { id: crypto.randomUUID(), code: "", amt: "" },
+    { id: crypto.randomUUID(), code: "", amt: "" },
   ]);
   const sum = parts.reduce((s, p) => s + (Number(p.amt) || 0), 0);
   const remaining = amount - sum;
@@ -298,7 +298,7 @@ function SplitEditor({
         Split {fmtUsd(line.amount)} across GLs · remaining {fmtUsd(remaining)}
       </p>
       {parts.map((p, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2">
+        <div key={p.id} className="flex flex-wrap items-center gap-2">
           <select
             aria-label={`Split part ${i + 1} account`}
             value={p.code}
@@ -333,7 +333,7 @@ function SplitEditor({
       <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setParts((ps) => [...ps, { code: "", amt: "" }])}
+          onClick={() => setParts((ps) => [...ps, { id: crypto.randomUUID(), code: "", amt: "" }])}
           className="rounded border border-brand/30 px-2 py-1 text-xs"
         >
           Add part

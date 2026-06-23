@@ -46,6 +46,6 @@ class BudgetCellUpdate(BaseModel):
     """PATCH /acquisitions/{id}/budget — edit one year-one cell (flips it to an override)."""
 
     account_code: str
-    month_index: int
+    month_index: int = Field(ge=1, le=12)  # calendar month; out-of-range cells would be dropped
     year1_amount: Decimal | None = None
     note: str | None = None

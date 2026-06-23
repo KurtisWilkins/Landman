@@ -40,6 +40,16 @@ def test_variance() -> None:
     assert abs_var == Decimal("100") and pct_var is None  # new line → no %
 
 
+def test_budget_cell_month_index_bounds() -> None:
+    from pydantic import ValidationError
+
+    BudgetCellUpdate(account_code="6000", month_index=1)  # valid
+    BudgetCellUpdate(account_code="6000", month_index=12)  # valid
+    for bad in (0, 13, -1):
+        with pytest.raises(ValidationError):
+            BudgetCellUpdate(account_code="6000", month_index=bad)  # out of 1..12 → rejected
+
+
 # ── service (real Postgres) ───────────────────────────────────────────────────
 
 
@@ -251,3 +261,94 @@ async def test_seed_applies_shield_default(
     row = next(r for r in doc.rows if r.account_code == shield)
     assert row.source == "default"
     assert row.year1_annual == Decimal("12000")  # $1,000/mo × 12
+
+
+async def test_patch_cell_rejects_unknown_account(session: AsyncSession) -> None:
+    """A cell for a GL that isn't in the chart is a 400 (BudgetError), not an FK 500 at commit."""
+    acquisition_id, _ = await _acquisition(session)
+    with pytest.raises(budget_service.BudgetError):
+        await budget_service.patch_cell(
+            session,
+            acquisition_id,
+            BudgetCellUpdate(account_code="nope", month_index=1, year1_amount=Decimal("5")),
+            actor="kurtis",
+        )
+
+
+async def test_readiness_excludes_split_parent(session: AsyncSession) -> None:
+    """A split parent (account_code NULL by design) must not count as unmapped, or it would block
+    the lock forever."""
+    from rjacq.mapping import service as mapping_service
+    from rjacq.schemas.financials import MappingSplitPart
+
+    acquisition_id, period_id = await _acquisition(session)
+    a1 = f"a{uuid.uuid4().hex[:8]}"
+    a2 = f"b{uuid.uuid4().hex[:8]}"
+    await _account(session, a1, "Income")
+    await _account(session, a2, "Income")
+    parent = FinancialLine(
+        line_id=f"fl_{uuid.uuid4().hex[:12]}",
+        acquisition_id=acquisition_id,
+        period_id=period_id,
+        seller_source_line="Other Income",
+        amount=Decimal("1000"),
+    )
+    session.add(parent)
+    await session.flush()
+    await mapping_service.split(
+        session,
+        line_id=parent.line_id,
+        parts=[
+            MappingSplitPart(
+                account_code=a1,
+                account_level=AccountLevel.LEAF,
+                amount=Decimal("600"),
+                noi_placement=NoiPlacement.ABOVE,
+            ),
+            MappingSplitPart(
+                account_code=a2,
+                account_level=AccountLevel.LEAF,
+                amount=Decimal("400"),
+                noi_placement=NoiPlacement.ABOVE,
+            ),
+        ],
+        confirmed_by="kurtis",
+    )
+
+    await budget_service.seed_budget(session, acquisition_id)
+    _placeholders, unmapped = await budget_service.readiness(session, acquisition_id)
+    assert unmapped == 0  # the container parent is excluded, the mapped children don't count
+    await budget_service.lock(session, acquisition_id, by="kurtis")  # not blocked by the parent
+    assert (await budget_service.get_budget(session, acquisition_id)).status == "locked"
+
+
+async def test_partial_manual_override_keeps_locked_opex(session: AsyncSession) -> None:
+    """A manual stabilized_revenue with no manual opex keeps the locked-budget opex (not zero)."""
+    from rjacq.models.underwriting import ProformaInput
+    from rjacq.underwriting import service as uw
+
+    acquisition_id, period_id = await _acquisition(session)
+    rev = f"r{uuid.uuid4().hex[:8]}"
+    op = f"o{uuid.uuid4().hex[:8]}"
+    await _account(session, rev, "Income")
+    await _account(session, op, "Expense")
+    await _mapped_line(
+        session, acquisition_id, period_id, rev, {"JAN 25": "100", "FEB 25": "100", "_s": "Rent"}
+    )
+    await _mapped_line(
+        session, acquisition_id, period_id, op, {"JAN 25": "30", "FEB 25": "30", "_s": "Utils"}
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+    await budget_service.lock(session, acquisition_id, by="kurtis")  # locked stabilized = (200, 60)
+
+    rev_only = ProformaInput(acquisition_id=acquisition_id, stabilized_revenue=Decimal("500"))
+    revenue, opex = await uw.effective_stabilized(session, acquisition_id, rev_only)
+    assert revenue == Decimal("500") and opex == Decimal("60")  # manual rev + locked opex
+
+    both = ProformaInput(
+        acquisition_id=acquisition_id,
+        stabilized_revenue=Decimal("500"),
+        stabilized_opex=Decimal("99"),
+    )
+    r2, o2 = await uw.effective_stabilized(session, acquisition_id, both)
+    assert r2 == Decimal("500") and o2 == Decimal("99")  # full manual override wins

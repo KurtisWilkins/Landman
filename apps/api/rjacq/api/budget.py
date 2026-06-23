@@ -44,7 +44,15 @@ async def patch_budget(
     principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
 ) -> BudgetDoc:
     """Edit one year-one cell (flips it to a human override)."""
-    return await budget_service.patch_cell(session, acquisition_id, body, actor=principal.user_id)
+    try:
+        return await budget_service.patch_cell(
+            session, acquisition_id, body, actor=principal.user_id
+        )
+    except budget_service.BudgetError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": {"code": exc.code, "message": exc.message}},
+        ) from exc
 
 
 @router.post("/acquisitions/{acquisition_id}/budget/lock", response_model=BudgetDoc)
