@@ -84,8 +84,10 @@ describe("ProformaTab", () => {
 
   it("sends loan_amount + growth overrides in the PUT when set", async () => {
     renderTab();
-    // Wait for the form to seed (LTV default present) before editing the optional fields.
-    await waitFor(() => expect(screen.getByLabelText("LTV")).toHaveValue(65));
+    // Wait for the GET inputs/defaults to resolve so the seed effect has run — otherwise it fires
+    // after we type and resets the form, wiping the edits. (LTV=65 shows on the first render from
+    // the in-code defaults, so it's not a reliable "seeded" signal; the results table is.)
+    await screen.findByText("Levered CF");
     fireEvent.change(screen.getByLabelText("Loan amount"), { target: { value: "7000000" } });
     fireEvent.change(screen.getByLabelText("Revenue growth"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: /save & recompute/i }));
