@@ -60,19 +60,25 @@ async def noi_bridge_totals(session: AsyncSession, acquisition_id: str) -> tuple
 async def effective_stabilized(
     session: AsyncSession, acquisition_id: str, inp: ProformaInput | None
 ) -> tuple[Decimal | None, Decimal | None]:
-    """Stabilized revenue/opex by precedence: a manual override on the inputs wins; else a LOCKED
-    year-one budget rollup; else the GL-mapped P&L's NOI bridge (extraction-first). No fabrication:
-    with none of those, returns None. If no budget is locked, behavior is unchanged from before."""
+    """Stabilized revenue/opex by precedence: a full manual override wins; else a LOCKED year-one
+    budget rollup; else the GL-mapped P&L's NOI bridge (extraction-first) — with any *single* manual
+    value overriding just its field, so a manual revenue keeps the rolled-up opex instead of zeroing
+    it. No fabrication: with none of those, returns None."""
     saved_rev = inp.stabilized_revenue if inp is not None else None
     saved_opex = inp.stabilized_opex if inp is not None else None
-    if saved_rev is not None:  # manual override wins entirely
-        return saved_rev, (saved_opex if saved_opex is not None else _ZERO)
+    if saved_rev is not None and saved_opex is not None:  # full manual override wins
+        return saved_rev, saved_opex
     locked = await budget_service.locked_stabilized(session, acquisition_id)
+    base_rev: Decimal | None
+    base_opex: Decimal | None
     if locked is not None:  # a locked budget feeds stabilized NOI
-        return locked
-    bridge_rev, bridge_opex = await noi_bridge_totals(session, acquisition_id)
-    revenue = bridge_rev if bridge_rev > 0 else None
-    opex = bridge_opex if revenue is not None else None
+        base_rev, base_opex = locked
+    else:
+        bridge_rev, bridge_opex = await noi_bridge_totals(session, acquisition_id)
+        base_rev = bridge_rev if bridge_rev > 0 else None
+        base_opex = bridge_opex if base_rev is not None else None
+    revenue = saved_rev if saved_rev is not None else base_rev
+    opex = saved_opex if saved_opex is not None else base_opex
     return revenue, opex
 
 

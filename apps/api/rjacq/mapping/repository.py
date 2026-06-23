@@ -64,6 +64,8 @@ async def find_learned(
     stmt = select(GLMappingLearned).where(GLMappingLearned.seller_phrase == seller_phrase)
     if source_seller is not None:
         stmt = stmt.where(GLMappingLearned.source_seller == source_seller)
+    else:
+        stmt = stmt.where(GLMappingLearned.source_seller.is_(None))  # global only, not any seller's
     return (await session.execute(stmt)).scalars().first()
 
 

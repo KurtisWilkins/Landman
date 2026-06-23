@@ -369,6 +369,7 @@ export function useConfirmMapping(acquisitionId: string) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "mapping"] });
+      _invalidateBudgetAndDerived(qc, acquisitionId); // mapping changes shift actuals + readiness
     },
   });
 }
@@ -386,6 +387,7 @@ export function useSplitMapping(acquisitionId: string) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "mapping"] });
+      _invalidateBudgetAndDerived(qc, acquisitionId); // mapping changes shift actuals + readiness
     },
   });
 }

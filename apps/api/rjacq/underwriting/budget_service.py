@@ -98,7 +98,7 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
         sources.setdefault(bl.account_code, set()).add(bl.source)
         overridden[bl.account_code] = overridden.get(bl.account_code, False) or bl.is_overridden
         if bl.note:
-            notes[bl.account_code] = bl.note
+            notes.setdefault(bl.account_code, bl.note)  # one note per account; keep first seen
 
     def sort_key(code: str) -> tuple[int, str]:
         acct = accounts.get(code)
@@ -238,6 +238,10 @@ async def patch_cell(
     line = (await session.execute(stmt)).scalars().first()
     now = datetime.now(UTC)
     if line is None:
+        # A new cell must target a real GL account (FK), else commit would 500. Reject early.
+        known_codes = {a.account_code for a in await mapping_repo.list_accounts(session)}
+        if body.account_code not in known_codes:
+            raise BudgetError("invalid_account", f"Unknown GL account {body.account_code}.")
         line = BudgetLine(
             budget_line_id=_new_id("bl"),
             acquisition_id=acquisition_id,
@@ -268,10 +272,13 @@ async def readiness(session: AsyncSession, acquisition_id: str) -> tuple[int, in
         for bl in await _lines(session, acquisition_id)
         if bl.source == BudgetSource.PLACEHOLDER.value and not bl.is_overridden
     )
+    # Split parents are non-counted containers (account_code NULL by design) — exclude them, or a
+    # split would block the lock forever. build_review() excludes them the same way.
+    split_parents = await mapping_repo.split_parent_ids(session, acquisition_id)
     unmapped = sum(
         1
         for line in await mapping_repo.list_lines(session, acquisition_id)
-        if line.account_code is None
+        if line.account_code is None and line.line_id not in split_parents
     )
     return placeholders, unmapped
 
