@@ -90,6 +90,28 @@ def test_list_acquisitions_phase_filter(migrated_db: str, client: TestClient) ->
     assert acquisition_id not in other
 
 
+def test_archive_and_restore(migrated_db: str, client: TestClient) -> None:
+    acquisition_id = _create(client, f"Archive Test {uuid.uuid4().hex[:6]}")
+
+    # Archive → leaves the active pipeline, appears in the archived view (never hard-deleted).
+    r = client.post(f"/acquisitions/{acquisition_id}/archive", headers=ADMIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["metadata"]["archived"] is True
+    active = {d["acquisition_id"] for d in client.get("/acquisitions", headers=ADMIN).json()}
+    assert acquisition_id not in active
+    archived = {
+        d["acquisition_id"] for d in client.get("/acquisitions?archived=true", headers=ADMIN).json()
+    }
+    assert acquisition_id in archived
+
+    # Restore → back in the pipeline.
+    r = client.post(f"/acquisitions/{acquisition_id}/restore", headers=ADMIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["metadata"]["archived"] is False
+    active = {d["acquisition_id"] for d in client.get("/acquisitions", headers=ADMIN).json()}
+    assert acquisition_id in active
+
+
 def test_get_acquisition_returns_metadata_and_market(migrated_db: str, client: TestClient) -> None:
     name = f"Detail Test {uuid.uuid4().hex[:6]}"
     acquisition_id = _create(client, name)

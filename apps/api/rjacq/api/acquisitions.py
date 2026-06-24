@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
@@ -62,15 +63,20 @@ log = get_logger("acquisitions")
 async def list_acquisitions(
     phase: Phase | None = Query(default=None),
     status_filter: AcquisitionStatus | None = Query(default=None, alias="status"),
+    archived: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> list[AcquisitionSummary]:
-    """Pipeline list, filterable by phase/status (newest first)."""
+    """Pipeline list, filterable by phase/status (newest first). Excludes archived deals unless
+    ``archived=true`` (the archived view)."""
     stmt = select(Acquisition).order_by(Acquisition.created_at.desc())
     if phase is not None:
         stmt = stmt.where(Acquisition.current_phase == phase)
     if status_filter is not None:
         stmt = stmt.where(Acquisition.status == status_filter)
+    stmt = stmt.where(
+        Acquisition.archived_at.isnot(None) if archived else Acquisition.archived_at.is_(None)
+    )
     acquisitions = (await session.execute(stmt)).scalars().all()
     return [
         AcquisitionSummary(
@@ -83,6 +89,7 @@ async def list_acquisitions(
             site_count=d.site_count,
             city=d.city,
             state=d.state,
+            archived=d.archived_at is not None,
             # Gate scoring is Phase 4; no blocking-gate count yet (never invented).
             blocking_gate_count=0,
             # Headline returns for comparison (null until the acquisition has a computed pro forma).
@@ -252,6 +259,7 @@ async def _acquisition_document(
             date_received=acquisition.date_received,
             current_phase=acquisition.current_phase,
             status=acquisition.status,
+            archived=acquisition.archived_at is not None,
             thesis=acquisition.thesis,
             notes=acquisition.notes,
         ),
@@ -352,6 +360,39 @@ async def update_acquisition(
         await underwriting.save_inputs_and_recompute(session, acquisition_id, {})
     else:
         await session.commit()
+    return await _acquisition_document(session, acquisition)
+
+
+@router.post("/acquisitions/{acquisition_id}/archive", response_model=AcquisitionDocument)
+async def archive_acquisition(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> AcquisitionDocument:
+    """Archive a deal: move it out of the active pipeline (soft-delete). Never hard-deletes — it
+    stays fully recoverable via restore. ``status`` is preserved. Idempotent."""
+    acquisition = await _require_acquisition(session, acquisition_id)
+    if acquisition.archived_at is None:
+        acquisition.archived_at = datetime.now(UTC)
+        acquisition.archived_by = principal.user_id
+        await session.commit()
+        log.info("acquisition.archived", acquisition_id=acquisition_id, by=principal.user_id)
+    return await _acquisition_document(session, acquisition)
+
+
+@router.post("/acquisitions/{acquisition_id}/restore", response_model=AcquisitionDocument)
+async def restore_acquisition(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> AcquisitionDocument:
+    """Restore an archived deal back into the pipeline (status unchanged). Idempotent."""
+    acquisition = await _require_acquisition(session, acquisition_id)
+    if acquisition.archived_at is not None:
+        acquisition.archived_at = None
+        acquisition.archived_by = None
+        await session.commit()
+        log.info("acquisition.restored", acquisition_id=acquisition_id, by=principal.user_id)
     return await _acquisition_document(session, acquisition)
 
 

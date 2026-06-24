@@ -31,11 +31,40 @@ type Phase = components["schemas"]["Phase"];
 type FeedbackStatus = components["schemas"]["FeedbackStatus"];
 type SuggestionStatus = components["schemas"]["SuggestionStatus"];
 
-export function usePipeline(filters?: { phase?: Phase }) {
-  const qs = filters?.phase ? `?phase=${filters.phase}` : "";
+export function usePipeline(filters?: { phase?: Phase; archived?: boolean }) {
+  const params = new URLSearchParams();
+  if (filters?.phase) params.set("phase", filters.phase);
+  if (filters?.archived) params.set("archived", "true");
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return useQuery({
     queryKey: ["acquisitions", filters ?? {}],
     queryFn: () => apiFetch<AcquisitionSummary[]>(`/acquisitions${qs}`),
+  });
+}
+
+export function useArchiveAcquisition() {
+  // Soft-delete: move a deal out of the pipeline (recoverable). Never hard-deletes.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (acquisitionId: string) =>
+      apiFetch<unknown>(`/acquisitions/${acquisitionId}/archive`, { method: "POST" }),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ["acquisitions"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", id] });
+    },
+  });
+}
+
+export function useRestoreAcquisition() {
+  // Restore an archived deal back into the pipeline (status unchanged).
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (acquisitionId: string) =>
+      apiFetch<unknown>(`/acquisitions/${acquisitionId}/restore`, { method: "POST" }),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ["acquisitions"] });
+      qc.invalidateQueries({ queryKey: ["acquisition", id] });
+    },
   });
 }
 

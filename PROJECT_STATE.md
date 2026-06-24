@@ -58,8 +58,10 @@ NOI**. See `DECISIONS.md` D-8…D-11.
   suggestions await §14 C-20 (Voyage/Claude providers); until then it does learned + manual.
 - **Budget** (`underwriting/budget*.py`, `BudgetTab`): each canonical GL's prior-year actuals
   (computed on read from `raw_payload`) beside the editable year-one cells (stored in
-  `budget_lines`), with $/% variance and a provenance badge (actuals / default / to review /
-  edited). Collapsed annual; expand for the month-by-month view.
+  `budget_lines`). Two-column annual grid: **both columns editable** (prior-year correctable;
+  year-one defaults to prior), provenance badge (actuals / default / to review / custom / edited),
+  TurboTax-style add/remove of GL or custom (flagged) lines, and a live NOI roll-up
+  (pure `budget.roll_up`).
 - **Defaults engine** (`underwriting/budget_defaults.py`, pure): Shield (fixed, overrides),
   marketing (two lines), PPC (two-line formula). Rates + target GL codes are config; **no-op until
   configured** so nothing is guessed.
@@ -68,7 +70,8 @@ NOI**. See `DECISIONS.md` D-8…D-11.
 
 ### Budget endpoints
 `GET/PUT /gl-accounts` (chart picker) · `POST /acquisitions/{id}/mapping/confirm|split` ·
-`GET /acquisitions/{id}/budget` · `PATCH …/budget` (cell edit) · `POST …/budget/seed|lock|unlock`.
+`GET /acquisitions/{id}/budget` · `POST`/`PATCH …/budget/line` · `DELETE …/budget/line/{id}` ·
+`POST …/budget/seed|lock|unlock`. Archive: `POST …/archive|restore` · `GET /acquisitions?archived=true`.
 
 ## Shipped
 
@@ -87,6 +90,17 @@ NOI**. See `DECISIONS.md` D-8…D-11.
 10. **#51 / #52** — budget model + grid (prior-year beside editable year-one).
 11. **#53** — budget lock + flow-through to stabilized NOI.
 12. **#54** — budget defaults engine (Shield / marketing / PPC).
+
+**Recent (PRs #56–#63), deployed through `c2c36e6`:**
+13. **#56** — full RJourney GL chart seeded (169 accounts) + defaults wired to the chart codes.
+14. **#57** — over/under review loop on the budget grid.
+15. **#58** — correctness fixes from an adversarial multi-agent review (8 confirmed bugs).
+16. **#59 / #61** — green-main test fixes; `rjacq-seed` console-script entry point.
+17. **#60** — ProformaTab seed-effect fast-edit fix.
+18. **#62** — **two-column GL grid**: editable prior + year-one, add/remove GL/custom lines, pure
+    NOI roll-up. _(migration `f3a4b5c6d7e8`)_
+19. **#63** — **deal archive** (soft-delete): `archived_at` + restore, ⋯ menu + archived view; no
+    hard-delete. _(migration `a7b8c9d0e1f2`)_
 
 ## Pending
 
