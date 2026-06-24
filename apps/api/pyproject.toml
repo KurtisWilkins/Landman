@@ -37,6 +37,10 @@ dev = [
     "types-python-jose>=3.3",
 ]
 
+[project.scripts]
+# The Container Apps seed job runs `rjacq-seed` (apps/api/.../seeds/load.py:main).
+rjacq-seed = "rjacq.seeds.load:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

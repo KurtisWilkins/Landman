@@ -84,5 +84,10 @@ async def run() -> None:
     log.info("seed.complete", gl_accounts_added=gl, gate_questions_added=gq)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point (``rjacq-seed``) — what the Container Apps seed job runs."""
     asyncio.run(run())
+
+
+if __name__ == "__main__":
+    main()
