@@ -108,8 +108,8 @@ export interface paths {
         };
         /**
          * Get Budget
-         * @description The prior-year-vs-year-one budget: each GL's prior-year actuals (read-only, computed)
-         *     beside the editable year-one projection, month by month, with variance + provenance.
+         * @description The two-column prior-year / year-one grid: each line's prior actuals (editable, defaults to
+         *     the mapped P&L) beside the editable year-one projection, with provenance + the NOI roll-up.
          */
         get: operations["get_budget_acquisitions__acquisition_id__budget_get"];
         put?: never;
@@ -117,11 +117,51 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/budget/line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         /**
-         * Patch Budget
-         * @description Edit one year-one cell (flips it to a human override).
+         * Add Budget Line
+         * @description Add a row — a canonical GL or a custom (flagged) line item.
          */
-        patch: operations["patch_budget_acquisitions__acquisition_id__budget_patch"];
+        post: operations["add_budget_line_acquisitions__acquisition_id__budget_line_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Budget Line
+         * @description Edit a line's prior and/or year-one amount.
+         */
+        patch: operations["patch_budget_line_acquisitions__acquisition_id__budget_line_patch"];
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/budget/line/{line_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Budget Line
+         * @description Remove a row (custom → deleted; GL → dropped from year-one, prior kept).
+         */
+        delete: operations["remove_budget_line_acquisitions__acquisition_id__budget_line__line_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/acquisitions/{acquisition_id}/budget/lock": {
@@ -156,7 +196,7 @@ export interface paths {
         put?: never;
         /**
          * Seed Budget
-         * @description Prefill year-one from the mapped prior-year actuals (idempotent; never clobbers edits).
+         * @description Prefill annual rows from the mapped prior-year actuals + the defaults engine (idempotent).
          */
         post: operations["seed_budget_acquisitions__acquisition_id__budget_seed_post"];
         delete?: never;
@@ -1118,20 +1158,6 @@ export interface components {
             /** Unit Type */
             unit_type?: string | null;
         };
-        /**
-         * BudgetCellUpdate
-         * @description PATCH /acquisitions/{id}/budget — edit one year-one cell (flips it to an override).
-         */
-        BudgetCellUpdate: {
-            /** Account Code */
-            account_code: string;
-            /** Month Index */
-            month_index: number;
-            /** Note */
-            note?: string | null;
-            /** Year1 Amount */
-            year1_amount?: number | string | null;
-        };
         /** BudgetDoc */
         BudgetDoc: {
             /**
@@ -1151,26 +1177,76 @@ export interface components {
             unmapped_count: number;
         };
         /**
+         * BudgetLineCreate
+         * @description Add a row: a canonical GL (account_code) or a custom line (custom_label + section).
+         */
+        BudgetLineCreate: {
+            /** Account Code */
+            account_code?: string | null;
+            /** Custom Label */
+            custom_label?: string | null;
+            /** Prior Amount */
+            prior_amount?: number | string | null;
+            /** Section */
+            section?: string | null;
+            /** Year1 Amount */
+            year1_amount?: number | string | null;
+        };
+        /**
+         * BudgetLinePatch
+         * @description Edit a line's prior and/or year-one amount (by line_id, or by account_code for a
+         *     not-yet-seeded GL row). Year-one edits flip the line to a human override.
+         */
+        BudgetLinePatch: {
+            /** Account Code */
+            account_code?: string | null;
+            /** Line Id */
+            line_id?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Prior Amount */
+            prior_amount?: number | string | null;
+            /** Year1 Amount */
+            year1_amount?: number | string | null;
+        };
+        /**
          * BudgetRow
-         * @description One canonical GL: prior-year actuals (read-only, computed) beside the editable year-one
-         *     projection, month by month, with variance and provenance.
+         * @description One grid line: a canonical GL or a custom line, with an editable prior-year and year-one
+         *     amount + provenance for each column.
          */
         BudgetRow: {
             /** Account Code */
-            account_code: string;
+            account_code?: string | null;
+            /** Custom Label */
+            custom_label?: string | null;
+            /**
+             * Flagged For Promotion
+             * @default false
+             */
+            flagged_for_promotion: boolean;
             /**
              * Is Overridden
              * @default false
              */
             is_overridden: boolean;
+            /** Line Id */
+            line_id?: string | null;
             /** Name */
             name: string;
             /** Note */
             note?: string | null;
             /** Prior Annual */
             prior_annual: string;
-            /** Prior Months */
-            prior_months?: (string | null)[];
+            /**
+             * Prior Overridden
+             * @default false
+             */
+            prior_overridden: boolean;
+            /**
+             * Removed
+             * @default false
+             */
+            removed: boolean;
             /** Section */
             section?: string | null;
             /** Source */
@@ -1181,8 +1257,6 @@ export interface components {
             var_pct?: string | null;
             /** Year1 Annual */
             year1_annual: string;
-            /** Year1 Months */
-            year1_months?: (string | null)[];
         };
         /** BudgetTotals */
         BudgetTotals: {
@@ -3007,7 +3081,7 @@ export interface operations {
             };
         };
     };
-    patch_budget_acquisitions__acquisition_id__budget_patch: {
+    add_budget_line_acquisitions__acquisition_id__budget_line_post: {
         parameters: {
             query?: never;
             header?: {
@@ -3020,9 +3094,188 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BudgetCellUpdate"];
+                "application/json": components["schemas"]["BudgetLineCreate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_budget_line_acquisitions__acquisition_id__budget_line_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetLinePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_budget_line_acquisitions__acquisition_id__budget_line__line_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

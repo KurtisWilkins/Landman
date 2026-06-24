@@ -1,4 +1,4 @@
-"""Year-one budget endpoints (design doc §5.5, §9)."""
+"""Year-one budget endpoints (design doc §5.5, §9) — the two-column annual grid."""
 
 from __future__ import annotations
 
@@ -8,11 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.auth import Principal, get_current_principal
 from ..core.db import get_session
 from ..core.rbac import Capability, require
-from ..schemas.budget import BudgetCellUpdate, BudgetDoc
+from ..schemas.budget import BudgetDoc, BudgetLineCreate, BudgetLinePatch
 from ..underwriting import budget_service
 from ..underwriting import service as underwriting
 
 router = APIRouter(tags=["budget"])
+
+
+def _bad_request(exc: budget_service.BudgetError) -> HTTPException:
+    code = (
+        status.HTTP_404_NOT_FOUND if exc.code == "line_not_found" else status.HTTP_400_BAD_REQUEST
+    )
+    return HTTPException(
+        status_code=code, detail={"error": {"code": exc.code, "message": exc.message}}
+    )
 
 
 @router.get("/acquisitions/{acquisition_id}/budget", response_model=BudgetDoc)
@@ -21,8 +30,8 @@ async def get_budget(
     session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(get_current_principal),
 ) -> BudgetDoc:
-    """The prior-year-vs-year-one budget: each GL's prior-year actuals (read-only, computed)
-    beside the editable year-one projection, month by month, with variance + provenance."""
+    """The two-column prior-year / year-one grid: each line's prior actuals (editable, defaults to
+    the mapped P&L) beside the editable year-one projection, with provenance + the NOI roll-up."""
     return await budget_service.get_budget(session, acquisition_id)
 
 
@@ -32,27 +41,54 @@ async def seed_budget(
     session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
 ) -> BudgetDoc:
-    """Prefill year-one from the mapped prior-year actuals (idempotent; never clobbers edits)."""
+    """Prefill annual rows from the mapped prior-year actuals + the defaults engine (idempotent)."""
     return await budget_service.seed_budget(session, acquisition_id)
 
 
-@router.patch("/acquisitions/{acquisition_id}/budget", response_model=BudgetDoc)
-async def patch_budget(
+@router.post("/acquisitions/{acquisition_id}/budget/line", response_model=BudgetDoc)
+async def add_budget_line(
     acquisition_id: str,
-    body: BudgetCellUpdate,
+    body: BudgetLineCreate,
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
 ) -> BudgetDoc:
-    """Edit one year-one cell (flips it to a human override)."""
+    """Add a row — a canonical GL or a custom (flagged) line item."""
     try:
-        return await budget_service.patch_cell(
+        return await budget_service.add_line(session, acquisition_id, body, actor=principal.user_id)
+    except budget_service.BudgetError as exc:
+        raise _bad_request(exc) from exc
+
+
+@router.patch("/acquisitions/{acquisition_id}/budget/line", response_model=BudgetDoc)
+async def patch_budget_line(
+    acquisition_id: str,
+    body: BudgetLinePatch,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> BudgetDoc:
+    """Edit a line's prior and/or year-one amount."""
+    try:
+        return await budget_service.patch_line(
             session, acquisition_id, body, actor=principal.user_id
         )
     except budget_service.BudgetError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": {"code": exc.code, "message": exc.message}},
-        ) from exc
+        raise _bad_request(exc) from exc
+
+
+@router.delete("/acquisitions/{acquisition_id}/budget/line/{line_id}", response_model=BudgetDoc)
+async def remove_budget_line(
+    acquisition_id: str,
+    line_id: str,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> BudgetDoc:
+    """Remove a row (custom → deleted; GL → dropped from year-one, prior kept)."""
+    try:
+        return await budget_service.remove_line(
+            session, acquisition_id, line_id, actor=principal.user_id
+        )
+    except budget_service.BudgetError as exc:
+        raise _bad_request(exc) from exc
 
 
 @router.post("/acquisitions/{acquisition_id}/budget/lock", response_model=BudgetDoc)

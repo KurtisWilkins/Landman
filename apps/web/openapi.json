@@ -1022,53 +1022,6 @@
         "title": "Booking",
         "type": "object"
       },
-      "BudgetCellUpdate": {
-        "description": "PATCH /acquisitions/{id}/budget \u2014 edit one year-one cell (flips it to an override).",
-        "properties": {
-          "account_code": {
-            "title": "Account Code",
-            "type": "string"
-          },
-          "month_index": {
-            "maximum": 12.0,
-            "minimum": 1.0,
-            "title": "Month Index",
-            "type": "integer"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "year1_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Year1 Amount"
-          }
-        },
-        "required": [
-          "account_code",
-          "month_index"
-        ],
-        "title": "BudgetCellUpdate",
-        "type": "object"
-      },
       "BudgetDoc": {
         "properties": {
           "placeholder_count": {
@@ -1103,17 +1056,191 @@
         "title": "BudgetDoc",
         "type": "object"
       },
-      "BudgetRow": {
-        "description": "One canonical GL: prior-year actuals (read-only, computed) beside the editable year-one\nprojection, month by month, with variance and provenance.",
+      "BudgetLineCreate": {
+        "description": "Add a row: a canonical GL (account_code) or a custom line (custom_label + section).",
         "properties": {
           "account_code": {
-            "title": "Account Code",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Code"
+          },
+          "custom_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Label"
+          },
+          "prior_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Amount"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "year1_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year1 Amount"
+          }
+        },
+        "title": "BudgetLineCreate",
+        "type": "object"
+      },
+      "BudgetLinePatch": {
+        "description": "Edit a line's prior and/or year-one amount (by line_id, or by account_code for a\nnot-yet-seeded GL row). Year-one edits flip the line to a human override.",
+        "properties": {
+          "account_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Code"
+          },
+          "line_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "prior_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior Amount"
+          },
+          "year1_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year1 Amount"
+          }
+        },
+        "title": "BudgetLinePatch",
+        "type": "object"
+      },
+      "BudgetRow": {
+        "description": "One grid line: a canonical GL or a custom line, with an editable prior-year and year-one\namount + provenance for each column.",
+        "properties": {
+          "account_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Code"
+          },
+          "custom_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Label"
+          },
+          "flagged_for_promotion": {
+            "default": false,
+            "title": "Flagged For Promotion",
+            "type": "boolean"
           },
           "is_overridden": {
             "default": false,
             "title": "Is Overridden",
             "type": "boolean"
+          },
+          "line_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Id"
           },
           "name": {
             "title": "Name",
@@ -1135,20 +1262,15 @@
             "title": "Prior Annual",
             "type": "string"
           },
-          "prior_months": {
-            "items": {
-              "anyOf": [
-                {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Prior Months",
-            "type": "array"
+          "prior_overridden": {
+            "default": false,
+            "title": "Prior Overridden",
+            "type": "boolean"
+          },
+          "removed": {
+            "default": false,
+            "title": "Removed",
+            "type": "boolean"
           },
           "section": {
             "anyOf": [
@@ -1186,25 +1308,9 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Year1 Annual",
             "type": "string"
-          },
-          "year1_months": {
-            "items": {
-              "anyOf": [
-                {
-                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Year1 Months",
-            "type": "array"
           }
         },
         "required": [
-          "account_code",
           "name",
           "source",
           "prior_annual",
@@ -6362,7 +6468,7 @@
     },
     "/acquisitions/{acquisition_id}/budget": {
       "get": {
-        "description": "The prior-year-vs-year-one budget: each GL's prior-year actuals (read-only, computed)\nbeside the editable year-one projection, month by month, with variance + provenance.",
+        "description": "The two-column prior-year / year-one grid: each line's prior actuals (editable, defaults to\nthe mapped P&L) beside the editable year-one projection, with provenance + the NOI roll-up.",
         "operationId": "get_budget_acquisitions__acquisition_id__budget_get",
         "parameters": [
           {
@@ -6477,10 +6583,12 @@
         "tags": [
           "budget"
         ]
-      },
+      }
+    },
+    "/acquisitions/{acquisition_id}/budget/line": {
       "patch": {
-        "description": "Edit one year-one cell (flips it to a human override).",
-        "operationId": "patch_budget_acquisitions__acquisition_id__budget_patch",
+        "description": "Edit a line's prior and/or year-one amount.",
+        "operationId": "patch_budget_line_acquisitions__acquisition_id__budget_line_patch",
         "parameters": [
           {
             "in": "path",
@@ -6512,7 +6620,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BudgetCellUpdate"
+                "$ref": "#/components/schemas/BudgetLinePatch"
               }
             }
           },
@@ -6600,7 +6708,262 @@
             "description": "Not Implemented"
           }
         },
-        "summary": "Patch Budget",
+        "summary": "Patch Budget Line",
+        "tags": [
+          "budget"
+        ]
+      },
+      "post": {
+        "description": "Add a row \u2014 a canonical GL or a custom (flagged) line item.",
+        "operationId": "add_budget_line_acquisitions__acquisition_id__budget_line_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "acquisition_id",
+            "required": true,
+            "schema": {
+              "title": "Acquisition Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetLineCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDoc"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Add Budget Line",
+        "tags": [
+          "budget"
+        ]
+      }
+    },
+    "/acquisitions/{acquisition_id}/budget/line/{line_id}": {
+      "delete": {
+        "description": "Remove a row (custom \u2192 deleted; GL \u2192 dropped from year-one, prior kept).",
+        "operationId": "remove_budget_line_acquisitions__acquisition_id__budget_line__line_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "acquisition_id",
+            "required": true,
+            "schema": {
+              "title": "Acquisition Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "line_id",
+            "required": true,
+            "schema": {
+              "title": "Line Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDoc"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Remove Budget Line",
         "tags": [
           "budget"
         ]
@@ -6727,7 +7090,7 @@
     },
     "/acquisitions/{acquisition_id}/budget/seed": {
       "post": {
-        "description": "Prefill year-one from the mapped prior-year actuals (idempotent; never clobbers edits).",
+        "description": "Prefill annual rows from the mapped prior-year actuals + the defaults engine (idempotent).",
         "operationId": "seed_budget_acquisitions__acquisition_id__budget_seed_post",
         "parameters": [
           {

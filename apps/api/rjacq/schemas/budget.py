@@ -1,4 +1,4 @@
-"""Year-one budget schemas (design doc §5.5, §9)."""
+"""Year-one budget schemas (design doc §5.5, §9) — the two-column annual grid."""
 
 from __future__ import annotations
 
@@ -8,20 +8,23 @@ from pydantic import BaseModel, Field
 
 
 class BudgetRow(BaseModel):
-    """One canonical GL: prior-year actuals (read-only, computed) beside the editable year-one
-    projection, month by month, with variance and provenance."""
+    """One grid line: a canonical GL or a custom line, with an editable prior-year and year-one
+    amount + provenance for each column."""
 
-    account_code: str
+    line_id: str | None = None  # None for a prior-actuals row not yet stored (created on edit)
+    account_code: str | None = None  # None for a custom (non-GL) line
+    custom_label: str | None = None
     name: str
-    section: str | None = None
-    source: str  # actuals | default | placeholder | mixed
-    prior_months: list[Decimal | None] = Field(default_factory=list)  # 12 calendar months
-    year1_months: list[Decimal | None] = Field(default_factory=list)  # 12 calendar months
+    section: str | None = None  # Income | Expense | (other)
+    source: str  # actuals | default | placeholder | custom | edited (year-one provenance)
     prior_annual: Decimal
     year1_annual: Decimal
     var_abs: Decimal
     var_pct: Decimal | None = None
-    is_overridden: bool = False
+    is_overridden: bool = False  # year-one edited
+    prior_overridden: bool = False  # prior edited (corrects an upload)
+    removed: bool = False  # dropped from the year-one projection (prior kept as reference)
+    flagged_for_promotion: bool = False  # custom line to add to the GL chart later
     note: str | None = None
 
 
@@ -42,10 +45,22 @@ class BudgetDoc(BaseModel):
     unmapped_count: int = 0  # seller lines still unmapped (block the lock)
 
 
-class BudgetCellUpdate(BaseModel):
-    """PATCH /acquisitions/{id}/budget — edit one year-one cell (flips it to an override)."""
+class BudgetLinePatch(BaseModel):
+    """Edit a line's prior and/or year-one amount (by line_id, or by account_code for a
+    not-yet-seeded GL row). Year-one edits flip the line to a human override."""
 
-    account_code: str
-    month_index: int = Field(ge=1, le=12)  # calendar month; out-of-range cells would be dropped
+    line_id: str | None = None
+    account_code: str | None = None
+    prior_amount: Decimal | None = None
     year1_amount: Decimal | None = None
     note: str | None = None
+
+
+class BudgetLineCreate(BaseModel):
+    """Add a row: a canonical GL (account_code) or a custom line (custom_label + section)."""
+
+    account_code: str | None = None
+    custom_label: str | None = None
+    section: str | None = None  # required for a custom line: Income | Expense
+    prior_amount: Decimal | None = None
+    year1_amount: Decimal | None = None
