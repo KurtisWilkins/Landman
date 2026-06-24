@@ -119,7 +119,14 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
         section = bl.section or (acct.section if acct else None)
         placement = _placement(bl, acct)
         name = (acct.name if acct else None) or bl.custom_label or (bl.account_code or "—")
-        source = "edited" if bl.is_overridden else bl.source
+        # A custom line keeps its "custom" provenance even when edited; otherwise an edit shows
+        # "edited" over the stored source.
+        if bl.source == BudgetSource.CUSTOM.value:
+            source = BudgetSource.CUSTOM.value
+        elif bl.is_overridden:
+            source = "edited"
+        else:
+            source = bl.source
         v_abs, v_pct = variance(prior_val, _ZERO if bl.removed else year1_val)
         rows.append(
             BudgetRow(
