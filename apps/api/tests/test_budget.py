@@ -13,9 +13,15 @@ from rjacq.models.acquisitions import Acquisition
 from rjacq.models.enums import AccountLevel, AcquisitionStatus, NoiPlacement, Phase, PropertyType
 from rjacq.models.financials import FinancialLine, FinancialPeriod
 from rjacq.models.reference import GLAccount
-from rjacq.schemas.budget import BudgetCellUpdate
+from rjacq.schemas.budget import BudgetLineCreate, BudgetLinePatch
 from rjacq.underwriting import budget_service
-from rjacq.underwriting.budget import bucket_line_months, month_index_of, variance
+from rjacq.underwriting.budget import (
+    GridLine,
+    bucket_line_months,
+    month_index_of,
+    roll_up,
+    variance,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # ── pure math ────────────────────────────────────────────────────────────────
@@ -40,14 +46,30 @@ def test_variance() -> None:
     assert abs_var == Decimal("100") and pct_var is None  # new line → no %
 
 
-def test_budget_cell_month_index_bounds() -> None:
-    from pydantic import ValidationError
+def test_roll_up_two_columns() -> None:
+    lines = [
+        GridLine("above", False, Decimal("420000"), Decimal("441000")),  # revenue
+        GridLine("above", False, Decimal("38500"), Decimal("40000")),  # revenue
+        GridLine("above", True, Decimal("96000"), Decimal("99000")),  # expense
+        GridLine("above", True, Decimal("41300"), Decimal("43000")),  # expense
+        GridLine("below", True, Decimal("80000"), Decimal("80000")),  # debt service — excluded
+        GridLine("non_operating", True, Decimal("5000"), Decimal("0")),  # excluded
+    ]
+    t = roll_up(lines)
+    assert t.prior_revenue == Decimal("458500") and t.year1_revenue == Decimal("481000")
+    assert t.prior_expense == Decimal("137300") and t.year1_expense == Decimal("142000")
+    assert t.prior_noi == Decimal("321200") and t.year1_noi == Decimal("339000")
 
-    BudgetCellUpdate(account_code="6000", month_index=1)  # valid
-    BudgetCellUpdate(account_code="6000", month_index=12)  # valid
-    for bad in (0, 13, -1):
-        with pytest.raises(ValidationError):
-            BudgetCellUpdate(account_code="6000", month_index=bad)  # out of 1..12 → rejected
+
+def test_roll_up_removed_row_drops_year_one_keeps_prior() -> None:
+    # A row removed from the year-one projection passes year1=0 but keeps its prior (reference).
+    lines = [
+        GridLine("above", False, Decimal("100"), Decimal("110")),
+        GridLine("above", True, Decimal("30"), Decimal("0")),  # expense removed from year one
+    ]
+    t = roll_up(lines)
+    assert t.prior_expense == Decimal("30") and t.year1_expense == Decimal("0")
+    assert t.prior_noi == Decimal("70") and t.year1_noi == Decimal("110")
 
 
 # ── service (real Postgres) ───────────────────────────────────────────────────
@@ -132,15 +154,13 @@ async def test_seed_prefills_year_one_from_actuals(session: AsyncSession) -> Non
     doc = await budget_service.get_budget(session, acquisition_id)
     row = next(r for r in doc.rows if r.account_code == code)
     assert row.source == "actuals"
-    assert row.prior_months[0] == Decimal("100")  # Jan prior
-    assert row.year1_months[0] == Decimal("100")  # prefilled from actuals
-    assert row.prior_annual == Decimal("250")
-    assert row.year1_annual == Decimal("250")
+    assert row.prior_annual == Decimal("250")  # Jan 100 + Feb 150
+    assert row.year1_annual == Decimal("250")  # year-one defaults to prior
     assert row.var_abs == Decimal("0")
     assert doc.totals.year1_revenue == Decimal("250")
 
 
-async def test_patch_cell_flips_override(session: AsyncSession) -> None:
+async def test_patch_line_edits_both_columns(session: AsyncSession) -> None:
     acquisition_id, period_id = await _acquisition(session)
     code = f"a{uuid.uuid4().hex[:8]}"
     await _account(session, code, "Income")
@@ -149,19 +169,77 @@ async def test_patch_cell_flips_override(session: AsyncSession) -> None:
     )
     await budget_service.seed_budget(session, acquisition_id)
 
-    await budget_service.patch_cell(
+    # Year-one edit flips the override; prior stays the uploaded actual.
+    await budget_service.patch_line(
         session,
         acquisition_id,
-        BudgetCellUpdate(account_code=code, month_index=1, year1_amount=Decimal("500")),
+        BudgetLinePatch(account_code=code, year1_amount=Decimal("500")),
+        actor="kurtis",
+    )
+    row = next(
+        r
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.account_code == code
+    )
+    assert row.year1_annual == Decimal("500") and row.is_overridden is True
+    assert row.prior_annual == Decimal("100") and row.prior_overridden is False
+
+    # Prior is editable too (correct an upload error); the override wins.
+    await budget_service.patch_line(
+        session,
+        acquisition_id,
+        BudgetLinePatch(account_code=code, prior_amount=Decimal("120")),
+        actor="kurtis",
+    )
+    row = next(
+        r
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.account_code == code
+    )
+    assert row.prior_annual == Decimal("120") and row.prior_overridden is True
+
+
+async def test_add_and_remove_custom_line(session: AsyncSession) -> None:
+    acquisition_id, _period_id = await _acquisition(session)
+    # A custom revenue line rolls into the year-one revenue total and is flagged for promotion.
+    await budget_service.add_line(
+        session,
+        acquisition_id,
+        BudgetLineCreate(
+            custom_label="Pickleball fees", section="Income", year1_amount=Decimal("12000")
+        ),
         actor="kurtis",
     )
     doc = await budget_service.get_budget(session, acquisition_id)
+    row = next(r for r in doc.rows if r.custom_label == "Pickleball fees")
+    assert row.account_code is None and row.flagged_for_promotion is True
+    assert row.source == "custom" and row.year1_annual == Decimal("12000")
+    assert doc.totals.year1_revenue == Decimal("12000")
+
+    # Removing a custom line deletes it outright.
+    doc = await budget_service.remove_line(session, acquisition_id, row.line_id, actor="kurtis")
+    assert not any(r.custom_label == "Pickleball fees" for r in doc.rows)
+
+
+async def test_remove_gl_line_keeps_prior_drops_year_one(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, "Expense")
+    await _mapped_line(
+        session, acquisition_id, period_id, code, {"JAN 25": "300", "_seller_line": "Repairs"}
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+    line_id = next(
+        r.line_id
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.account_code == code
+    )
+
+    doc = await budget_service.remove_line(session, acquisition_id, line_id, actor="kurtis")
     row = next(r for r in doc.rows if r.account_code == code)
-    assert row.year1_months[0] == Decimal("500")  # edited
-    assert row.year1_annual == Decimal("500")
-    assert row.is_overridden is True
-    # Prior year (read-only) is unchanged.
-    assert row.prior_months[0] == Decimal("100")
+    assert row.removed is True
+    assert row.prior_annual == Decimal("300")  # prior kept as reference
+    assert doc.totals.year1_opex == Decimal("0")  # dropped from year-one
 
 
 # ── lock + flow-through ───────────────────────────────────────────────────────
@@ -235,10 +313,10 @@ async def test_edit_invalidates_lock(session: AsyncSession) -> None:
     await budget_service.lock(session, acquisition_id, by="kurtis")
     assert (await budget_service.get_budget(session, acquisition_id)).status == "locked"
 
-    await budget_service.patch_cell(
+    await budget_service.patch_line(
         session,
         acquisition_id,
-        BudgetCellUpdate(account_code=code, month_index=1, year1_amount=Decimal("999")),
+        BudgetLinePatch(account_code=code, year1_amount=Decimal("999")),
         actor="kurtis",
     )
     assert (await budget_service.get_budget(session, acquisition_id)).status == "draft"
@@ -263,14 +341,14 @@ async def test_seed_applies_shield_default(
     assert row.year1_annual == Decimal("12000")  # $1,000/mo × 12
 
 
-async def test_patch_cell_rejects_unknown_account(session: AsyncSession) -> None:
-    """A cell for a GL that isn't in the chart is a 400 (BudgetError), not an FK 500 at commit."""
+async def test_patch_line_rejects_unknown_account(session: AsyncSession) -> None:
+    """Editing a GL that isn't in the chart is a 400 (BudgetError), not an FK 500 at commit."""
     acquisition_id, _ = await _acquisition(session)
     with pytest.raises(budget_service.BudgetError):
-        await budget_service.patch_cell(
+        await budget_service.patch_line(
             session,
             acquisition_id,
-            BudgetCellUpdate(account_code="nope", month_index=1, year1_amount=Decimal("5")),
+            BudgetLinePatch(account_code="nope", year1_amount=Decimal("5")),
             actor="kurtis",
         )
 

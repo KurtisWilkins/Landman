@@ -274,7 +274,8 @@ export function useSaveWaterfallTiers(acquisitionId: string) {
 }
 
 type BudgetDoc = Schemas["BudgetDoc"];
-type BudgetCellUpdate = Schemas["BudgetCellUpdate"];
+type BudgetLinePatch = Schemas["BudgetLinePatch"];
+type BudgetLineCreate = Schemas["BudgetLineCreate"];
 
 export function useBudget(acquisitionId: string) {
   // Prior-year-vs-year-one budget: prior actuals (computed) beside the editable year-one cells.
@@ -294,16 +295,41 @@ export function useSeedBudget(acquisitionId: string) {
   });
 }
 
-export function usePatchBudgetCell(acquisitionId: string) {
-  // Edit one year-one cell → flips it to a human override.
+export function usePatchBudgetLine(acquisitionId: string) {
+  // Edit a line's prior and/or year-one amount → flips year-one to a human override.
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: BudgetCellUpdate) =>
-      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget`, {
+    mutationFn: (body: BudgetLinePatch) =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/line`, {
         method: "PATCH",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "budget"] }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+
+export function useAddBudgetLine(acquisitionId: string) {
+  // Add a row: a canonical GL or a custom (flagged) line item.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BudgetLineCreate) =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/line`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+
+export function useRemoveBudgetLine(acquisitionId: string) {
+  // Remove a row (custom → deleted; GL → dropped from year-one, prior kept).
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: string) =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/line/${lineId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
   });
 }
 

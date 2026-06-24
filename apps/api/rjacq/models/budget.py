@@ -36,8 +36,13 @@ class Budget(Base):
 
 
 class BudgetLine(Base):
-    """One editable year-one cell: (acquisition, account, month) → amount + provenance. Prior-year
-    is NOT stored here — it's computed on read from the mapped actuals."""
+    """One budget line (annual): a canonical GL OR a custom line item, with an editable prior-year
+    and year-one amount + provenance. Prior-year defaults to the mapped actuals (computed on read)
+    but can be overridden via ``prior_amount`` to correct an upload error. ``month_index`` is kept
+    for back-compat and is 0 for an annual line. Custom (non-GL) lines have ``account_code`` NULL,
+    a ``custom_label``, and a ``section`` so they still roll up; ``flagged_for_promotion`` marks
+    them to add to the GL chart later. A line ``removed`` from the year-one projection keeps its
+    prior value as reference (Q3) but contributes 0 to the year-one totals."""
 
     __tablename__ = "budget_lines"
     __table_args__ = (
@@ -48,11 +53,15 @@ class BudgetLine(Base):
     acquisition_id: Mapped[str] = mapped_column(
         ForeignKey("acquisitions.acquisition_id"), nullable=False
     )
-    account_code: Mapped[str] = mapped_column(
-        ForeignKey("gl_accounts.account_code"), nullable=False
-    )
-    month_index: Mapped[int] = mapped_column(Integer, nullable=False)  # 1..12 (calendar month)
+    # NULL for a custom (non-GL) line; otherwise a canonical GL.
+    account_code: Mapped[str | None] = mapped_column(ForeignKey("gl_accounts.account_code"))
+    custom_label: Mapped[str | None] = mapped_column(String)  # free-text name for a custom line
+    section: Mapped[str | None] = mapped_column(String)  # Income | Expense (esp. for custom lines)
+    flagged_for_promotion: Mapped[bool] = mapped_column(default=False, nullable=False)
+    month_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 = annual line
+    prior_amount: Mapped[Decimal | None] = mapped_column(Numeric)  # override of the mapped actual
     year1_amount: Mapped[Decimal | None] = mapped_column(Numeric)
+    removed: Mapped[bool] = mapped_column(default=False, nullable=False)  # out of year-one
     source: Mapped[str] = mapped_column(String, nullable=False)  # actuals | default | placeholder
     default_rule_key: Mapped[str | None] = mapped_column(String)  # ties a row to a defaults rule
     is_overridden: Mapped[bool] = mapped_column(default=False, nullable=False)

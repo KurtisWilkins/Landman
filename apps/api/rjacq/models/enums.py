@@ -143,6 +143,7 @@ class BudgetSource(str, enum.Enum):
     ACTUALS = "actuals"  # from the mapped prior-year P&L
     DEFAULT = "default"  # from the defaults engine (our number, not the seller's)
     PLACEHOLDER = "placeholder"  # to review — neither actuals nor a default covers it
+    CUSTOM = "custom"  # a user-added line item (not in the GL chart yet)
 
 
 class BudgetStatus(str, enum.Enum):
