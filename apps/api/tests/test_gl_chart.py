@@ -26,3 +26,10 @@ def test_noi_placement_by_range() -> None:
     assert by["800000"]["default_noi_placement"] == "non_operating"
     assert by["600225"]["default_noi_placement"] == "above" and by["600225"]["section"] == "Expense"
     assert by["400105"]["default_noi_placement"] == "above" and by["400105"]["section"] == "Income"
+
+
+def test_seed_entry_point_target_exists() -> None:
+    # The `rjacq-seed` console script (the Container Apps seed job) points at this callable.
+    from rjacq.seeds.load import main
+
+    assert callable(main)
