@@ -41,6 +41,10 @@ class Acquisition(Base):
     )
     thesis: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Soft-delete: archived deals leave the active pipeline but are never hard-deleted (recoverable
+    # via restore). NULL = active. ``status`` (active/failed/…) is orthogonal and preserved.
+    archived_at: Mapped[datetime | None] = mapped_column()
+    archived_by: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()
 

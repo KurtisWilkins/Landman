@@ -13,7 +13,8 @@ export interface paths {
         };
         /**
          * List Acquisitions
-         * @description Pipeline list, filterable by phase/status (newest first).
+         * @description Pipeline list, filterable by phase/status (newest first). Excludes archived deals unless
+         *     ``archived=true`` (the archived view).
          */
         get: operations["list_acquisitions_acquisitions_get"];
         put?: never;
@@ -77,6 +78,27 @@ export interface paths {
          *     downstream). Only fields present in the body are applied; the rest are untouched.
          */
         patch: operations["update_acquisition_acquisitions__acquisition_id__patch"];
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Acquisition
+         * @description Archive a deal: move it out of the active pipeline (soft-delete). Never hard-deletes — it
+         *     stays fully recoverable via restore. ``status`` is preserved. Idempotent.
+         */
+        post: operations["archive_acquisition_acquisitions__acquisition_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/acquisitions/{acquisition_id}/assumptions": {
@@ -498,6 +520,26 @@ export interface paths {
         get: operations["get_proforma_monthly_acquisitions__acquisition_id__proforma_monthly_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Acquisition
+         * @description Restore an archived deal back into the pipeline (status unchanged). Idempotent.
+         */
+        post: operations["restore_acquisition_acquisitions__acquisition_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -967,6 +1009,11 @@ export interface components {
         /** AcquisitionMetadata */
         AcquisitionMetadata: {
             address?: components["schemas"]["Address"] | null;
+            /**
+             * Archived
+             * @default false
+             */
+            archived: boolean;
             /** Ask Price */
             ask_price?: string | null;
             current_phase: components["schemas"]["Phase"];
@@ -1033,6 +1080,11 @@ export interface components {
         AcquisitionSummary: {
             /** Acquisition Id */
             acquisition_id: string;
+            /**
+             * Archived
+             * @default false
+             */
+            archived: boolean;
             /** Ask Price */
             ask_price?: string | null;
             /**
@@ -2464,6 +2516,7 @@ export interface operations {
             query?: {
                 phase?: components["schemas"]["Phase"] | null;
                 status?: components["schemas"]["AcquisitionStatus"] | null;
+                archived?: boolean;
             };
             header?: {
                 authorization?: string | null;
@@ -2828,6 +2881,93 @@ export interface operations {
                 "application/json": components["schemas"]["AcquisitionUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcquisitionDocument"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    archive_acquisition_acquisitions__acquisition_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -4968,6 +5108,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProformaMonthlyResults"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    restore_acquisition_acquisitions__acquisition_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcquisitionDocument"];
                 };
             };
             /** @description Bad Request */

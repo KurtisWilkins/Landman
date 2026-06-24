@@ -48,6 +48,7 @@ class AcquisitionMetadata(BaseModel):
     date_received: date | None = None
     current_phase: Phase
     status: AcquisitionStatus
+    archived: bool = False  # soft-deleted: out of the pipeline, recoverable
     thesis: str | None = None
     notes: str | None = None
 
@@ -102,6 +103,7 @@ class AcquisitionSummary(ApiModel):
     site_count: int | None = None
     city: str | None = None
     state: str | None = None
+    archived: bool = False  # soft-deleted: out of the pipeline, recoverable
     blocking_gate_count: int = 0
     returns: AcquisitionReturns | None = None  # headline returns for at-a-glance comparison
 

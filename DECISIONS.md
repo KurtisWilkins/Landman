@@ -8,6 +8,46 @@ Newest first.
 
 ---
 
+## 2026-06-24 — Two-column GL grid + deal archive (PRs #62, #63)
+
+### D-12 — Underwriting grid: two editable columns, annual, add/remove line items
+
+**Decision.** The Budget tab is a two-column annual grid — prior-year beside year-one — and **both
+columns are editable** (correct an upload error or move an expense), not a read-only prior.
+
+- **Prior stays provenance-aware**: prior defaults to the mapped P&L actual (badge `actuals`); an
+  edit stores a `prior_amount` override (badge `edited`) but the uploaded value is still derivable
+  from `FinancialLine.raw_payload`, so history isn't destroyed. Year-one defaults to prior.
+- **Annual, not monthly**: the grid (and `budget_lines`) is now one row per line. Nothing downstream
+  consumed budget-monthly (the 60-month cash flow comes from the pro-forma engine), so the
+  month-by-month drill-down was folded away; it can return later. A guarded migration
+  (`f3a4b5c6d7e8`) collapses any pre-existing per-month rows to annual.
+- **TurboTax add/remove**: `+ Add line item` per section inserts a canonical GL **or** a custom
+  free-text line. Custom lines have `account_code = NULL` + a `custom_label` + `section`, and are
+  **`flagged_for_promotion`** to add to the GL chart later. The × **removes**: a custom line is
+  hard-deleted; a GL/actuals line is `removed` from the year-one projection but **keeps its prior as
+  reference** (drops from the year-one total only). Remove confirms when the row has data.
+- **NOI roll-up is a pure, unit-tested function** (`budget.roll_up`): TOTAL REVENUE / TOTAL EXPENSES
+  → NOI for both columns, above-the-line only — it reconciles with the downstream stabilized NOI
+  bridge by construction. New API: `POST` / `PATCH /budget/line` + `DELETE /budget/line/{id}`.
+
+### D-13 — Deal archive: soft-delete via an `archived_at` flag, never hard-delete
+
+**Decision.** Archiving is a **separate `archived_at` timestamp** on `acquisitions`, orthogonal to
+`status` — not a new `ARCHIVED` status value. There is **no hard-delete** anywhere in the UI.
+
+- **Why the flag, not the enum:** archiving is independent of deal status (a deal can be
+  active-but-archived); a flag preserves the real status, makes restore trivial (clear the flag),
+  and is the canonical soft-delete. Migration `a7b8c9d0e1f2` (additive / nullable).
+- The pipeline list **excludes archived** by default (`archived_at IS NULL`);
+  `GET /acquisitions?archived=true` is the archived view. `POST …/archive` sets the flag +
+  `archived_by`; `POST …/restore` clears it (status untouched). Both idempotent, gated on
+  `ACQUISITION_WRITE`.
+- UI: a ⋯ menu on each pipeline row (Archive, with confirm) + an "Archived" toggle that lists the
+  archived deals with Restore.
+
+---
+
 ## 2026-06-22 — Underwriting page: GL mapping + budget + defaults (PRs #48–#54)
 
 Built the acquisition Underwriting page: upload → GL mapping → prior-year-vs-year-one budget →
