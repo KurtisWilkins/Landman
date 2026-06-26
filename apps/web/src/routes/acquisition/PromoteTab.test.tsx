@@ -72,7 +72,12 @@ const RESULT = {
 
 const DEAL = {
   acquisition_id: "dl_1",
-  metadata: { name: "Horseshoe Bend RV Resort", current_phase: "initial_uw", status: "active" },
+  metadata: {
+    name: "Horseshoe Bend RV Resort",
+    current_phase: "initial_uw",
+    status: "active",
+    purchase_price: "428571429",
+  },
   market: { rings: [] },
 };
 
@@ -133,6 +138,11 @@ describe("PromoteTab — pro-forma-fed", () => {
     expect(screen.getAllByText("RJourney Equity").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Fund 21/)).not.toBeInTheDocument();
     expect(screen.getByText("$16,015,117")).toBeInTheDocument();
+
+    // The acquisition basis (price/equity/debt/LTV) flows in from the pro forma and is displayed.
+    expect(screen.getByText(/Acquisition basis/)).toBeInTheDocument();
+    expect(screen.getByText("$278,571,429")).toBeInTheDocument(); // debt = price − equity
+    expect(screen.getByText("65.0%")).toBeInTheDocument(); // implied LTV = 1 − equity/price
 
     // Banner indicates pro-forma sourcing; the return-case equity field is hidden.
     expect(screen.getByText(/Cash flows are sourced/)).toBeInTheDocument();

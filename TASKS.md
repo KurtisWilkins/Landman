@@ -49,8 +49,16 @@ _Last updated: 2026-06-24._
       benefits/dates) → pure cost engine → feeds budget Wages cluster (work campers → extended-stay
       revenue + campsite credit) → NOI → pro forma. Default staffing + the "Labor" tab UI.
       _(#65 backend + migration `b8c9d0e1f2a3`, #66 UI)_
+- [x] **Flow-through UI** (web-only) — Labor positions get a **Name** field (person filling the
+      role); Pro forma shows the **year-1 stabilized (rev/opex/NOI) from the Budget**; Promote shows
+      the **acquisition basis (price/equity/debt/LTV) from the pro forma**. No API change.
 
 ## Next
+
+- [ ] **(Optional) Draft budget → pro forma without locking** — today the year-1 budget feeds the
+      computed pro forma only when the budget is **locked** (`effective_stabilized`: manual > locked
+      budget > P&L bridge, D-11). The Pro forma card now shows draft year-1 for reference but the
+      calc still uses the bridge until lock. Decide whether a draft budget should drive the calc.
 
 - [ ] **Deploy to Azure** — prod is live at SHA `b3e4ae4` (grid + archive applied). The next deploy
       applies the labor migration `b8c9d0e1f2a3` (additive), then rolls api/worker/web + re-runs the
