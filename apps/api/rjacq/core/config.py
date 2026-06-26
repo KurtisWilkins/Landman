@@ -132,6 +132,17 @@ class Settings(BaseSettings):
     ppc_google_account_code: str | None = "600225"  # Pay-Per-Click
     ppc_intercompany_account_code: str | None = "600225"  # Pay-Per-Click (combined on one GL)
 
+    # ── Labor plan (§5.5 Labor tab) ────────────────────────────────────
+    # Loads are [DECISION] numbers → None until set (no-op, never guessed). GL targets are wired
+    # from the RJourney chart (§8.5).
+    labor_benefits_monthly_per_employee: Decimal | None = None  # flat $/eligible employee/mo
+    labor_payroll_tax_pct: Decimal | None = None  # fraction of cash wages (e.g. 0.10)
+    labor_wages_account_code: str | None = "600140"  # Payroll Expenses
+    labor_benefits_account_code: str | None = "600130"  # Employee Health Benefits
+    labor_payroll_tax_account_code: str | None = "600155"  # Payroll Tax Expense
+    labor_extended_stay_account_code: str | None = "400110"  # RV Extended Stay (work campers)
+    labor_work_camper_credit_account_code: str | None = "421300"  # Work Camper Campsite Credit
+
     # ── Reference data ─────────────────────  TODO(decision: §14 B-13/A-8/A-9)
     # The full ~235-line GL chart and the re-mastered DD/gate question sets are not yet
     # finalized. Seeds load the §8.5 excerpt now; the full chart loads from this path

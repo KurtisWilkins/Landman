@@ -294,6 +294,40 @@ async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     return await get_budget(session, acquisition_id)
 
 
+async def apply_labor(
+    session: AsyncSession, acquisition_id: str, amounts: dict[str, Decimal], *, actor: str | None
+) -> None:
+    """Write the Labor tab's computed year-one onto its GL budget lines (source=labor). Never
+    clobbers a human override; FK-safe (skips GLs not in the chart). Caller commits."""
+    await _ensure_header(session, acquisition_id)
+    known = await _accounts(session)
+    by_account = {
+        bl.account_code: bl for bl in await _lines(session, acquisition_id) if bl.account_code
+    }
+    for code, amount in amounts.items():
+        if code not in known:
+            continue
+        line = by_account.get(code)
+        if line is None:
+            line = BudgetLine(
+                budget_line_id=_new_id("bl"),
+                acquisition_id=acquisition_id,
+                account_code=code,
+                month_index=0,
+                year1_amount=amount,
+                section=known[code].section,
+                source=BudgetSource.LABOR.value,
+                default_rule_key="labor",
+            )
+            session.add(line)
+            by_account[code] = line
+        elif not line.is_overridden:  # a deliberate manual edit wins over the labor feed
+            line.year1_amount = amount
+            line.source = BudgetSource.LABOR.value
+            line.default_rule_key = "labor"
+    _invalidate_lock(await _header(session, acquisition_id))
+
+
 async def _resolve_line(
     session: AsyncSession, acquisition_id: str, *, line_id: str | None, account_code: str | None
 ) -> BudgetLine | None:

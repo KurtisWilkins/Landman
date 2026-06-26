@@ -144,6 +144,7 @@ class BudgetSource(str, enum.Enum):
     DEFAULT = "default"  # from the defaults engine (our number, not the seller's)
     PLACEHOLDER = "placeholder"  # to review — neither actuals nor a default covers it
     CUSTOM = "custom"  # a user-added line item (not in the GL chart yet)
+    LABOR = "labor"  # computed from the Labor tab's staffing plan
 
 
 class BudgetStatus(str, enum.Enum):

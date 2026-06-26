@@ -333,6 +333,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/labor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Labor
+         * @description The deal's staffing plan: positions + the rolled-up labor totals (feeds the budget Wages
+         *     cluster) and prior-year labor from the mapped P&L.
+         */
+        get: operations["get_labor_acquisitions__acquisition_id__labor_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/labor/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Position
+         * @description Add a position to the plan.
+         */
+        post: operations["add_position_acquisitions__acquisition_id__labor_position_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Position
+         * @description Edit a position.
+         */
+        patch: operations["patch_position_acquisitions__acquisition_id__labor_position_patch"];
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/labor/position/{position_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Position
+         * @description Remove a position from the plan.
+         */
+        delete: operations["remove_position_acquisitions__acquisition_id__labor_position__position_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/labor/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seed Labor
+         * @description Seed the default staffing scenario (idempotent).
+         */
+        post: operations["seed_labor_acquisitions__acquisition_id__labor_seed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/mapping": {
         parameters: {
             query?: never;
@@ -1785,6 +1870,144 @@ export interface components {
         IntegrationUpdate: {
             /** Value */
             value: string;
+        };
+        /** LaborDoc */
+        LaborDoc: {
+            /** Positions */
+            positions?: components["schemas"]["LaborPositionRow"][];
+            totals: components["schemas"]["LaborTotalsOut"];
+        };
+        /** LaborPositionCreate */
+        LaborPositionCreate: {
+            /** Benefits Eligible */
+            benefits_eligible?: boolean | null;
+            /** Campsite Credit Weekly */
+            campsite_credit_weekly?: number | string | null;
+            /** Employment Type */
+            employment_type?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Headcount */
+            headcount?: number | null;
+            /** Hourly Rate */
+            hourly_rate?: number | string | null;
+            /** Hours Per Week */
+            hours_per_week?: number | string | null;
+            /** Is Work Camper */
+            is_work_camper?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Role */
+            role: string;
+            /** Season */
+            season?: string | null;
+            /** Site Weekly Rate */
+            site_weekly_rate?: number | string | null;
+            /** Start Date */
+            start_date?: string | null;
+        };
+        /** LaborPositionPatch */
+        LaborPositionPatch: {
+            /** Benefits Eligible */
+            benefits_eligible?: boolean | null;
+            /** Campsite Credit Weekly */
+            campsite_credit_weekly?: number | string | null;
+            /** Employment Type */
+            employment_type?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Headcount */
+            headcount?: number | null;
+            /** Hourly Rate */
+            hourly_rate?: number | string | null;
+            /** Hours Per Week */
+            hours_per_week?: number | string | null;
+            /** Is Work Camper */
+            is_work_camper?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Position Id */
+            position_id: string;
+            /** Role */
+            role?: string | null;
+            /** Season */
+            season?: string | null;
+            /** Site Weekly Rate */
+            site_weekly_rate?: number | string | null;
+            /** Start Date */
+            start_date?: string | null;
+        };
+        /**
+         * LaborPositionRow
+         * @description One planned position with its computed weeks + cash wages (work campers draw $0 cash).
+         */
+        LaborPositionRow: {
+            /**
+             * Benefits Eligible
+             * @default false
+             */
+            benefits_eligible: boolean;
+            /** Campsite Credit Weekly */
+            campsite_credit_weekly?: string | null;
+            /** Employment Type */
+            employment_type: string;
+            /** End Date */
+            end_date?: string | null;
+            /**
+             * Headcount
+             * @default 1
+             */
+            headcount: number;
+            /** Hourly Rate */
+            hourly_rate?: string | null;
+            /** Hours Per Week */
+            hours_per_week?: string | null;
+            /**
+             * Is Work Camper
+             * @default false
+             */
+            is_work_camper: boolean;
+            /** Label */
+            label?: string | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note?: string | null;
+            /** Position Id */
+            position_id: string;
+            /** Role */
+            role: string;
+            /** Season */
+            season: string;
+            /** Site Weekly Rate */
+            site_weekly_rate?: string | null;
+            /** Start Date */
+            start_date?: string | null;
+            /** Wages */
+            wages: string;
+            /** Weeks */
+            weeks: string;
+        };
+        /** LaborTotalsOut */
+        LaborTotalsOut: {
+            /** Benefits */
+            benefits: string;
+            /** Extended Stay Revenue */
+            extended_stay_revenue: string;
+            /** Payroll Tax */
+            payroll_tax: string;
+            /** Prior Labor */
+            prior_labor: string;
+            /** Total Cash Labor */
+            total_cash_labor: string;
+            /** Wages */
+            wages: string;
+            /** Work Camper Credit */
+            work_camper_credit: string;
         };
         /**
          * MapConfidence
@@ -4131,6 +4354,450 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FinancialPeriodVersion"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_labor_acquisitions__acquisition_id__labor_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaborDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    add_position_acquisitions__acquisition_id__labor_position_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaborPositionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaborDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_position_acquisitions__acquisition_id__labor_position_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LaborPositionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaborDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_position_acquisitions__acquisition_id__labor_position__position_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+                position_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaborDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    seed_labor_acquisitions__acquisition_id__labor_seed_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LaborDoc"];
                 };
             };
             /** @description Bad Request */
