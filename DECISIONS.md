@@ -8,6 +8,28 @@ Newest first.
 
 ---
 
+## 2026-06-24 — Labor tab (PRs #65, #66)
+
+### D-14 — Labor plan feeds the budget Wages cluster (+ a work-camper revenue/discount model)
+
+**Decision.** A per-deal **Labor tab** lays out staffing positions; a pure engine rolls them into GL
+dollars that drive the budget's year-one Wages lines — so labor flows **budget → NOI → pro forma →
+promote**. Prior-year labor is read from the mapped P&L.
+
+- **Flat-lined cost:** wages = hours/week × rate × `active_weeks` (from start/end; FT defaults 40h,
+  PT 20h). Week-by-week tuning is a later refinement.
+- **Benefits = flat $/eligible employee/month** (config) → GL 600130; **payroll tax = % of wages**
+  (config) → GL 600155; **base wages** → GL 600140. The two loads are `[DECISION]`, None-until-set.
+- **Work camper = no cash wage.** Comp is the campsite, modeled as **extended-stay revenue (400110)**
+  offset by a **Work Camper Campsite Credit (421300)** stored **negative** (contra-revenue): net
+  revenue impact = site value − credit. Site rate + credit are per-position.
+- **Budget feed** (`budget_service.apply_labor`): writes the five GL year-one values with
+  `source=labor`, **never clobbers a human budget override**, FK-safe; editing labor re-feeds and
+  invalidates the budget lock. **Default staffing**: 1 GM + 1 front desk + 1 maintenance (FT) + 1
+  part-time of the latter two; rates entered per deal.
+
+---
+
 ## 2026-06-24 — Two-column GL grid + deal archive (PRs #62, #63)
 
 ### D-12 — Underwriting grid: two editable columns, annual, add/remove line items
