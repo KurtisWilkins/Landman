@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
+  useBudget,
   useProforma,
   useProformaInputs,
   useProformaMonthly,
@@ -122,6 +123,38 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+/**
+ * Read-only "flow-in" card: the year-1 revenue / opex / NOI from the Budget tab. These feed the
+ * computed pro forma when the budget is locked (precedence: manual override → locked budget →
+ * mapped P&L bridge); a draft budget is shown for reference but the calc uses the bridge until lock.
+ */
+function BudgetStabilized({ totals, status }: { totals: Schemas["BudgetTotals"]; status: string }) {
+  const locked = status === "locked";
+  const stat = (label: string, value: string | number | null | undefined) => (
+    <div>
+      <dt className="opacity-60">{label}</dt>
+      <dd className="font-figure text-sm">{fmtUsd(value)}</dd>
+    </div>
+  );
+  return (
+    <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium uppercase tracking-wide opacity-70">
+          Year-1 stabilized — from the Budget
+        </span>
+        <span className={locked ? "text-brand" : "opacity-60"}>
+          {locked ? "locked · drives the pro forma" : "draft · lock to apply"}
+        </span>
+      </div>
+      <dl className="mt-2 grid grid-cols-3 gap-2">
+        {stat("Revenue", totals.year1_revenue)}
+        {stat("OpEx", totals.year1_opex)}
+        {stat("NOI", totals.year1_noi)}
+      </dl>
+    </div>
+  );
+}
+
 /** Drop null entries so saved values override defaults but absent ones keep the default. */
 function stripNulls(obj: Inputs): Partial<Inputs> {
   return Object.fromEntries(
@@ -135,6 +168,7 @@ export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
   const { data: saved } = inputsQuery;
   const { data: uwDefaults } = defaultsQuery;
   const { data: results } = useProforma(acquisitionId);
+  const { data: budget } = useBudget(acquisitionId);
   const save = useSaveProformaInputs(acquisitionId);
   const [form, setForm] = useState<Inputs>(DEFAULTS);
   // Fields the user has edited; the seed effect must not clobber these even if the GETs land late.
@@ -180,6 +214,7 @@ export function ProformaTab({ acquisitionId }: { acquisitionId: string }) {
           from the purchase price (entered on Underwriting). Edit and save to recompute; the promote
           uses the resulting equity cash flows.
         </p>
+        {budget?.totals && <BudgetStabilized totals={budget.totals} status={budget.status} />}
         <Panel title="Stabilized NOI (year 1)">
           <Field
             label="Revenue"

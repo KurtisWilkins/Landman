@@ -107,6 +107,11 @@ Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/posit
     `b8c9d0e1f2a3`)_
 21. **#66** — **Labor tab UI**: staffing-plan grid (positions, add/remove, seed default staffing) +
     the "Labor" tab; live totals → Budget.
+22. **flow-through UI** (web-only): (a) Labor positions get a **Name** field (the person filling the
+    role) shown as "Category · Name" — uses the existing `label` column; (b) Pro forma tab shows a
+    read-only **"Year-1 stabilized — from the Budget"** card (revenue/opex/NOI) flagging
+    locked-drives-calc vs draft; (c) Promote tab shows a read-only **"Acquisition basis"** card
+    (purchase price / equity / debt / LTV) sourced from the pro forma. No API/migration change.
 
 ## Pending
 

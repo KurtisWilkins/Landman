@@ -117,6 +117,39 @@ function Field({
   );
 }
 
+/**
+ * Read-only "flow-in" card: the acquisition basis (purchase price / equity / debt / LTV) the
+ * promote consumes from the pro forma. Debt + LTV show only when a pro forma sources the equity;
+ * the interim return case has equity only.
+ */
+function BasisCard({
+  basis,
+  sourced,
+}: {
+  basis: { purchasePrice: number; equity: number; debt: number; ltv: number };
+  sourced: boolean;
+}) {
+  const stat = (label: string, value: string) => (
+    <div>
+      <dt className="text-xs opacity-60">{label}</dt>
+      <dd className="font-figure text-sm">{value}</dd>
+    </div>
+  );
+  return (
+    <div className="rounded-lg border border-brand/20 bg-brand/5 p-3">
+      <span className="text-xs font-medium uppercase tracking-wide opacity-70">
+        Acquisition basis {sourced ? "— from the pro forma" : "— interim (no pro forma yet)"}
+      </span>
+      <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {stat("Purchase price", fmtUsd(basis.purchasePrice))}
+        {stat("Equity", fmtUsd(basis.equity))}
+        {stat("Debt", sourced ? fmtUsd(basis.debt) : "—")}
+        {stat("LTV", sourced ? fmtPct(basis.ltv) : "—")}
+      </dl>
+    </div>
+  );
+}
+
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="rounded-lg border border-brand/15 p-3">
@@ -181,29 +214,34 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
   const sourced = sourcedStream != null;
   const holdYears = sourcedStream ? sourcedStream.length - 1 : DEFAULT_HOLD_YEARS;
 
-  // Build the engine request: promote-specific inputs always; cash flows from the pro forma
-  // when present (cashflow_override), else from the editable return case.
-  const request = useMemo<PromoteRequest>(() => {
-    // Debt lives on the pro forma now. Derive LTV from the purchase price (entered on
-    // Underwriting) + the pro-forma equity so the engine reproduces the real purchase price for
-    // the acquisition fee + display — no debt input on this tab, engine unchanged.
+  // The acquisition basis flowing in from the pro forma: purchase price (entered on Underwriting),
+  // equity (-stream[0], the pro-forma equity_basis), debt (price − equity), and the implied LTV.
+  // These both feed the engine request and are displayed so the flow is visible on this tab.
+  const basis = useMemo(() => {
     const purchasePrice = num(
       acquisition?.metadata.purchase_price ?? acquisition?.metadata.ask_price ?? 0,
     );
     const equity = sourcedStream ? -sourcedStream[0] : returnCase.equity;
-    const ltv =
-      sourcedStream && purchasePrice > 0 && equity < purchasePrice ? 1 - equity / purchasePrice : 0;
+    const debt = purchasePrice > equity ? purchasePrice - equity : 0;
+    const ltv = purchasePrice > 0 && equity < purchasePrice ? 1 - equity / purchasePrice : 0;
+    return { purchasePrice, equity, debt, ltv };
+  }, [acquisition, sourcedStream, returnCase.equity]);
+
+  // Build the engine request: promote-specific inputs always; cash flows from the pro forma
+  // when present (cashflow_override), else from the editable return case. LTV is sized only when
+  // the pro forma sources the equity; otherwise the engine runs the fallback return case.
+  const request = useMemo<PromoteRequest>(() => {
     return {
       acquisition_name: dealName,
       start_date: inputs.start_date,
       hold_years: holdYears,
-      ltv,
+      ltv: sourced ? basis.ltv : 0,
       acquisition_fee_pct: inputs.acquisition_fee_pct,
       mgmt_fee_pct: inputs.mgmt_fee_pct,
       rjourney_coinvest_pct: inputs.rjourney_coinvest_pct,
       hurdles: inputs.hurdles,
       promotes: inputs.promotes,
-      equity,
+      equity: basis.equity,
       // Return-case fields are ignored when cashflow_override is set, but the contract requires
       // them — send the (defaulted/edited) values either way.
       yr1_distribution_pct: returnCase.yr1_distribution_pct,
@@ -211,7 +249,7 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
       exit: returnCase.exit,
       cashflow_override: sourcedStream ?? null,
     };
-  }, [acquisition, dealName, inputs, returnCase, sourcedStream, holdYears]);
+  }, [dealName, inputs, returnCase, sourcedStream, holdYears, basis, sourced]);
 
   // Live recalc: debounce edits, then POST. Runs on mount and whenever inputs/pro forma change.
   useEffect(() => {
@@ -248,6 +286,8 @@ export function PromoteTab({ acquisitionId }: { acquisitionId: string }) {
           pro forma produces cash flows, this tab switches to them automatically.
         </p>
       )}
+
+      <BasisCard basis={basis} sourced={sourced} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
         {/* ── Inputs ───────────────────────────────────────── */}

@@ -30,6 +30,8 @@ const ROLES: { value: string; label: string }[] = [
   { value: "events_coordinator", label: "Events Coordinator" },
 ];
 
+const roleLabel = (role: string) => ROLES.find((r) => r.value === role)?.label ?? role;
+
 export function LaborTab({ acquisitionId }: { acquisitionId: string }) {
   const { data, isLoading } = useLabor(acquisitionId);
   const seed = useSeedLabor(acquisitionId);
@@ -126,7 +128,10 @@ function PositionCard({ p, patch, remove }: { p: LaborPositionRow; patch: Patch;
   return (
     <div className="rounded-md border border-brand/15 p-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">{p.name}</span>
+        <span className="text-sm font-medium">
+          {roleLabel(p.role)}
+          {p.label ? <span className="opacity-60"> · {p.label}</span> : null}
+        </span>
         <div className="flex items-center gap-3">
           <span className="font-figure text-sm">
             {p.is_work_camper ? "site comp" : fmtUsd(p.wages)}
@@ -143,6 +148,11 @@ function PositionCard({ p, patch, remove }: { p: LaborPositionRow; patch: Patch;
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
+        <TextField
+          label="Name (who fills it)"
+          value={p.label}
+          onCommit={(v) => set("label", v || null)}
+        />
         <Select
           label="Type"
           value={p.employment_type}
@@ -248,6 +258,31 @@ function Select({
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onCommit: (v: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-0.5 text-xs">
+      <span className="opacity-60">{label}</span>
+      <input
+        type="text"
+        aria-label={label}
+        defaultValue={value ?? ""}
+        onBlur={(e) => {
+          if (e.target.value !== (value ?? "")) onCommit(e.target.value);
+        }}
+        className="rounded border border-brand/20 bg-surface px-2 py-1 text-sm"
+      />
     </label>
   );
 }
