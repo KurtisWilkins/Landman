@@ -72,6 +72,7 @@ NOI**. See `DECISIONS.md` D-8…D-11.
 `GET/PUT /gl-accounts` (chart picker) · `POST /acquisitions/{id}/mapping/confirm|split` ·
 `GET /acquisitions/{id}/budget` · `POST`/`PATCH …/budget/line` · `DELETE …/budget/line/{id}` ·
 `POST …/budget/seed|lock|unlock`. Archive: `POST …/archive|restore` · `GET /acquisitions?archived=true`.
+Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/position` · `DELETE …/labor/position/{id}`.
 
 ## Shipped
 
@@ -101,6 +102,11 @@ NOI**. See `DECISIONS.md` D-8…D-11.
     NOI roll-up. _(migration `f3a4b5c6d7e8`)_
 19. **#63** — **deal archive** (soft-delete): `archived_at` + restore, ⋯ menu + archived view; no
     hard-delete. _(migration `a7b8c9d0e1f2`)_
+20. **#65** — **Labor tab backend**: `labor_positions` + pure cost engine + budget feed (wages →
+    600140 / benefits 600130 / payroll-tax 600155 + work-camper 400110/421300). _(migration
+    `b8c9d0e1f2a3`)_
+21. **#66** — **Labor tab UI**: staffing-plan grid (positions, add/remove, seed default staffing) +
+    the "Labor" tab; live totals → Budget.
 
 ## Pending
 

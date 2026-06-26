@@ -387,6 +387,66 @@ export function useUnlockBudget(acquisitionId: string) {
   });
 }
 
+type LaborDoc = Schemas["LaborDoc"];
+type LaborPositionCreate = Schemas["LaborPositionCreate"];
+type LaborPositionPatch = Schemas["LaborPositionPatch"];
+
+function _invalidateLaborAndBudget(qc: ReturnType<typeof useQueryClient>, id: string) {
+  qc.invalidateQueries({ queryKey: ["acquisition", id, "labor"] });
+  _invalidateBudgetAndDerived(qc, id); // labor feeds the budget Wages cluster → NOI → proforma
+}
+
+export function useLabor(acquisitionId: string) {
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "labor"],
+    queryFn: () => apiFetch<LaborDoc>(`/acquisitions/${acquisitionId}/labor`),
+  });
+}
+
+export function useSeedLabor(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<LaborDoc>(`/acquisitions/${acquisitionId}/labor/seed`, { method: "POST" }),
+    onSuccess: () => _invalidateLaborAndBudget(qc, acquisitionId),
+  });
+}
+
+export function useAddLaborPosition(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: LaborPositionCreate) =>
+      apiFetch<LaborDoc>(`/acquisitions/${acquisitionId}/labor/position`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => _invalidateLaborAndBudget(qc, acquisitionId),
+  });
+}
+
+export function usePatchLaborPosition(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: LaborPositionPatch) =>
+      apiFetch<LaborDoc>(`/acquisitions/${acquisitionId}/labor/position`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => _invalidateLaborAndBudget(qc, acquisitionId),
+  });
+}
+
+export function useRemoveLaborPosition(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (positionId: string) =>
+      apiFetch<LaborDoc>(`/acquisitions/${acquisitionId}/labor/position/${positionId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => _invalidateLaborAndBudget(qc, acquisitionId),
+  });
+}
+
 export function useComps(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "comps"],

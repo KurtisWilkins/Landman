@@ -45,13 +45,19 @@ _Last updated: 2026-06-24._
       lines, pure NOI roll-up; annual. _(#62, migration `f3a4b5c6d7e8`)_
 - [x] **Deal archive (soft-delete)** — `archived_at` flag + restore, ⋯ menu on pipeline rows,
       archived view; no hard-delete anywhere. _(#63, migration `a7b8c9d0e1f2`)_
+- [x] **Labor tab** — per-deal staffing plan (positions: type/season/hours/rate/work-camper/
+      benefits/dates) → pure cost engine → feeds budget Wages cluster (work campers → extended-stay
+      revenue + campsite credit) → NOI → pro forma. Default staffing + the "Labor" tab UI.
+      _(#65 backend + migration `b8c9d0e1f2a3`, #66 UI)_
 
 ## Next
 
-- [ ] **Deploy to Azure** — prod is live at SHA `c2c36e6` (chart + defaults + review fixes). The next
-      deploy applies the grid + archive migrations `f3a4b5c6d7e8` + `a7b8c9d0e1f2` (both additive),
-      then rolls api/worker/web + re-runs the seed. Recipe in `docs/DEPLOYMENT.md` (build via
-      `az acr build`; web from `apps/web`).
+- [ ] **Deploy to Azure** — prod is live at SHA `b3e4ae4` (grid + archive applied). The next deploy
+      applies the labor migration `b8c9d0e1f2a3` (additive), then rolls api/worker/web + re-runs the
+      seed. Recipe in `docs/DEPLOYMENT.md` (build via `az acr build`; web from `apps/web`).
+- [ ] **Set the labor loads** — `labor_benefits_monthly_per_employee` (→600130) +
+      `labor_payroll_tax_pct` (→600155) in config. Until then benefits + payroll tax are $0; wages +
+      the work-camper revenue/credit compute fully. _Needs the figures from the user._
 - [ ] **Activate the PPC default** — set `ppc_rate` / `ppc_target_volume` / `ppc_intercompany_pct`
       in config (the account codes are already wired, #56). Until then PPC is a no-op; Shield +
       marketing are active. _Needs the PPC params from the user._
