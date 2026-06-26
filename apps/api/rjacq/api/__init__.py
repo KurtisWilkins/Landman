@@ -16,6 +16,7 @@ from . import (
     comps,
     feedback,
     gates,
+    labor,
     mapping,
     promote,
     webhooks,
@@ -26,6 +27,7 @@ api_router.include_router(auth.router)
 api_router.include_router(acquisitions.router)
 api_router.include_router(mapping.router)
 api_router.include_router(budget.router)
+api_router.include_router(labor.router)
 api_router.include_router(comps.router)
 api_router.include_router(gates.router)
 api_router.include_router(feedback.router)

@@ -17,6 +17,7 @@ from .feedback import (
 )
 from .financials import FinancialLine, FinancialPeriod
 from .gates import AcquisitionGateItem, QuestionSuggestion
+from .labor import LaborPosition
 from .market import PopulationRing
 from .property import Amenity, Booking, Unit, WeeklySummary
 from .reference import GateQuestion, GLAccount, GLMappingLearned
@@ -56,6 +57,7 @@ __all__ = [
     "ProformaSummary",
     "UnderwritingDefaults",
     "Comp",
+    "LaborPosition",
     "AcquisitionGateItem",
     "QuestionSuggestion",
     "PopulationRing",
