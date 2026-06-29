@@ -577,6 +577,18 @@ GL_ACCOUNTS: list[GLRow] = [
         "sort": 550,
         "default_noi_placement": "above",
     },
+    # Defaults-engine home (additive): a BUDGETED payroll allocation ($85/employee/mo) kept
+    # distinct from actual wages (600140) — it accrues and is not actually charged.
+    {
+        "account_code": "600145",
+        "parent_code": "600100",
+        "level": "leaf",
+        "name": "Payroll Budget Allocation",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 545,
+        "default_noi_placement": "above",
+    },
     {
         "account_code": "600200",
         "parent_code": None,
@@ -605,6 +617,17 @@ GL_ACCOUNTS: list[GLRow] = [
         "section": "Expense",
         "normal_balance": "debit",
         "sort": 580,
+        "default_noi_placement": "above",
+    },
+    # Defaults-engine home (additive): the call-center / reservations answering service ($750/mo).
+    {
+        "account_code": "600220",
+        "parent_code": "600200",
+        "level": "leaf",
+        "name": "Call Center",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 585,
         "default_noi_placement": "above",
     },
     {

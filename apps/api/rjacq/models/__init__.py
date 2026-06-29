@@ -9,6 +9,7 @@ from .app_secret import AppSecret
 from .base import Base
 from .budget import Budget, BudgetLine
 from .comps import Comp
+from .defaults import DefaultRuleConfig
 from .feedback import (
     FeedbackAttachment,
     FeedbackComment,
@@ -19,6 +20,7 @@ from .financials import FinancialLine, FinancialPeriod
 from .gates import AcquisitionGateItem, QuestionSuggestion
 from .labor import LaborPosition
 from .market import PopulationRing
+from .operating import OperationalInputs, UnitGroup
 from .property import Amenity, Booking, Unit, WeeklySummary
 from .reference import GateQuestion, GLAccount, GLMappingLearned
 from .underwriting import (
@@ -57,7 +59,10 @@ __all__ = [
     "ProformaSummary",
     "UnderwritingDefaults",
     "Comp",
+    "DefaultRuleConfig",
     "LaborPosition",
+    "OperationalInputs",
+    "UnitGroup",
     "AcquisitionGateItem",
     "QuestionSuggestion",
     "PopulationRing",

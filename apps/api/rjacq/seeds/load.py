@@ -16,6 +16,7 @@ from ..core.config import settings
 from ..core.db import SessionFactory
 from ..core.logging import configure_logging, get_logger
 from ..models import GateQuestion, GLAccount
+from ..underwriting.defaults_config import seed_rules
 from .gate_questions import GATE_QUESTIONS
 from .gl_accounts import GL_ACCOUNTS
 
@@ -80,6 +81,7 @@ async def run() -> None:
     async with SessionFactory() as session:
         gl = await seed_gl_accounts(session)
         gq = await seed_gate_questions(session)
+        await seed_rules(session)  # global default-rules config (idempotent upsert)
         await session.commit()
     log.info("seed.complete", gl_accounts_added=gl, gate_questions_added=gq)
 

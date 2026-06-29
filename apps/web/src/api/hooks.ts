@@ -582,3 +582,108 @@ export function useDecideSuggestion() {
     },
   });
 }
+
+// ── Operating inputs (defaults-engine drivers) ──────────────────────────────
+// New endpoints not yet in the generated contract, so typed here (like UploadResult).
+export type UnitGroupRow = {
+  unit_group_id: string;
+  category: string;
+  label: string | null;
+  count: number | null;
+  billable: boolean;
+  source: string;
+  sort: number | null;
+};
+export type OperatingDoc = {
+  unit_groups: UnitGroupRow[];
+  billable_unit_total: number;
+  units_need_input: boolean;
+  employee_headcount: number | null;
+  headcount_source: string;
+  headcount_needs_input: boolean;
+  electric_annual: string | null;
+  electric_source: string;
+  electric_needs_input: boolean;
+};
+export type OperatingPatch = {
+  employee_headcount?: number | null;
+  electric_annual?: number | string | null;
+  note?: string | null;
+};
+export type UnitGroupCreate = {
+  category: string;
+  label?: string | null;
+  count?: number | null;
+  billable?: boolean | null;
+};
+export type UnitGroupPatch = {
+  unit_group_id: string;
+  category?: string | null;
+  label?: string | null;
+  count?: number | null;
+  billable?: boolean | null;
+};
+
+function _invalidateOperatingAndBudget(qc: ReturnType<typeof useQueryClient>, id: string) {
+  qc.invalidateQueries({ queryKey: ["acquisition", id, "operating"] });
+  _invalidateBudgetAndDerived(qc, id); // drivers recompute the budget defaults → NOI → proforma
+}
+
+export function useOperating(acquisitionId: string) {
+  return useQuery({
+    queryKey: ["acquisition", acquisitionId, "operating"],
+    queryFn: () => apiFetch<OperatingDoc>(`/acquisitions/${acquisitionId}/operating`),
+  });
+}
+export function useSeedOperating(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<OperatingDoc>(`/acquisitions/${acquisitionId}/operating/seed`, { method: "POST" }),
+    onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
+  });
+}
+export function usePatchOperating(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OperatingPatch) =>
+      apiFetch<OperatingDoc>(`/acquisitions/${acquisitionId}/operating`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
+  });
+}
+export function useAddUnitGroup(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UnitGroupCreate) =>
+      apiFetch<OperatingDoc>(`/acquisitions/${acquisitionId}/operating/unit-group`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
+  });
+}
+export function usePatchUnitGroup(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UnitGroupPatch) =>
+      apiFetch<OperatingDoc>(`/acquisitions/${acquisitionId}/operating/unit-group`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
+  });
+}
+export function useRemoveUnitGroup(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (unitGroupId: string) =>
+      apiFetch<OperatingDoc>(
+        `/acquisitions/${acquisitionId}/operating/unit-group/${unitGroupId}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
+  });
+}

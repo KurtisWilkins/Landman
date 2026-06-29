@@ -132,6 +132,10 @@ class Settings(BaseSettings):
     ppc_google_account_code: str | None = "600225"  # Pay-Per-Click
     ppc_intercompany_account_code: str | None = "600225"  # Pay-Per-Click (combined on one GL)
 
+    # ── Operational inputs (defaults engine, Part 1) ───────────────────
+    # The Electric GL (RJourney chart §8.5) the bill-back driver seeds its prior-year value from.
+    electric_account_code: str | None = "605410"  # Electric (under Utilities 605400)
+
     # ── Labor plan (§5.5 Labor tab) ────────────────────────────────────
     # Loads are [DECISION] numbers → None until set (no-op, never guessed). GL targets are wired
     # from the RJourney chart (§8.5).
