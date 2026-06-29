@@ -185,6 +185,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
               patch={patch}
               add={add}
               remove={remove}
+              revert={revert}
             />
           )}
           {totals && (
