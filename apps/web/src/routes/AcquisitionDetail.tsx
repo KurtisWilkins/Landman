@@ -15,12 +15,14 @@ import { GLDocsTab } from "./acquisition/GLDocsTab";
 import { GatesTab } from "./acquisition/GatesTab";
 import { LaborTab } from "./acquisition/LaborTab";
 import { MarketTab } from "./acquisition/MarketTab";
+import { OperatingTab } from "./acquisition/OperatingTab";
 import { ProformaTab } from "./acquisition/ProformaTab";
 import { PromoteTab } from "./acquisition/PromoteTab";
 import { UnderwritingTab } from "./acquisition/UnderwritingTab";
 
 const TABS = [
   "Underwriting",
+  "Operating",
   "Budget",
   "Labor",
   "Pro forma",
@@ -121,6 +123,7 @@ export function AcquisitionDetail() {
 
       <div className="mt-4">
         {tab === "Underwriting" && <UnderwritingTab acquisitionId={acquisitionId} />}
+        {tab === "Operating" && <OperatingTab acquisitionId={acquisitionId} />}
         {tab === "Budget" && <BudgetTab acquisitionId={acquisitionId} />}
         {tab === "Labor" && <LaborTab acquisitionId={acquisitionId} />}
         {tab === "Pro forma" && <ProformaTab acquisitionId={acquisitionId} />}
