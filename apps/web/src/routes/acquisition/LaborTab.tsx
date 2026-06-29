@@ -17,10 +17,18 @@ import {
 import type { Schemas } from "../../api/client";
 import { fmtUsd } from "../../lib/format";
 
-type LaborPositionRow = Schemas["LaborPositionRow"];
+// `source` / `needs_wage` / `headcount` are new fields not yet in the generated contract.
+type LaborPositionRow = Schemas["LaborPositionRow"] & { source?: string; needs_wage?: boolean };
+type LaborTotals = Schemas["LaborTotalsOut"] & { headcount?: number };
 type LaborPositionPatch = Schemas["LaborPositionPatch"];
 type Patch = ReturnType<typeof usePatchLaborPosition>;
 type Remove = ReturnType<typeof useRemoveLaborPosition>;
+
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  om: { label: "from OM", cls: "bg-success/15 text-success" },
+  default: { label: "default", cls: "bg-brand/10 text-brand" },
+  manual: { label: "manual", cls: "bg-ink/10 text-ink/70" },
+};
 
 const ROLES: { value: string; label: string }[] = [
   { value: "general_manager", label: "General Manager" },
@@ -41,12 +49,30 @@ export function LaborTab({ acquisitionId }: { acquisitionId: string }) {
 
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   const positions = data?.positions ?? [];
-  const totals = data?.totals;
+  const totals = data?.totals as LaborTotals | undefined;
+  const needWage = positions.filter((p) => (p as LaborPositionRow).needs_wage).length;
 
   return (
     <div className="space-y-4">
+      {totals && (
+        <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 text-sm">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="font-medium">
+              Total headcount: <span className="font-figure">{totals.headcount}</span>
+            </span>
+            <span className="text-xs opacity-70">
+              single source of truth — feeds the Operating tab &amp; the payroll-budget default
+            </span>
+            {needWage > 0 && (
+              <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-ink">
+                ⚠ {needWage} role{needWage > 1 ? "s" : ""} need a wage
+              </span>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium">Staffing plan</span>
+        <span className="text-sm font-medium">Staffing roster</span>
         {totals && (
           <span className="text-xs opacity-70">
             Year-1 labor <span className="font-figure">{fmtUsd(totals.total_cash_labor)}</span> ·
@@ -119,90 +145,137 @@ function Line({ label, value }: { label: string; value: string | number | null }
 }
 
 function PositionCard({ p, patch, remove }: { p: LaborPositionRow; patch: Patch; remove: Remove }) {
+  const [open, setOpen] = useState(false);
   const set = (field: keyof LaborPositionPatch, value: unknown) =>
     patch.mutate({ position_id: p.position_id, [field]: value } as LaborPositionPatch);
   const onRemove = () => {
     if (window.confirm(`Remove “${p.name}”?`)) remove.mutate(p.position_id);
   };
+  const badge = SOURCE_BADGE[p.source ?? "manual"] ?? SOURCE_BADGE.manual;
 
   return (
     <div className="rounded-md border border-brand/15 p-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">
+      {/* Collapsed view: the brief's role / count / wage, plus provenance. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-label={open ? "Collapse" : "Expand"}
+          onClick={() => setOpen((v) => !v)}
+          className="w-4 text-ink/50 hover:text-ink"
+        >
+          {open ? "⌄" : "›"}
+        </button>
+        <span className="min-w-[9rem] text-sm font-medium">
           {roleLabel(p.role)}
           {p.label ? <span className="opacity-60"> · {p.label}</span> : null}
         </span>
-        <div className="flex items-center gap-3">
-          <span className="font-figure text-sm">
-            {p.is_work_camper ? "site comp" : fmtUsd(p.wages)}
-          </span>
-          <button
-            type="button"
-            aria-label={`Remove ${p.name}`}
-            onClick={onRemove}
-            className="rounded px-1 text-ink/40 hover:text-danger"
-          >
-            ×
-          </button>
-        </div>
+        <span className={`rounded px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span>
+        <label className="flex items-center gap-1 text-xs opacity-70">
+          count
+          <input
+            type="number"
+            aria-label="Count"
+            key={p.headcount}
+            defaultValue={p.headcount ?? 1}
+            onBlur={(e) => {
+              if (e.target.value === "") return;
+              const n = Number(e.target.value);
+              if (n !== p.headcount) set("headcount", n);
+            }}
+            className="w-16 rounded border border-brand/20 bg-surface px-2 py-1 font-figure text-sm"
+          />
+        </label>
+        {!p.is_work_camper && (
+          <label className="flex items-center gap-1 text-xs opacity-70">
+            $/hr
+            <input
+              type="number"
+              aria-label="Wage"
+              key={String(p.hourly_rate)}
+              defaultValue={p.hourly_rate ?? ""}
+              placeholder={p.needs_wage ? "needs wage" : ""}
+              onBlur={(e) => {
+                if (e.target.value === "") return;
+                const n = Number(e.target.value);
+                if (n !== Number(p.hourly_rate)) set("hourly_rate", n);
+              }}
+              className={`w-20 rounded border bg-surface px-2 py-1 font-figure text-sm ${
+                p.needs_wage ? "border-accent" : "border-brand/20"
+              }`}
+            />
+          </label>
+        )}
+        <span className="ml-auto font-figure text-sm">
+          {p.is_work_camper ? "site comp" : fmtUsd(p.wages)}
+        </span>
+        <button
+          type="button"
+          aria-label={`Remove ${p.name}`}
+          onClick={onRemove}
+          className="rounded px-1 text-ink/40 hover:text-danger"
+        >
+          ×
+        </button>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
-        <TextField
-          label="Name (who fills it)"
-          value={p.label}
-          onCommit={(v) => set("label", v || null)}
-        />
-        <Select
-          label="Type"
-          value={p.employment_type}
-          onChange={(v) => set("employment_type", v)}
-          options={[
-            ["full_time", "Full-time"],
-            ["part_time", "Part-time"],
-          ]}
-        />
-        <Select
-          label="Season"
-          value={p.season}
-          onChange={(v) => set("season", v)}
-          options={[
-            ["year_round", "Year-round"],
-            ["seasonal", "Seasonal"],
-          ]}
-        />
-        <Num label="Hours/wk" value={p.hours_per_week} onCommit={(n) => set("hours_per_week", n)} />
-        <Num label="Headcount" value={p.headcount} onCommit={(n) => set("headcount", n)} />
-        {!p.is_work_camper && (
-          <Num label="Rate $/hr" value={p.hourly_rate} onCommit={(n) => set("hourly_rate", n)} />
-        )}
-        <DateField label="Start" value={p.start_date} onChange={(v) => set("start_date", v)} />
-        <DateField label="End" value={p.end_date} onChange={(v) => set("end_date", v)} />
-        {p.is_work_camper && (
-          <>
-            <Num
-              label="Site $/wk"
-              value={p.site_weekly_rate}
-              onCommit={(n) => set("site_weekly_rate", n)}
-            />
-            <Num
-              label="Campsite credit $/wk"
-              value={p.campsite_credit_weekly}
-              onCommit={(n) => set("campsite_credit_weekly", n)}
-            />
-          </>
-        )}
-        <Check
-          label="Work camper"
-          checked={p.is_work_camper}
-          onChange={(c) => set("is_work_camper", c)}
-        />
-        <Check
-          label="Benefits"
-          checked={p.benefits_eligible}
-          onChange={(c) => set("benefits_eligible", c)}
-        />
-      </div>
+      {open && (
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4">
+          <TextField
+            label="Name (who fills it)"
+            value={p.label}
+            onCommit={(v) => set("label", v || null)}
+          />
+          <Select
+            label="Type"
+            value={p.employment_type}
+            onChange={(v) => set("employment_type", v)}
+            options={[
+              ["full_time", "Full-time"],
+              ["part_time", "Part-time"],
+            ]}
+          />
+          <Select
+            label="Season"
+            value={p.season}
+            onChange={(v) => set("season", v)}
+            options={[
+              ["year_round", "Year-round"],
+              ["seasonal", "Seasonal"],
+            ]}
+          />
+          <Num
+            label="Hours/wk"
+            value={p.hours_per_week}
+            onCommit={(n) => set("hours_per_week", n)}
+          />
+          <DateField label="Start" value={p.start_date} onChange={(v) => set("start_date", v)} />
+          <DateField label="End" value={p.end_date} onChange={(v) => set("end_date", v)} />
+          {p.is_work_camper && (
+            <>
+              <Num
+                label="Site $/wk"
+                value={p.site_weekly_rate}
+                onCommit={(n) => set("site_weekly_rate", n)}
+              />
+              <Num
+                label="Campsite credit $/wk"
+                value={p.campsite_credit_weekly}
+                onCommit={(n) => set("campsite_credit_weekly", n)}
+              />
+            </>
+          )}
+          <Check
+            label="Work camper"
+            checked={p.is_work_camper}
+            onChange={(c) => set("is_work_camper", c)}
+          />
+          <Check
+            label="Benefits"
+            checked={p.benefits_eligible}
+            onChange={(c) => set("benefits_eligible", c)}
+          />
+        </div>
+      )}
     </div>
   );
 }

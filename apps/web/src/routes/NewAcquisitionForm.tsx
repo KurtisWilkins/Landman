@@ -8,11 +8,13 @@
  */
 import { useState } from "react";
 import { useCreateAcquisition, useExtractOm } from "../api/hooks";
-import { ApiError, apiUpload } from "../api/client";
+import { ApiError, apiFetch, apiUpload } from "../api/client";
 import type { components } from "../api/types";
 
 type PropertyType = components["schemas"]["PropertyType"];
 type OmFinancialLine = components["schemas"]["OmFinancialLine"];
+// OM staffing isn't in the generated contract yet — typed locally to seed the Labor roster.
+type StaffingIn = { role: string; count: number | null; hourly_rate: string | null };
 
 const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: "rv_resort", label: "RV resort" },
@@ -40,6 +42,7 @@ export function NewAcquisitionForm({
   const [mode, setMode] = useState<"manual" | "om">("manual");
   const [omFile, setOmFile] = useState<File | null>(null);
   const [financials, setFinancials] = useState<OmFinancialLine[]>([]);
+  const [staffing, setStaffing] = useState<StaffingIn[]>([]);
 
   const [name, setName] = useState("");
   const [propertyType, setPropertyType] = useState<PropertyType>("rv_resort");
@@ -62,6 +65,7 @@ export function NewAcquisitionForm({
         if (p.ask_price != null) setAskPrice(String(p.ask_price));
         if (p.seller_name) setSellerName(p.seller_name);
         setFinancials(p.financial_lines ?? []);
+        setStaffing((p as { staffing?: StaffingIn[] }).staffing ?? []);
       },
     });
   }
@@ -87,6 +91,18 @@ export function NewAcquisitionForm({
               await apiUpload(`/acquisitions/${acquisition.acquisition_id}/documents`, omFile);
             } catch {
               /* acquisition exists; the OM can be re-uploaded from the GL/Docs tab */
+            }
+          }
+          // Seed the Labor roster from the OM staffing (tagged "from OM"); silent fallback to the
+          // default roster on the Labor tab if the OM stated none.
+          if (staffing.length > 0) {
+            try {
+              await apiFetch(`/acquisitions/${acquisition.acquisition_id}/labor/seed`, {
+                method: "POST",
+                body: JSON.stringify({ staffing }),
+              });
+            } catch {
+              /* non-blocking — the roster can be seeded from the Labor tab */
             }
           }
           onCreated(acquisition.acquisition_id);
