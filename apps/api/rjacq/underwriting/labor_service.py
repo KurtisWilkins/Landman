@@ -122,6 +122,10 @@ def _row(p: LaborPosition) -> LaborPositionRow:
         end_date=p.end_date,
         weeks=ep.weeks,
         wages=engine.position_wages(ep),
+        source=p.source,
+        # Wage is required (load-bearing for both headcount defaults and the actual labor expense);
+        # a non-work-camper with no hourly rate is flagged for review.
+        needs_wage=not p.is_work_camper and not p.hourly_rate,
         note=p.note,
     )
 
@@ -178,6 +182,7 @@ async def get_labor(session: AsyncSession, acquisition_id: str) -> LaborDoc:
             work_camper_credit=totals.work_camper_credit,
             total_cash_labor=totals.total_cash_labor,
             prior_labor=await _prior_labor(session, acquisition_id),
+            headcount=engine.total_headcount([p.headcount for p in positions]),
         ),
     )
 
@@ -208,12 +213,14 @@ async def add_position(
             start_date=body.start_date,
             end_date=body.end_date,
             sort=await _next_sort(session, acquisition_id),
+            source="manual",
             note=body.note,
         )
     )
     await session.flush()
     await _feed_budget(session, acquisition_id, actor=actor)
-    await session.commit()
+    # Roster change → recompute headcount-driven defaults (payroll budget); apply_defaults commits.
+    await budget_service.apply_defaults(session, acquisition_id, actor=actor)
     return await get_labor(session, acquisition_id)
 
 
@@ -225,9 +232,11 @@ async def patch_position(
         raise LaborError("not_found", "No such position.")
     for key, value in body.model_dump(exclude_unset=True, exclude={"position_id"}).items():
         setattr(p, key, value)
+    p.source = "manual"  # editing a seeded row flips its provenance to manual
     await session.flush()
     await _feed_budget(session, acquisition_id, actor=actor)
-    await session.commit()
+    # Roster change → recompute headcount-driven defaults (payroll budget); apply_defaults commits.
+    await budget_service.apply_defaults(session, acquisition_id, actor=actor)
     return await get_labor(session, acquisition_id)
 
 
@@ -240,7 +249,8 @@ async def remove_position(
     await session.delete(p)
     await session.flush()
     await _feed_budget(session, acquisition_id, actor=actor)
-    await session.commit()
+    # Roster change → recompute headcount-driven defaults (payroll budget); apply_defaults commits.
+    await budget_service.apply_defaults(session, acquisition_id, actor=actor)
     return await get_labor(session, acquisition_id)
 
 
@@ -262,10 +272,50 @@ async def seed_default_staffing(
                     headcount=1,
                     is_work_camper=False,
                     benefits_eligible=etype == "full_time",  # FT eligible by default; PT not
+                    source="default",
                     sort=sort,
                 )
             )
         await session.flush()
         await _feed_budget(session, acquisition_id, actor=actor)
-        await session.commit()
+        await budget_service.apply_defaults(session, acquisition_id, actor=actor)
+    return await get_labor(session, acquisition_id)
+
+
+async def seed_roster(
+    session: AsyncSession,
+    acquisition_id: str,
+    staffing: list[tuple[str, int | None, Decimal | None]],
+    *,
+    actor: str | None,
+) -> LaborDoc:
+    """Seed the roster from OM staffing (role label, count, hourly rate) tagged ``om``; if the OM
+    gave nothing usable, fall back to the default scenario. Idempotent (no-op once positions)."""
+    if await _positions(session, acquisition_id):
+        return await get_labor(session, acquisition_id)
+    if not staffing:
+        return await seed_default_staffing(session, acquisition_id, actor=actor)
+    sort = 0
+    for role_label, count, hourly_rate in staffing:
+        sort += 10
+        role = engine.normalize_role(role_label)
+        session.add(
+            LaborPosition(
+                position_id=_new_id(),
+                acquisition_id=acquisition_id,
+                role=role,
+                label=role_label if role == "custom" else None,
+                employment_type="full_time",
+                season="year_round",
+                headcount=count or 1,
+                hourly_rate=hourly_rate,
+                is_work_camper=False,
+                benefits_eligible=True,
+                source="om",
+                sort=sort,
+            )
+        )
+    await session.flush()
+    await _feed_budget(session, acquisition_id, actor=actor)
+    await budget_service.apply_defaults(session, acquisition_id, actor=actor)
     return await get_labor(session, acquisition_id)

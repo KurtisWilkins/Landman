@@ -11,6 +11,7 @@ loads are passed in by the caller from per-deal data + config).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -18,6 +19,32 @@ from decimal import Decimal
 ZERO = Decimal(0)
 WEEKS_PER_YEAR = Decimal(52)
 MONTHS_PER_YEAR = Decimal(12)
+
+
+def total_headcount(counts: Sequence[int | None]) -> int:
+    """Authoritative roster headcount = sum of per-role counts (a missing count counts as 1).
+    The Labor roster is the single source of truth the whole app reads (the Operating-tab display
+    and the per-employee payroll-budget default); headcount is never stored a second time."""
+    return sum((c or 1) for c in counts)
+
+
+_ROLE_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("general_manager", ("general manager", "gm", "manager", "owner")),
+    ("front_desk", ("front desk", "reception", "office", "guest service", "clerk", "host")),
+    ("housekeeper", ("housekeep", "cleaning", "janitor", "custodial", "laundry")),
+    ("maintenance", ("maintenance", "grounds", "groundskeep", "facilities", "repair", "landscap")),
+    ("events_coordinator", ("event", "activit", "recreation")),
+)
+
+
+def normalize_role(text: str) -> str:
+    """Map a free-text OM role/title onto our role vocabulary; unknown titles become 'custom'
+    (the caller keeps the original text as the label)."""
+    t = text.strip().lower()
+    for role, keys in _ROLE_KEYWORDS:
+        if any(k in t for k in keys):
+            return role
+    return "custom"
 
 
 def active_weeks(start: date | None, end: date | None) -> Decimal:

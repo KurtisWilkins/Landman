@@ -32,6 +32,8 @@ class OperatingDoc(BaseModel):
     billable_unit_total: int = 0  # RV pads + cabins + glamping (tents excluded)
     units_need_input: bool = True  # a billable group is missing its count (or none exist)
 
+    # Read-only: headcount is the Labor roster total (SSOT). source="labor" when the roster has
+    # positions, else "needs_input". Edited on the Labor tab, never here.
     employee_headcount: int | None = None
     headcount_source: str = "needs_input"
     headcount_needs_input: bool = True
@@ -61,8 +63,8 @@ class UnitGroupPatch(BaseModel):
 
 
 class OperatingPatch(BaseModel):
-    """Edit the headcount and/or electric driver (flips the edited field's source to manual)."""
+    """Edit the electric driver (flips its source to manual). Headcount is NOT editable here — it's
+    the Labor roster total (single source of truth)."""
 
-    employee_headcount: int | None = None
     electric_annual: Decimal | None = None
     note: str | None = None

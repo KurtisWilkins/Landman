@@ -77,3 +77,25 @@ def test_roll_up_full_plan() -> None:
     assert t.extended_stay_revenue == Decimal("6000")
     assert t.work_camper_credit == Decimal("6000")
     assert t.total_cash_labor == Decimal("70064")  # 58240 + 6000 + 5824
+
+
+# ── Headcount SSOT + OM role normalization (pure) ────────────────────────────
+
+
+def test_total_headcount_sums_counts_missing_is_one() -> None:
+    from rjacq.underwriting.labor import total_headcount
+
+    assert total_headcount([1, 1, 1]) == 3
+    assert total_headcount([2, None, 3]) == 6  # a missing count counts as 1
+    assert total_headcount([]) == 0
+
+
+def test_normalize_role_maps_titles_else_custom() -> None:
+    from rjacq.underwriting.labor import normalize_role
+
+    assert normalize_role("General Manager") == "general_manager"
+    assert normalize_role("Front Desk Clerk") == "front_desk"
+    assert normalize_role("Housekeeping") == "housekeeper"
+    assert normalize_role("Groundskeeper") == "maintenance"
+    assert normalize_role("Activities Director") == "events_coordinator"
+    assert normalize_role("Executive Chef") == "custom"

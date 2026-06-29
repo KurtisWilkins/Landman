@@ -34,8 +34,17 @@ class OmFinancialLine:
 
 
 @dataclass(frozen=True)
+class OmStaffingRole:
+    """An OM-stated staffing line: a role, how many, and the wage (hourly) if given."""
+
+    role: str
+    count: int | None
+    hourly_rate: Decimal | None
+
+
+@dataclass(frozen=True)
 class OmProposal:
-    """AI-proposed acquisition header + financial lines from an OM (human-reviewed)."""
+    """AI-proposed acquisition header + financial lines + staffing from an OM (human-reviewed)."""
 
     name: str | None = None
     property_type: PropertyType | None = None
@@ -45,6 +54,7 @@ class OmProposal:
     ask_price: Decimal | None = None
     seller_name: str | None = None
     financial_lines: list[OmFinancialLine] = field(default_factory=list)
+    staffing: list[OmStaffingRole] = field(default_factory=list)
 
 
 _PROPERTY_TYPES = [t.value for t in PropertyType]
@@ -88,6 +98,23 @@ _OM_TOOL: dict[str, Any] = {
                     "required": ["description", "amount"],
                 },
             },
+            "staffing": {
+                "type": "array",
+                "description": "Staffing/payroll roster if the OM states one: each role, how many "
+                "people, and the hourly wage if given. Omit entirely if not stated; never guess.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "role": {"type": "string", "description": "Role/title, e.g. 'Manager'."},
+                        "count": {"type": "integer", "description": "People in the role."},
+                        "hourly_rate": {
+                            "type": "string",
+                            "description": "Hourly wage, digits only; omit if absent.",
+                        },
+                    },
+                    "required": ["role"],
+                },
+            },
         },
         "required": [],
     },
@@ -129,6 +156,15 @@ def proposal_from_tool_input(data: dict[str, Any]) -> OmProposal:
         for item in (data.get("financial_lines") or [])
         if str(item.get("description", "")).strip()
     ]
+    staffing = [
+        OmStaffingRole(
+            role=str(item.get("role", "")).strip(),
+            count=int(item["count"]) if isinstance(item.get("count"), int) else None,
+            hourly_rate=(to_decimal(str(item["hourly_rate"])) if item.get("hourly_rate") else None),
+        )
+        for item in (data.get("staffing") or [])
+        if str(item.get("role", "")).strip()
+    ]
     site_count = data.get("site_count")
     return OmProposal(
         name=_clean_str(data, "name"),
@@ -139,6 +175,7 @@ def proposal_from_tool_input(data: dict[str, Any]) -> OmProposal:
         ask_price=to_decimal(str(data["ask_price"])) if data.get("ask_price") else None,
         seller_name=_clean_str(data, "seller_name"),
         financial_lines=lines,
+        staffing=staffing,
     )
 
 

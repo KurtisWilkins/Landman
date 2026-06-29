@@ -102,3 +102,36 @@ async def test_work_camper_revenue_and_credit(session: AsyncSession) -> None:
     credit = next(r for r in budget.rows if r.account_code == "421300")
     assert ext.year1_annual == Decimal("15600")
     assert credit.year1_annual == Decimal("-15600")  # contra-revenue reduces revenue
+
+
+async def test_seed_roster_from_om_tags_om(session: AsyncSession) -> None:
+    from rjacq.underwriting import budget_service
+
+    aid = await _acquisition(session)
+    doc = await labor_service.seed_roster(
+        session,
+        aid,
+        [("General Manager", 1, Decimal("30")), ("Maintenance Crew", 2, Decimal("18"))],
+        actor="kurtis",
+    )
+    by_role = {r.role: r for r in doc.positions}
+    assert by_role["general_manager"].source == "om"
+    assert by_role["maintenance"].headcount == 2
+    assert doc.totals.headcount == 3  # roster SSOT = 1 + 2
+    # The Operating tab / payroll default both read this same number.
+    assert await budget_service.roster_headcount(session, aid) == 3
+
+
+async def test_seed_roster_empty_falls_back_to_default(session: AsyncSession) -> None:
+    aid = await _acquisition(session)
+    doc = await labor_service.seed_roster(session, aid, [], actor="kurtis")
+    assert len(doc.positions) == 5  # the default scenario (3 FT + 2 PT)
+    assert all(p.source == "default" for p in doc.positions)
+    assert doc.totals.headcount == 5
+
+
+async def test_seed_roster_idempotent(session: AsyncSession) -> None:
+    aid = await _acquisition(session)
+    await labor_service.seed_default_staffing(session, aid, actor="k")
+    again = await labor_service.seed_roster(session, aid, [("Manager", 9, None)], actor="k")
+    assert again.totals.headcount == 5  # no-op once positions exist

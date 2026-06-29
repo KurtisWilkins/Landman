@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..mapping import repository as mapping_repo
 from ..models.budget import Budget, BudgetLine
 from ..models.enums import BudgetSource, BudgetStatus
+from ..models.labor import LaborPosition
 from ..models.operating import OperationalInputs, UnitGroup
 from ..models.reference import GLAccount
 from ..schemas.budget import (
@@ -33,6 +34,7 @@ from ..schemas.budget import (
 from .budget import GridLine, GridTotals, bucket_line_months, roll_up, variance
 from .defaults_config import effective_rules
 from .defaults_rules import DefaultComputation, DriverContext, compute_default
+from .labor import total_headcount
 from .operating import UnitGroupInput, billable_unit_total, units_need_input
 
 _ZERO = Decimal(0)
@@ -263,6 +265,23 @@ def _gross_revenue_base(
     return total if total > _ZERO else None
 
 
+async def roster_headcount(session: AsyncSession, acquisition_id: str) -> int | None:
+    """The authoritative headcount = the Labor roster total (single source of truth). None when the
+    roster is empty, so the payroll-budget default reports needs-input rather than guessing."""
+    counts = list(
+        (
+            await session.execute(
+                select(LaborPosition.headcount).where(
+                    LaborPosition.acquisition_id == acquisition_id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return total_headcount(counts) if counts else None
+
+
 async def _driver_context(
     session: AsyncSession,
     acquisition_id: str,
@@ -286,7 +305,7 @@ async def _driver_context(
         electric_annual=op.electric_annual if op else None,
         billable_units=billable_unit_total(inputs),
         units_complete=not units_need_input(inputs),
-        headcount=op.employee_headcount if op else None,
+        headcount=await roster_headcount(session, acquisition_id),  # Labor roster = SSOT
         prior_year=prior,
     )
 

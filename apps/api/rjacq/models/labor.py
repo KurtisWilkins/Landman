@@ -42,6 +42,8 @@ class LaborPosition(Base):
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
     sort: Mapped[int | None] = mapped_column(Integer)
+    # Provenance of the roster row: om (from the OM) | default (fallback roster) | manual (edited).
+    source: Mapped[str] = mapped_column(String, nullable=False, default="manual")
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = updated_at_column()

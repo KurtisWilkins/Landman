@@ -98,8 +98,11 @@ async def _electric_prior_actual(session: AsyncSession, acquisition_id: str) -> 
     return total if found else None
 
 
-def _to_doc(header: OperationalInputs | None, groups: list[UnitGroup]) -> OperatingDoc:
-    """Assemble the panel from stored state + the pure driver math (no DB)."""
+def _to_doc(
+    header: OperationalInputs | None, groups: list[UnitGroup], roster_headcount: int | None
+) -> OperatingDoc:
+    """Assemble the panel from stored state + the pure driver math (no DB). Headcount is NOT stored
+    here — it's the Labor roster total (single source of truth), passed in read-only."""
     ordered = sorted(groups, key=lambda g: (g.sort if g.sort is not None else 9999, g.category))
     rows = [
         UnitGroupRow(
@@ -116,26 +119,37 @@ def _to_doc(header: OperationalInputs | None, groups: list[UnitGroup]) -> Operat
     inputs = [
         UnitGroupInput(category=g.category, count=g.count, billable=g.billable) for g in groups
     ]
-    headcount = header.employee_headcount if header else None
-    headcount_source = header.headcount_source if header else SOURCE_NEEDS_INPUT
     electric = header.electric_annual if header else None
     electric_source = header.electric_source if header else SOURCE_NEEDS_INPUT
     return OperatingDoc(
         unit_groups=rows,
         billable_unit_total=billable_unit_total(inputs),
         units_need_input=units_need_input(inputs),
-        employee_headcount=headcount,
-        headcount_source=headcount_source,
-        headcount_needs_input=headcount is None,
+        # Read-only: headcount comes from the Labor roster, never stored on Operating.
+        employee_headcount=roster_headcount,
+        headcount_source="labor" if roster_headcount is not None else SOURCE_NEEDS_INPUT,
+        headcount_needs_input=roster_headcount is None,
         electric_annual=electric,
         electric_source=electric_source,
         electric_needs_input=electric is None,
     )
 
 
+async def _roster_headcount(session: AsyncSession, acquisition_id: str) -> int | None:
+    """The Labor roster total (SSOT). Reuses budget_service's canonical implementation; deferred
+    import avoids a module-load cycle."""
+    from . import budget_service
+
+    return await budget_service.roster_headcount(session, acquisition_id)
+
+
 async def get_operating(session: AsyncSession, acquisition_id: str) -> OperatingDoc:
-    """Read the panel (no mutation; serves whatever's captured so far)."""
-    return _to_doc(await _header(session, acquisition_id), await _groups(session, acquisition_id))
+    """Read the panel (no mutation; serves whatever's captured so far). Headcount = Labor roster."""
+    return _to_doc(
+        await _header(session, acquisition_id),
+        await _groups(session, acquisition_id),
+        await _roster_headcount(session, acquisition_id),
+    )
 
 
 async def _ensure_header(session: AsyncSession, acquisition_id: str) -> OperationalInputs:
@@ -223,11 +237,9 @@ async def seed_operating(
 async def patch_operating(
     session: AsyncSession, acquisition_id: str, body: OperatingPatch, *, actor: str | None
 ) -> OperatingDoc:
-    """Edit headcount and/or electric — each edited field flips to ``manual`` provenance."""
+    """Edit the electric driver (flips it to ``manual`` provenance). Headcount is not editable here
+    — it's the Labor roster total (SSOT)."""
     header = await _ensure_header(session, acquisition_id)
-    if body.employee_headcount is not None:
-        header.employee_headcount = body.employee_headcount
-        header.headcount_source = SOURCE_MANUAL
     if body.electric_annual is not None:
         header.electric_annual = body.electric_annual
         header.electric_source = SOURCE_MANUAL
