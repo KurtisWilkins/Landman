@@ -128,7 +128,7 @@ Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/posit
     payroll default + the Operating display; no second copy. `OperationalInputs.employee_headcount`
     deprecated in place. Labor edits recompute the headcount-driven defaults.
 27. **OM seeding + provenance** — OM `staffing` extraction → `seed_roster` (om / default,
-    `LaborPosition.source`, migration `e1f2a3b4c5d6`); wage required (`needs_wage`); seeding map +
+    `LaborPosition.source`, migration `f4a5b6c7d8e9`); wage required (`needs_wage`); seeding map +
     provenance tags across Operating/Budget/Labor. Labor roster UI (SSOT banner, provenance badges,
     `⌄` expander), read-only Operating headcount, OM-staffing seed on new-acquisition. See
     `DECISIONS.md` D-19…D-21.

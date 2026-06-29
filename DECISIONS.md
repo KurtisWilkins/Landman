@@ -49,7 +49,7 @@ automatically (labor mutations call `apply_defaults`) — no manual sync.
 
 ### D-21 — Labor roster: provenance + OM seed + required wage
 
-**Decision.** `LaborPosition.source` (om | default | manual; migration `e1f2a3b4c5d6`, additive).
+**Decision.** `LaborPosition.source` (om | default | manual; migration `f4a5b6c7d8e9`, additive).
 `seed_roster` seeds from OM staffing (tagged `om`, roles mapped via pure `normalize_role`) or the
 default scenario (tagged `default`); idempotent. The new-acquisition form seeds the roster from the
 OM proposal's staffing at creation. **Wage is required and load-bearing** — it drives both the
