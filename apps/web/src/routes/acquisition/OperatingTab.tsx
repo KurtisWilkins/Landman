@@ -102,13 +102,21 @@ export function OperatingTab({ acquisitionId }: { acquisitionId: string }) {
           money
           onCommit={(n) => patch.mutate({ electric_annual: n })}
         />
-        <DriverField
-          label="Employee headcount"
-          hint={`source: ${data?.headcount_source ?? "needs input"}`}
-          needsInput={data?.headcount_needs_input ?? true}
-          value={data?.employee_headcount ?? null}
-          onCommit={(n) => patch.mutate({ employee_headcount: Math.round(n) })}
-        />
+        <div className="rounded-lg border border-brand/20 p-3">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-sm font-medium">Employee headcount</span>
+            {data?.headcount_needs_input ? (
+              <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-ink">
+                ⚠ needs input
+              </span>
+            ) : null}
+          </div>
+          <div className="font-figure text-lg">{data?.employee_headcount ?? "—"}</div>
+          <p className="mt-1 text-[11px] opacity-55">
+            From the Labor roster (single source of truth) — add roles &amp; counts on the Labor
+            tab.
+          </p>
+        </div>
       </div>
 
       <p className="text-xs opacity-70">

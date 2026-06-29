@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.auth import Principal, get_current_principal
 from ..core.db import get_session
 from ..core.rbac import Capability, require
-from ..schemas.labor import LaborDoc, LaborPositionCreate, LaborPositionPatch
+from ..schemas.labor import (
+    LaborDoc,
+    LaborPositionCreate,
+    LaborPositionPatch,
+    LaborSeedRequest,
+)
 from ..underwriting import labor_service
 
 router = APIRouter(tags=["labor"])
@@ -35,12 +40,14 @@ async def get_labor(
 @router.post("/acquisitions/{acquisition_id}/labor/seed", response_model=LaborDoc)
 async def seed_labor(
     acquisition_id: str,
+    body: LaborSeedRequest | None = None,
     session: AsyncSession = Depends(get_session),
     principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
 ) -> LaborDoc:
-    """Seed the default staffing scenario (idempotent)."""
-    return await labor_service.seed_default_staffing(
-        session, acquisition_id, actor=principal.user_id
+    """Seed the roster — from OM staffing if provided, else the default scenario (idempotent)."""
+    staffing = [(s.role, s.count, s.hourly_rate) for s in body.staffing] if body else []
+    return await labor_service.seed_roster(
+        session, acquisition_id, staffing, actor=principal.user_id
     )
 
 

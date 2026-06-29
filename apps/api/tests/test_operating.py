@@ -14,7 +14,7 @@ import pytest_asyncio
 from rjacq.models.acquisitions import Acquisition
 from rjacq.models.enums import AcquisitionStatus, Phase, PropertyType, UnitType
 from rjacq.models.property import Unit
-from rjacq.schemas.operating import OperatingPatch, UnitGroupCreate, UnitGroupPatch
+from rjacq.schemas.operating import UnitGroupCreate, UnitGroupPatch
 from rjacq.underwriting import operating_service
 from rjacq.underwriting.operating import (
     UnitGroupInput,
@@ -148,13 +148,19 @@ async def test_seed_is_idempotent(session: AsyncSession) -> None:
     assert len(first.unit_groups) == len(again.unit_groups)
 
 
-async def test_edit_headcount_flips_to_manual(session: AsyncSession) -> None:
+async def test_headcount_reads_from_labor_roster(session: AsyncSession) -> None:
+    from rjacq.underwriting import labor_service
+
     aid = await _acquisition(session)
-    doc = await operating_service.patch_operating(
-        session, aid, OperatingPatch(employee_headcount=6), actor="kurtis"
-    )
-    assert doc.employee_headcount == 6
-    assert doc.headcount_source == "manual"
+    # No roster yet → Operating headcount needs input (not stored here anymore).
+    doc = await operating_service.get_operating(session, aid)
+    assert doc.employee_headcount is None
+    assert doc.headcount_needs_input is True
+    # Seed the default roster (5 positions) → Operating reads the roster total, tagged "labor".
+    await labor_service.seed_default_staffing(session, aid, actor="kurtis")
+    doc = await operating_service.get_operating(session, aid)
+    assert doc.employee_headcount == 5
+    assert doc.headcount_source == "labor"
     assert doc.headcount_needs_input is False
 
 

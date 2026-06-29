@@ -113,16 +113,25 @@ Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/posit
     locked-drives-calc vs draft; (c) Promote tab shows a read-only **"Acquisition basis"** card
     (purchase price / equity / debt / LTV) sourced from the pro forma. No API/migration change.
 
-**Budget defaults engine (branch `claude/landman-systems-review-uqj6zx`, not yet merged):**
+**Budget defaults engine (merged, live):**
 23. **Part 1** — operational inputs (`operational_inputs` + `unit_groups`): per-deal unit-mix /
-    headcount / electric drivers; OM-seeded with "needs input" prompts; all editable.
-    _(migration `c9d0e1f2a3b4`)_
-24. **Part 2** — typed rule library + pure `compute_default` engine (6 rule types, worked-example
-    tests) + GL chart homes 600145 (payroll budget) / 600220 (call center). The 12 rules supersede
-    the old `budget_defaults.py` shield/marketing/ppc path (PPC is now a fixed $12k/yr).
+    electric drivers; OM-seeded with "needs input" prompts; all editable. _(migration `c9d0e1f2a3b4`)_
+24. **Part 2** — typed rule library + pure `compute_default` engine (6 rule types) + GL chart homes
+    600145 (payroll budget) / 600220 (call center); central-config `default_rules` table
+    (`d0e1f2a3b4c5`) editable via Settings. Supersedes the old `budget_defaults.py` path.
 25. **Part 3** — engine applied to the budget: signed contra bill-back (605415), subtree-aware
-    gap-fill (no utilities double-count), manual-sticks + revert-to-default, driver-change recompute.
-    See `DECISIONS.md` D-15…D-18. _Remaining: global rule-config table (in-UI editing) + web panels._
+    gap-fill, manual-sticks + revert-to-default, driver-change recompute. Operating panel + budget
+    revert + admin editor shipped. See `DECISIONS.md` D-15…D-18.
+
+**OM seeding + headcount SSOT (branch `claude/landman-systems-review-uqj6zx`):**
+26. **Headcount SSOT** — headcount is the Labor roster total (`total_headcount`), read by the
+    payroll default + the Operating display; no second copy. `OperationalInputs.employee_headcount`
+    deprecated in place. Labor edits recompute the headcount-driven defaults.
+27. **OM seeding + provenance** — OM `staffing` extraction → `seed_roster` (om / default,
+    `LaborPosition.source`, migration `e1f2a3b4c5d6`); wage required (`needs_wage`); seeding map +
+    provenance tags across Operating/Budget/Labor. Labor roster UI (SSOT banner, provenance badges,
+    `⌄` expander), read-only Operating headcount, OM-staffing seed on new-acquisition. See
+    `DECISIONS.md` D-19…D-21.
 
 ## Pending
 

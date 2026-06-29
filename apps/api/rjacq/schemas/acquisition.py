@@ -79,6 +79,14 @@ class OmFinancialLine(BaseModel):
     amount: Decimal | None = None
 
 
+class OmStaffingRole(BaseModel):
+    """A staffing line proposed from the OM (seeds the Labor roster, tagged 'from OM')."""
+
+    role: str
+    count: int | None = None
+    hourly_rate: Decimal | None = None
+
+
 class OmProposal(BaseModel):
     """AI-proposed acquisition from an offering memorandum, for human review (§5.2)."""
 
@@ -89,6 +97,7 @@ class OmProposal(BaseModel):
     ask_price: Decimal | None = None
     seller_name: str | None = None
     financial_lines: list[OmFinancialLine] = Field(default_factory=list)
+    staffing: list[OmStaffingRole] = Field(default_factory=list)
 
 
 class AcquisitionSummary(ApiModel):

@@ -8,6 +8,56 @@ Newest first.
 
 ---
 
+## 2026-06-29 — OM seeding + Labor roster as the headcount SSOT
+
+Wires offering-memorandum seeding across the Operating, Budget, and Labor tabs with explicit
+fallbacks and visible provenance, and makes the Labor roster the single source of truth for
+headcount. Seeded values are editable; editing flips the tag to manual.
+
+### D-19 — Seeding map: OM first, stated fallback, provenance on every field
+
+**Decision.** For each seeded field: extract from the OM first (tag **`from OM`** / actuals); if
+absent, apply the stated fallback (tag **`default`**) and flag **needs review**; anything neither
+sourced nor defaulted stays a **`placeholder`** — never guessed. The full map:
+
+| Tab | Field | From OM | Fallback | Provenance |
+|---|---|---|---|---|
+| Operating | Annual electric | mapped OM Electric line → 605410 | none → **needs-input** (bill-back can't compute) | from OM / needs-input |
+| Operating | Unit mix | OM unit-mix / site_count | default categories, counts blank | from OM / needs-input |
+| Operating | Headcount | — reads the Labor roster total | — | *derived* (never stored here) |
+| Budget | Prior-year, per line | OM financial lines → canonical GL | blank/flagged | from OM (actuals) / placeholder |
+| Labor | Roster (role/count/wage) | OM `staffing` array (roles normalized) | the existing default scenario | from OM / default |
+| Labor | Wage per role | OM-stated hourly rate | blank → **needs-input** (required) | from OM / needs-input |
+
+The Budget surface is the existing prior-year/year-one GL grid (extended, not duplicated). Budget
+prior-year + Operating electric already sourced from the mapped OM/P&L; this formalizes the tags.
+OM extraction gained an optional `staffing` array on the proposal (role/count/hourly_rate).
+
+### D-20 — Headcount single source of truth = the Labor roster
+
+**Decision.** Headcount is **Σ Labor roster counts**, computed by the pure `total_headcount`, and is
+**never stored a second time**. The per-employee payroll-budget default and the Operating-tab
+display both read it; adding/removing/editing a role recomputes the dependent defaults
+automatically (labor mutations call `apply_defaults`) — no manual sync.
+
+- The Operating tab no longer stores or edits headcount; it shows the roster total read-only
+  (`source="labor"`). `OperationalInputs.employee_headcount` is **deprecated in place** (kept,
+  unread/unwritten) to avoid a destructive migration on live data — to be dropped later.
+- **Decision taken with the user:** keep the existing 5-row default roster (3 FT + 2 PT), not the
+  brief's 3; wage stays the existing **hourly rate** (now required + surfaced, no engine change);
+  rich per-row fields kept behind a `⌄` expander.
+
+### D-21 — Labor roster: provenance + OM seed + required wage
+
+**Decision.** `LaborPosition.source` (om | default | manual; migration `e1f2a3b4c5d6`, additive).
+`seed_roster` seeds from OM staffing (tagged `om`, roles mapped via pure `normalize_role`) or the
+default scenario (tagged `default`); idempotent. The new-acquisition form seeds the roster from the
+OM proposal's staffing at creation. **Wage is required and load-bearing** — it drives both the
+headcount-based defaults and the actual labor expense — so a non-work-camper without an hourly rate
+is flagged `needs_wage` (a soft flag, not a block).
+
+---
+
 ## 2026-06-29 — Budget defaults engine (Parts 1–3)
 
 The configurable rule library that autofills year-one budget line items. Drivers are captured

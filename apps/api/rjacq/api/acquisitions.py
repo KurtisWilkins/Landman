@@ -34,6 +34,7 @@ from ..schemas.acquisition import (
     Address,
     OmFinancialLine,
     OmProposal,
+    OmStaffingRole,
     PhaseAdvanceRequest,
 )
 from ..schemas.financials import FinancialPeriodVersion
@@ -218,6 +219,10 @@ async def extract_om(
         financial_lines=[
             OmFinancialLine(description=line.description, amount=line.amount)
             for line in proposal.financial_lines
+        ],
+        staffing=[
+            OmStaffingRole(role=s.role, count=s.count, hourly_rate=s.hourly_rate)
+            for s in proposal.staffing
         ],
     )
 

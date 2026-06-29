@@ -14,8 +14,7 @@ from rjacq.models.enums import AccountLevel, AcquisitionStatus, Phase, PropertyT
 from rjacq.models.operating import OperationalInputs
 from rjacq.models.reference import GLAccount
 from rjacq.schemas.budget import BudgetLineCreate, BudgetLinePatch
-from rjacq.schemas.operating import OperatingPatch
-from rjacq.underwriting import budget_service, operating_service
+from rjacq.underwriting import budget_service
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
@@ -145,15 +144,18 @@ async def test_utilities_posts_when_bucket_empty(session: AsyncSession) -> None:
     assert _row(doc, "605400").year1_annual == Decimal("175000.000")  # 17.5% of 1,000,000
 
 
-async def test_driver_change_recomputes_payroll_via_operating(session: AsyncSession) -> None:
+async def test_roster_change_recomputes_payroll_budget(session: AsyncSession) -> None:
+    from rjacq.schemas.labor import LaborPositionCreate
+    from rjacq.underwriting import labor_service
+
     aid = await _acquisition(session)
     await _account(session, "600145", "Expense")  # Payroll Budget Allocation
     await budget_service.seed_budget(session, aid)
-    # No headcount yet → the payroll-budget default can't compute (needs input).
+    # Empty roster → the payroll-budget default can't compute (needs input).
     assert _row(await budget_service.get_budget(session, aid), "600145") is None
-    # Set headcount via the operating panel → the dependent default recomputes automatically.
-    await operating_service.patch_operating(
-        session, aid, OperatingPatch(employee_headcount=6), actor="k"
+    # Headcount lives on the Labor roster; adding a role recomputes the dependent default.
+    await labor_service.add_position(
+        session, aid, LaborPositionCreate(role="general_manager", headcount=6), actor="k"
     )
     doc = await budget_service.get_budget(session, aid)
     assert _row(doc, "600145").year1_annual == Decimal("6120")  # 85 × 6 × 12

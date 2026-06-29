@@ -28,6 +28,8 @@ class LaborPositionRow(BaseModel):
     end_date: date | None = None
     weeks: Decimal
     wages: Decimal
+    source: str = "manual"  # om | default | manual
+    needs_wage: bool = False  # required wage missing (not a work camper, no hourly rate)
     note: str | None = None
 
 
@@ -39,11 +41,26 @@ class LaborTotalsOut(BaseModel):
     work_camper_credit: Decimal  # → 421300 (work campers, contra-revenue)
     total_cash_labor: Decimal  # wages + benefits + payroll_tax (the expense the budget sees)
     prior_labor: Decimal  # prior-year wages-cluster actuals from the mapped P&L
+    headcount: int  # authoritative roster headcount (Σ positions) — the app-wide SSOT
 
 
 class LaborDoc(BaseModel):
     positions: list[LaborPositionRow] = Field(default_factory=list)
     totals: LaborTotalsOut
+
+
+class StaffingRoleIn(BaseModel):
+    """One OM-proposed staffing line passed to the roster seed."""
+
+    role: str
+    count: int | None = None
+    hourly_rate: Decimal | None = None
+
+
+class LaborSeedRequest(BaseModel):
+    """Optional OM staffing to seed the roster from; empty → the default scenario."""
+
+    staffing: list[StaffingRoleIn] = Field(default_factory=list)
 
 
 class LaborPositionCreate(BaseModel):

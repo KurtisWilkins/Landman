@@ -36,7 +36,8 @@ class OperationalInputs(Base):
     acquisition_id: Mapped[str] = mapped_column(
         ForeignKey("acquisitions.acquisition_id"), primary_key=True
     )
-    # Payroll-budget driver: $85 × headcount × 12 (a budgeted allocation, not actual wages).
+    # DEPRECATED: headcount is now the Labor roster total (single source of truth) and is no longer
+    # read or written here. Columns retained (non-destructive) to be dropped in a later migration.
     employee_headcount: Mapped[int | None] = mapped_column(Integer)
     headcount_source: Mapped[str] = mapped_column(
         String, nullable=False, default=SOURCE_NEEDS_INPUT
