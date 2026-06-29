@@ -6,11 +6,14 @@
  */
 import { useEffect, useState } from "react";
 import {
+  useDefaultRules,
   useIntegrations,
   useSaveUnderwritingDefaults,
   useSetIntegration,
   useUnderwritingDefaults,
+  useUpdateDefaultRule,
 } from "../api/hooks";
+import type { DefaultRuleRow } from "../api/hooks";
 import { ApiError } from "../api/client";
 import type { Schemas } from "../api/client";
 
@@ -157,6 +160,124 @@ function UnderwritingDefaultsSection() {
   );
 }
 
+// How a rule's stored value is shown/edited: percent rates display ×100; the rest are as-is.
+function ruleDisplay(rule: DefaultRuleRow): { factor: number; suffix: string } {
+  switch (rule.rule_type) {
+    case "percent_of_gross_revenue":
+    case "percent_of_line":
+      return { factor: 100, suffix: "%" };
+    case "prior_year_uplift":
+      return { factor: 1, suffix: "× prior" };
+    case "per_unit_annual":
+      return { factor: 1, suffix: "$/unit/yr" };
+    case "per_employee_month":
+      return { factor: 1, suffix: "$/emp/mo" };
+    case "fixed":
+      return { factor: 1, suffix: rule.basis === "monthly" ? "$/mo" : "$/yr" };
+    default:
+      return { factor: 1, suffix: "" };
+  }
+}
+
+function RuleRow({ rule }: { rule: DefaultRuleRow }) {
+  const update = useUpdateDefaultRule();
+  const { factor, suffix } = ruleDisplay(rule);
+  const shown = String(Number(rule.value) * factor);
+  const [value, setValue] = useState(shown);
+  useEffect(() => setValue(shown), [shown]);
+
+  const dirty = value.trim() !== "" && value.trim() !== shown;
+  const band =
+    rule.soft_min && rule.soft_max
+      ? ` · band ${Number(rule.soft_min) * 100}–${Number(rule.soft_max) * 100}%`
+      : "";
+
+  return (
+    <li className={`py-3 ${rule.enabled ? "" : "opacity-50"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">
+            {rule.label}
+            {rule.must_fix && (
+              <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent-ink">
+                must fix
+              </span>
+            )}
+            {rule.is_income_offset && (
+              <span className="ml-2 rounded bg-ink/10 px-1.5 py-0.5 text-[10px] text-ink/70">
+                contra
+              </span>
+            )}
+          </div>
+          <div className="text-xs opacity-70">
+            <code>{rule.rule_type}</code> · → GL {rule.target_account_code}
+            {band}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            aria-label={`${rule.label} value`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-24 rounded border border-brand/20 bg-surface px-2 py-1 text-right font-figure text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+          <span className="w-20 text-xs opacity-60">{suffix}</span>
+          <button
+            type="button"
+            disabled={!dirty || update.isPending}
+            onClick={() =>
+              update.mutate({ ruleKey: rule.rule_key, patch: { value: Number(value) / factor } })
+            }
+            className="rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
+          >
+            Save
+          </button>
+          <label className="flex items-center gap-1 text-xs opacity-70">
+            <input
+              type="checkbox"
+              checked={rule.enabled}
+              onChange={() =>
+                update.mutate({ ruleKey: rule.rule_key, patch: { enabled: !rule.enabled } })
+              }
+            />
+            on
+          </label>
+        </div>
+      </div>
+      {update.isError && (
+        <span role="alert" className="text-xs text-danger">
+          {update.error instanceof ApiError && update.error.status === 403
+            ? "Admin-only."
+            : "Save failed."}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function DefaultRulesSection() {
+  const { data, error } = useDefaultRules();
+  if (error) return null; // GET is open to any authenticated user; PUT is admin-gated server-side
+  const rules = data?.rules ?? [];
+  if (rules.length === 0) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="text-lg font-semibold">Budget default rules</h2>
+      <p className="mt-1 text-sm opacity-70">
+        The global rules that autofill year-one budget line items. A change applies to every deal on
+        the next budget recompute; a per-acquisition manual edit always wins. Admin-only to change.
+      </p>
+      <ul className="mt-3 divide-y divide-brand/10">
+        {rules.map((r) => (
+          <RuleRow key={r.rule_key} rule={r} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function Settings() {
   const { data, isLoading, error } = useIntegrations();
 
@@ -187,6 +308,7 @@ export function Settings() {
       )}
 
       <UnderwritingDefaultsSection />
+      <DefaultRulesSection />
     </section>
   );
 }

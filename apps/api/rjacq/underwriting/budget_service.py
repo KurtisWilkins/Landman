@@ -144,6 +144,7 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
                 prior_overridden=bl.prior_amount is not None,
                 removed=bl.removed,
                 flagged_for_promotion=bl.flagged_for_promotion,
+                revertible=bl.default_rule_key is not None and bl.is_overridden,
                 note=bl.note,
             )
         )
