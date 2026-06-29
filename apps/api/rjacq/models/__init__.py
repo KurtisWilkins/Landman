@@ -19,6 +19,7 @@ from .financials import FinancialLine, FinancialPeriod
 from .gates import AcquisitionGateItem, QuestionSuggestion
 from .labor import LaborPosition
 from .market import PopulationRing
+from .operating import OperationalInputs, UnitGroup
 from .property import Amenity, Booking, Unit, WeeklySummary
 from .reference import GateQuestion, GLAccount, GLMappingLearned
 from .underwriting import (
@@ -58,6 +59,8 @@ __all__ = [
     "UnderwritingDefaults",
     "Comp",
     "LaborPosition",
+    "OperationalInputs",
+    "UnitGroup",
     "AcquisitionGateItem",
     "QuestionSuggestion",
     "PopulationRing",
