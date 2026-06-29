@@ -135,9 +135,13 @@ Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/posit
 
 ## Pending
 
-- **Deploy**: the SSOT release (`b2c3d4e5f6a7` + `c3d4e5f6a7b8`) is live (SHA `8bb2b59`). The next
-  deploy applies the Underwriting-page migrations `d4e5f6a7b8c9` (split-parent) + `e5f6a7b8c9d0`
-  (budget tables) — both additive; back up Postgres first per CLAUDE.md.
+- **Deploy**: live at SHA **`3395d20`** (api `rjacq-api--0000042`, worker `rjacq-worker--0000029`);
+  the OM-seeding / headcount-SSOT release with migration `f4a5b6c7d8e9` (`labor_positions.source`)
+  applied. _History: the first attempt (#71, image `5d561a13`) shipped that migration with a
+  duplicate Alembic revision id (`e1f2a3b4c5d6`), so `alembic upgrade head` failed with a cycle and
+  the column was never created — the Labor tab degraded until #72 renamed it to `f4a5b6c7d8e9` and
+  the re-deploy applied it. The deploy command now hard-gates: it does not roll api/worker unless
+  the migrate job reports `Succeeded`._ Web is on `5d561a13` (unaffected).
 - **Activate the defaults engine**: set the five `*_account_code` + `ppc_rate` / `ppc_target_volume`
   / `ppc_intercompany_pct` config (needs the full GL chart, §14 B-13). Until then the budget seeds
   from actuals only.

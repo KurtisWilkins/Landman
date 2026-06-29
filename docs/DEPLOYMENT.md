@@ -324,6 +324,41 @@ az role assignment create --assignee $APP_ID --role AcrPush \
 That's the "push quickly" loop: **merge → live**, gated only by CI and (optionally) one
 approval click.
 
+### 3.3 Manual redeploy from Cloud Shell (the current real path)
+
+`deploy.yml` isn't wired up yet (Azure secrets unset), so deploys are run by hand. **Migrate is a
+hard gate: never roll the apps if the migrate job did not report `Succeeded`** — a failed migrate
+that still rolls the apps leaves the new code reading columns the DB doesn't have. Snapshot Postgres
+first (§5).
+
+```bash
+RG=rjacq-prod; ACR=rjacqprod
+cd ~/Landman && git checkout main && git pull origin main
+SHA=$(git rev-parse --short HEAD); echo "Deploying $SHA"
+
+az acr build --registry $ACR -f apps/api/Dockerfile -t rjacq-api:$SHA .
+( cd apps/web && az acr build --registry $ACR -f Dockerfile.prod -t rjacq-web:$SHA . )   # only if web changed
+
+az containerapp job update -n rjacq-migrate -g $RG --image $ACR.azurecr.io/rjacq-api:$SHA
+EXEC=$(az containerapp job start -n rjacq-migrate -g $RG --query name -o tsv)
+while :; do S=$(az containerapp job execution show -n rjacq-migrate -g $RG --job-execution-name $EXEC --query properties.status -o tsv 2>/dev/null); echo "  migrate: $S"; case "$S" in Succeeded|Failed) break;; esac; sleep 5; done
+
+if [ "$S" = "Succeeded" ]; then
+  az containerapp update -n rjacq-api    -g $RG --image $ACR.azurecr.io/rjacq-api:$SHA
+  az containerapp update -n rjacq-worker -g $RG --image $ACR.azurecr.io/rjacq-api:$SHA
+  # az containerapp update -n rjacq-web  -g $RG --image $ACR.azurecr.io/rjacq-web:$SHA   # only if web rebuilt
+  echo "DEPLOYED $SHA"
+else
+  echo "MIGRATE $S — apps NOT rolled. Logs: az containerapp job logs show -n rjacq-migrate -g $RG --container rjacq-migrate"
+fi
+```
+
+> **Unique Alembic revision ids.** Before adding a migration, confirm its `revision = "..."` id is
+> not already used by another file in `migrations/versions/` — a duplicate id makes Alembic report
+> `Revision <id> is present more than once` → `Cycle is detected`, and `alembic upgrade head` fails
+> entirely (this bit us once: the labor-source migration reused `e1f2a3b4c5d6`; fixed by renaming to
+> `f4a5b6c7d8e9`). `alembic heads` should show exactly one head.
+
 ---
 
 ## 4. Zero-downtime mechanics

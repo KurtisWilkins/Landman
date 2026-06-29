@@ -78,9 +78,11 @@ Follow-ups:
       budget > P&L bridge, D-11). The Pro forma card now shows draft year-1 for reference but the
       calc still uses the bridge until lock. Decide whether a draft budget should drive the calc.
 
-- [ ] **Deploy to Azure** — prod is live at SHA `b3e4ae4` (grid + archive applied). The next deploy
-      applies the labor migration `b8c9d0e1f2a3` (additive), then rolls api/worker/web + re-runs the
-      seed. Recipe in `docs/DEPLOYMENT.md` (build via `az acr build`; web from `apps/web`).
+- [x] **Deploy to Azure** — prod is live at SHA `3395d20` (api `--0000042`, worker `--0000029`);
+      migration `f4a5b6c7d8e9` (`labor_positions.source`) applied. The first attempt's migration had
+      a duplicate revision id (`e1f2a3b4c5d6`) → cycle → migrate failed; #72 renamed it and the
+      re-deploy applied it. Deploy command now hard-gates on the migrate job's `Succeeded` status
+      before rolling apps. Recipe in `docs/DEPLOYMENT.md` (build via `az acr build`; web from `apps/web`).
 - [ ] **Set the labor loads** — `labor_benefits_monthly_per_employee` (→600130) +
       `labor_payroll_tax_pct` (→600155) in config. Until then benefits + payroll tax are $0; wages +
       the work-camper revenue/credit compute fully. _Needs the figures from the user._
