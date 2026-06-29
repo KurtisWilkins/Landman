@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..core import db as core_db
+from ..core.config import settings
 from ..core.logging import get_logger
 from ..models.acquisitions import Acquisition
 from . import repository as repo
@@ -23,12 +24,20 @@ log = get_logger("mapping")
 
 async def classify_acquisition_mappings(ctx: dict[str, Any], acquisition_id: str) -> int:
     """Propose a GL mapping for each line in the acquisition's current financial period, scoped to
-    the acquisition's seller. Returns the number of lines processed."""
+    the acquisition's seller. A confident classifier guess auto-applies; an unsure one stays
+    unmapped for human review. Returns the number of lines processed."""
     embedder = build_embedder()
     classifier = build_classifier()
     async with core_db.SessionFactory() as session:
         acquisition = await session.get(Acquisition, acquisition_id)
         source_seller = acquisition.seller_name if acquisition else None
+        # Without an embedder the classifier ranks against the full mappable chart; fetch it once
+        # per job rather than per line.
+        fallback_accounts = (
+            list(await repo.classifier_candidate_accounts(session))
+            if classifier is not None and embedder is None
+            else None
+        )
         lines = await repo.list_lines(session, acquisition_id)
         for line in lines:
             await service.propose_for_line(
@@ -37,6 +46,8 @@ async def classify_acquisition_mappings(ctx: dict[str, Any], acquisition_id: str
                 embedder=embedder,
                 classifier=classifier,
                 source_seller=source_seller,
+                fallback_accounts=fallback_accounts,
+                min_confidence=settings.gl_map_auto_confidence,
             )
         await session.commit()
     log.info("mapping.classified", acquisition_id=acquisition_id, lines=len(lines))

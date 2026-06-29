@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-6"
     voyage_api_key: str | None = None
+    # Minimum classifier confidence (0–1) to auto-apply a GL mapping; below this the line stays
+    # unmapped and is flagged for human review (AI proposes, a person confirms — CLAUDE.md). A
+    # tunable knob, not a §14 business value — surfaced here so it isn't baked into logic.
+    gl_map_auto_confidence: Decimal = Decimal("0.6")
 
     # ── Comp intelligence ──────────────────  TODO(decision: §14 D-22)
     google_places_api_key: str | None = None

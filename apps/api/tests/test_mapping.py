@@ -192,6 +192,79 @@ async def test_propose_unmapped_when_no_providers(session: AsyncSession) -> None
     assert line.map_confidence == MapConfidence.UNMAPPED
 
 
+# ── classifier without an embedder: best-guess over the full chart, gated on confidence ──────
+
+
+async def test_classifier_auto_maps_over_chart_without_embedder(session: AsyncSession) -> None:
+    """No Voyage embedder: the classifier ranks against the chart (fallback_accounts) and a
+    confident guess auto-applies."""
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    acct = await _account(
+        session, code, level=AccountLevel.LEAF, section="Income", placement="above"
+    )
+    line = await _line(session, acquisition_id, period_id, "RV Site Income", "1000")
+    classifier = FakeClassifier(ClassifierResult(code, "leaf", Decimal("0.9"), None))
+    await service.propose_for_line(
+        session,
+        line,
+        embedder=None,
+        classifier=classifier,
+        fallback_accounts=[acct],
+        min_confidence=Decimal("0.6"),
+    )
+    assert classifier.calls == 1
+    assert line.account_code == code
+    assert line.map_confidence == MapConfidence.LEAF
+    assert line.noi_placement == NoiPlacement.ABOVE  # from the account's chart default
+
+
+async def test_classifier_below_threshold_flags_for_review(session: AsyncSession) -> None:
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    acct = await _account(
+        session, code, level=AccountLevel.LEAF, section="Income", placement="above"
+    )
+    line = await _line(session, acquisition_id, period_id, "Mystery Receipt", "1000")
+    classifier = FakeClassifier(ClassifierResult(code, "leaf", Decimal("0.5"), None))  # < 0.6
+    await service.propose_for_line(
+        session,
+        line,
+        embedder=None,
+        classifier=classifier,
+        fallback_accounts=[acct],
+        min_confidence=Decimal("0.6"),
+    )
+    assert line.account_code is None
+    assert line.map_confidence == MapConfidence.UNMAPPED  # never dropped — surfaced for review
+
+
+def test_result_from_tool_input_validates() -> None:
+    """The pure tool-input parser clamps confidence and rejects hallucinated codes / bad levels."""
+    from rjacq.mapping.providers import result_from_tool_input
+
+    valid = {"400105", "600410"}
+    ok = result_from_tool_input(
+        {"account_code": "400105", "level": "leaf", "confidence_score": "0.92"}, valid
+    )
+    assert ok.account_code == "400105" and ok.level == "leaf"
+    assert ok.confidence_score == Decimal("0.92")
+
+    # A code outside the candidate chart → no confident match (stays unmapped for review).
+    bad = result_from_tool_input(
+        {"account_code": "999999", "level": "leaf", "confidence_score": "0.99"}, valid
+    )
+    assert bad.account_code is None
+
+    # Confidence clamps to [0, 1]; an unparseable value → 0.
+    assert result_from_tool_input(
+        {"account_code": "600410", "level": "leaf", "confidence_score": "5"}, valid
+    ).confidence_score == Decimal("1")
+    assert result_from_tool_input(
+        {"account_code": "600410", "level": "leaf", "confidence_score": "nope"}, valid
+    ).confidence_score == Decimal("0")
+
+
 # ── learned-mapping reuse ───────────────────────────────────────────────────
 
 

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.logging import get_logger
 from ..models.enums import AccountLevel, MapConfidence, NoiPlacement
 from ..models.financials import FinancialLine
+from ..models.reference import GLAccount
 from ..schemas.financials import (
     GlAccountOption,
     MappingCandidate,
@@ -51,6 +52,17 @@ def _set_unmapped(line: FinancialLine) -> None:
     line.map_confidence_score = None
 
 
+def _candidates_from_accounts(accounts: list[GLAccount]) -> list[Candidate]:
+    # Full-chart candidates (no pgvector shortlist): similarity is unknown, so 0.0 — the classifier
+    # ranks by meaning, not by a vector score it doesn't have.
+    return [
+        Candidate(
+            account_code=a.account_code, name=a.name, level=str(a.level.value), similarity=0.0
+        )
+        for a in accounts
+    ]
+
+
 async def propose_for_line(
     session: AsyncSession,
     line: FinancialLine,
@@ -58,10 +70,13 @@ async def propose_for_line(
     embedder: Embedder | None,
     classifier: Classifier | None,
     source_seller: str | None = None,
+    fallback_accounts: list[GLAccount] | None = None,
     min_confidence: Decimal = DEFAULT_MIN_CONFIDENCE,
 ) -> list[Candidate]:
     """Propose a mapping for one line, mutating it in place. Order: learned mapping →
-    embed+classify with granularity degradation → unmapped. Returns the candidate shortlist.
+    classify (over the pgvector shortlist if an embedder is configured, else the full chart in
+    ``fallback_accounts``) → unmapped. A confident guess auto-applies; below ``min_confidence`` the
+    line stays unmapped for human review. Returns the candidate shortlist.
     """
     phrase = line.seller_source_line or ""
 
@@ -81,34 +96,40 @@ async def propose_for_line(
             line.noi_placement = NoiPlacement(account.default_noi_placement)
         return []
 
-    # 2) Embed + classify over the pgvector shortlist.
-    if embedder is not None and classifier is not None:
-        vec = embedder.embed(phrase)
-        shortlist = await repo.shortlist_accounts(session, vec, k=5)
-        candidates = [
-            Candidate(
-                account_code=a.account_code, name=a.name, level=str(a.level.value), similarity=s
-            )
-            for a, s in shortlist
-        ]
-        result = classifier.classify(phrase, candidates)
-        if (
-            result.account_code is not None
-            and result.level is not None
-            and (result.confidence_score >= min_confidence)
-        ):
-            account = await repo.get_account(session, result.account_code)
-            line.account_code = result.account_code
-            line.account_level = AccountLevel(result.level)
-            line.map_confidence = _confidence_for_level(result.level)
-            line.map_confidence_score = result.confidence_score
-            placement = result.noi_placement or (account.default_noi_placement if account else None)
-            line.noi_placement = NoiPlacement(placement) if placement else None
+    # 2) Classify against a candidate set: the pgvector shortlist when an embedder is configured,
+    #    else the full mappable chart (fallback_accounts).
+    if classifier is not None:
+        if embedder is not None:
+            shortlist = await repo.shortlist_accounts(session, embedder.embed(phrase), k=5)
+            candidates = [
+                Candidate(
+                    account_code=a.account_code, name=a.name, level=str(a.level.value), similarity=s
+                )
+                for a, s in shortlist
+            ]
         else:
-            _set_unmapped(line)  # never dropped — surfaced for review (§5.3.6)
-        return candidates
+            candidates = _candidates_from_accounts(fallback_accounts or [])
+        if candidates:
+            result = classifier.classify(phrase, candidates)
+            if (
+                result.account_code is not None
+                and result.level is not None
+                and (result.confidence_score >= min_confidence)
+            ):
+                account = await repo.get_account(session, result.account_code)
+                line.account_code = result.account_code
+                line.account_level = AccountLevel(result.level)
+                line.map_confidence = _confidence_for_level(result.level)
+                line.map_confidence_score = result.confidence_score
+                placement = result.noi_placement or (
+                    account.default_noi_placement if account else None
+                )
+                line.noi_placement = NoiPlacement(placement) if placement else None
+            else:
+                _set_unmapped(line)  # never dropped — surfaced for review (§5.3.6)
+            return candidates
 
-    # 3) No providers configured (C-20) → unmapped, surfaced for review.
+    # 3) No classifier (no key) or no candidates → unmapped, surfaced for review.
     _set_unmapped(line)
     return []
 
