@@ -31,7 +31,7 @@ from ..schemas.budget import (
     BudgetTotals,
 )
 from .budget import GridLine, GridTotals, bucket_line_months, roll_up, variance
-from .defaults_rules import RULE_LIBRARY as _RULE_LIBRARY
+from .defaults_config import effective_rules
 from .defaults_rules import DefaultComputation, DriverContext, compute_default
 from .operating import UnitGroupInput, billable_unit_total, units_need_input
 
@@ -202,12 +202,6 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     )
 
 
-def _effective_rules() -> tuple:
-    """The live default-rule specs. Code constants today (the seed/reset library); a global,
-    admin-editable store will overlay these so the rates/amounts are centrally configurable."""
-    return _RULE_LIBRARY
-
-
 def _subtree_codes(target: str, accounts: dict[str, GLAccount]) -> set[str]:
     """``target`` plus all GL accounts beneath it (so a coarse default to a parent can tell whether
     the seller already mapped detail into the bucket)."""
@@ -307,7 +301,7 @@ async def _apply_defaults_lines(
     rule posts nothing (the panel surfaces the prompt); the bill-back lands as a negative contra."""
     prior = await _prior_actuals(session, acquisition_id)
     ctx = await _driver_context(session, acquisition_id, by_account, accounts, prior)
-    for spec in _effective_rules():
+    for spec in await effective_rules(session):
         result = compute_default(spec, ctx)
         if not isinstance(result, DefaultComputation):
             continue  # disabled or needs-input → nothing to post

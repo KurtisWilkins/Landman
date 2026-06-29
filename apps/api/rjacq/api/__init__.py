@@ -14,6 +14,7 @@ from . import (
     auth,
     budget,
     comps,
+    defaults_config,
     feedback,
     gates,
     labor,
@@ -30,6 +31,7 @@ api_router.include_router(mapping.router)
 api_router.include_router(budget.router)
 api_router.include_router(labor.router)
 api_router.include_router(operating.router)
+api_router.include_router(defaults_config.router)
 api_router.include_router(comps.router)
 api_router.include_router(gates.router)
 api_router.include_router(feedback.router)

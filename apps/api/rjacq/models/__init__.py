@@ -9,6 +9,7 @@ from .app_secret import AppSecret
 from .base import Base
 from .budget import Budget, BudgetLine
 from .comps import Comp
+from .defaults import DefaultRuleConfig
 from .feedback import (
     FeedbackAttachment,
     FeedbackComment,
@@ -58,6 +59,7 @@ __all__ = [
     "ProformaSummary",
     "UnderwritingDefaults",
     "Comp",
+    "DefaultRuleConfig",
     "LaborPosition",
     "OperationalInputs",
     "UnitGroup",
