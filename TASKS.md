@@ -53,6 +53,26 @@ _Last updated: 2026-06-24._
       role); Pro forma shows the **year-1 stabilized (rev/opex/NOI) from the Budget**; Promote shows
       the **acquisition basis (price/equity/debt/LTV) from the pro forma**. No API change.
 
+## In progress — budget defaults engine (branch `claude/landman-systems-review-uqj6zx`)
+
+Plan + decisions in `DECISIONS.md` D-15…D-18. Backend shipped on the branch (not merged):
+
+- [x] **Part 1 — operational inputs** — `operational_inputs` + `unit_groups` (unit-mix / headcount /
+      electric drivers), OM-seeded + needs-input prompts, editable; pure driver math. _(migration
+      `c9d0e1f2a3b4`)_
+- [x] **Part 2 — rule library** — typed `RuleSpec` + pure `compute_default` (6 rule types) with
+      worked-example tests; + GL homes 600145 / 600220.
+- [x] **Part 3 — apply to budget** — contra bill-back, subtree-aware gap-fill, manual-sticks +
+      revert-to-default, driver-change recompute; DB-backed tests.
+- [ ] **Part 2b — central config** — global, admin-editable `default_rules` table seeded from
+      `RULE_LIBRARY`, so rates/amounts are editable in-UI globally (not just per deal). Resolver
+      seam is in place (`_effective_rules`).
+- [ ] **Web UI** — the "Operating Inputs" panel (unit groups / headcount / electric) on the
+      Underwriting tab; defaults badges + revert-to-default on the Budget grid; the admin
+      rule-library editor.
+- [ ] **Confirm** the call-center GL home (600220, placed under Advertising & Promotion) + retire
+      the now-superseded `budget_defaults.py` (+ `test_budget_defaults.py`).
+
 ## Next
 
 - [ ] **(Optional) Draft budget → pro forma without locking** — today the year-1 budget feeds the

@@ -8,6 +8,84 @@ Newest first.
 
 ---
 
+## 2026-06-29 — Budget defaults engine (Parts 1–3)
+
+The configurable rule library that autofills year-one budget line items. Drivers are captured
+per property (Part 1); a typed, pure rule engine computes each default (Part 2); the result is
+applied onto the budget grid, editable and non-destructive (Part 3). Every autofilled value is
+tagged `default` provenance, distinguishable from `actuals` (uploaded) and a manual edit.
+
+### D-15 — Operational inputs: per-deal drivers, captured + provenance-tagged, never guessed
+
+**Decision.** Defaults that depend on counts read from a small per-deal capture: **unit groups**
+(`unit_groups`, 1:many) + **headcount** and **electric** (`operational_inputs`, 1:1). Seeded from
+the OM unit mix / mapped prior-year Electric where present; a missing driver surfaces a **"needs
+input"** prompt and the dependent default reports needs-input rather than computing on a guess.
+
+- **Billable units** = RV pads + cabins + glamping; **tents excluded** (seed `billable=False`).
+  The category list is **not** fixed to three — custom sub-types are addable; each group carries
+  its own `billable` flag, so the driver is "sum the billable groups' counts".
+- Everything editable; an edit flips the field's provenance to `manual`. Migration
+  `c9d0e1f2a3b4` (additive).
+
+### D-16 — The rule library: typed, pure, centrally configurable; numbers are data, not logic
+
+**Decision.** Each rule is a `RuleSpec` (type, value/driver, target GL); `compute_default` is a pure
+Decimal function, unit-tested with worked examples. `RULE_LIBRARY` is the seed/reset spec; the
+numbers live as **data** (and will be DB-overlaid for global in-UI editing), never baked into the
+compute logic (CLAUDE.md rule #2). The full table (the confirmed seed values):
+
+| Rule | Type | Value | Driver | GL |
+|---|---|---|---|---|
+| Insurance | % of gross revenue | 3% | gross revenue | 607100 |
+| Credit-card processing | % of gross revenue | 2.5% | gross revenue | 600700 |
+| Utilities | % of gross revenue | 17.5% (soft 15–20%) | gross revenue | 605400 |
+| Utility bill-back | % of a line | 62% of electric | electric driver | 605415 (contra, **negative**) |
+| Repairs & maintenance | per unit (annual) | $275 | billable units | 605100 |
+| Property taxes | prior-year uplift | prior × 1.30 (**must-fix**) | prior-year 607000 | 607000 |
+| Shield (PMS) | fixed | $1,000/mo | — | 600410 |
+| PPC | fixed | $12,000/yr | — | 600225 |
+| SEO / subscription marketing | fixed | $850/mo | — | 601010 |
+| Active-management marketing | fixed | $825/mo | — | 600210 |
+| Call center | fixed | $750/mo | — | 600220 |
+| Payroll budget allocation | per employee/mo | $85 × headcount × 12 | headcount | 600145 |
+
+- **Utility bill-back sign = contra-expense (negative).** 62% × electric is posted **negative** to
+  605415 Utility Recovery — it nets down the utilities bucket rather than adding revenue.
+- **Utilities 17.5% = total utilities incl. electric.** Electric is captured as the bill-back
+  **driver only**, not added as a separate above-the-line expense (no double count).
+- **PPC is now a fixed $12k/yr** (retires the old site×volume×rate formula).
+- **Utilities/insurance/CC % use a gross-revenue base computed ONCE** from projected operating
+  revenue, excluding default-generated lines — so a default never feeds back into the % base.
+- **Soft warning** (utilities outside 15–20%) flags but never blocks; **must-fix** (property taxes)
+  is a persistent placeholder badge.
+- **Two additive GL homes** (chart seed): **600145** Payroll Budget Allocation (a budgeted accrual,
+  kept distinct from actual wages 600140) and **600220** Call Center. _The call-center home is
+  provisional — adjust when the chart is finalized._
+
+### D-17 — Application: gap-fill (subtree-aware) vs override; the bill-back nets down opex
+
+**Decision.** Defaults apply onto `budget_lines` (`source=default`, `default_rule_key`), never
+clobbering a manual override. Per rule:
+
+- **Gap-fill (most rules):** post only when the target's **subtree** has no seller actual — a coarse
+  default (utilities → parent 605400) is **skipped if the seller mapped detail under it** (e.g.
+  electric 605410), so the two never double-count.
+- **Override (Shield, property-tax uplift):** supersede a mapped actual on the rule's own account.
+- **NeedsInput** posts nothing (the operating panel drives the prompt) — never a guessed number.
+
+### D-18 — Driver-recompute rule: manual sticks; recompute only still-default lines
+
+**Decision (the decision point in the brief).** When a driver (unit count, headcount, electric)
+changes **after** a dependent line was manually edited, **the manual value holds** — a driver change
+recomputes only lines still tagged `default`. A non-destructive **revert-to-default**
+(`POST …/budget/line/{id}/revert-default`) clears the edit and re-links the line to its rule.
+
+**Why.** Matches the existing labor/seed "never clobber `is_overridden`" behavior; deliberate edits
+are safe, and the revert gives an explicit, recoverable path back to the computed value.
+
+---
+
 ## 2026-06-24 — Labor tab (PRs #65, #66)
 
 ### D-14 — Labor plan feeds the budget Wages cluster (+ a work-camper revenue/discount model)

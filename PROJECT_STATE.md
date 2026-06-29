@@ -4,7 +4,7 @@ Snapshot of where the RJourney Acquisitions Platform stands. For the full contra
 `docs/rjourney-acquisitions-design-document-v0.2.md` (§8 data model, §9 API); for onboarding see
 `docs/PROJECT-CONTEXT.md`; for the decision log see `DECISIONS.md`; for the task list see `TASKS.md`.
 
-_Last updated: 2026-06-22._
+_Last updated: 2026-06-29._
 
 ## What it is
 
@@ -112,6 +112,17 @@ Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/posit
     read-only **"Year-1 stabilized — from the Budget"** card (revenue/opex/NOI) flagging
     locked-drives-calc vs draft; (c) Promote tab shows a read-only **"Acquisition basis"** card
     (purchase price / equity / debt / LTV) sourced from the pro forma. No API/migration change.
+
+**Budget defaults engine (branch `claude/landman-systems-review-uqj6zx`, not yet merged):**
+23. **Part 1** — operational inputs (`operational_inputs` + `unit_groups`): per-deal unit-mix /
+    headcount / electric drivers; OM-seeded with "needs input" prompts; all editable.
+    _(migration `c9d0e1f2a3b4`)_
+24. **Part 2** — typed rule library + pure `compute_default` engine (6 rule types, worked-example
+    tests) + GL chart homes 600145 (payroll budget) / 600220 (call center). The 12 rules supersede
+    the old `budget_defaults.py` shield/marketing/ppc path (PPC is now a fixed $12k/yr).
+25. **Part 3** — engine applied to the budget: signed contra bill-back (605415), subtree-aware
+    gap-fill (no utilities double-count), manual-sticks + revert-to-default, driver-change recompute.
+    See `DECISIONS.md` D-15…D-18. _Remaining: global rule-config table (in-UI editing) + web panels._
 
 ## Pending
 
