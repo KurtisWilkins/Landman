@@ -91,6 +91,34 @@ async def remove_budget_line(
         raise _bad_request(exc) from exc
 
 
+@router.post(
+    "/acquisitions/{acquisition_id}/budget/line/{line_id}/revert-default", response_model=BudgetDoc
+)
+async def revert_budget_line_to_default(
+    acquisition_id: str,
+    line_id: str,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> BudgetDoc:
+    """Clear a manual edit and re-link the line to its default rule (recompute from drivers)."""
+    try:
+        return await budget_service.revert_to_default(
+            session, acquisition_id, line_id, actor=principal.user_id
+        )
+    except budget_service.BudgetError as exc:
+        raise _bad_request(exc) from exc
+
+
+@router.post("/acquisitions/{acquisition_id}/budget/apply-defaults", response_model=BudgetDoc)
+async def apply_budget_defaults(
+    acquisition_id: str,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> BudgetDoc:
+    """Re-run the defaults engine against the current drivers (manual lines untouched)."""
+    return await budget_service.apply_defaults(session, acquisition_id, actor=principal.user_id)
+
+
 @router.post("/acquisitions/{acquisition_id}/budget/lock", response_model=BudgetDoc)
 async def lock_budget(
     acquisition_id: str,

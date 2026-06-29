@@ -54,6 +54,10 @@ class RuleSpec:
     target_account_code: str
     basis: str = "annual"  # FIXED only: "annual" | "monthly"
     is_income_offset: bool = False  # post the computed amount NEGATIVE (contra-expense)
+    # True = supersede a mapped actual on this exact account (Shield ignores history; the property-
+    # tax uplift consumes-and-replaces the prior). False = gap-fill only (don't clobber seller
+    # actuals; for a coarse/parent target, also skip if the subtree already has actuals).
+    overrides_actuals: bool = False
     driver_account_code: str | None = None  # PRIOR_YEAR_UPLIFT: which prior-year line drives it
     soft_min: Decimal | None = None  # recommended-band floor (PERCENT_* rates)
     soft_max: Decimal | None = None  # recommended-band ceiling
@@ -220,8 +224,17 @@ RULE_LIBRARY: tuple[RuleSpec, ...] = (
         "607000",
         driver_account_code="607000",
         must_fix=True,
+        overrides_actuals=True,
     ),
-    RuleSpec("shield", "Shield (PMS)", RuleType.FIXED, Decimal("1000"), "600410", basis="monthly"),
+    RuleSpec(
+        "shield",
+        "Shield (PMS)",
+        RuleType.FIXED,
+        Decimal("1000"),
+        "600410",
+        basis="monthly",
+        overrides_actuals=True,
+    ),
     RuleSpec("ppc", "PPC", RuleType.FIXED, Decimal("12000"), "600225", basis="annual"),
     RuleSpec(
         "seo_marketing",

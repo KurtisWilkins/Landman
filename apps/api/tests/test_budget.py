@@ -322,21 +322,15 @@ async def test_edit_invalidates_lock(session: AsyncSession) -> None:
     assert (await budget_service.get_budget(session, acquisition_id)).status == "draft"
 
 
-async def test_seed_applies_shield_default(
-    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A configured default rule fills a GL the actuals lack (no-op until config is set)."""
+async def test_seed_applies_shield_default(session: AsyncSession) -> None:
+    """The defaults engine fills a GL the actuals lack — Shield is a fixed $1,000/mo posted to its
+    chart account (600410), superseding any history."""
     acquisition_id, _period_id = await _acquisition(session)
-    shield = f"sh{uuid.uuid4().hex[:8]}"
-    await _account(session, shield, "Expense")
-    # budget_service binds `settings` at import and conftest rebinds core.config.settings to a fresh
-    # instance — so patch the object the service actually reads, not core.config.settings.
-    monkeypatch.setattr(budget_service.settings, "shield_account_code", shield)
-    monkeypatch.setattr(budget_service.settings, "shield_monthly", Decimal("1000"))
+    await _account(session, "600410", "Expense")  # Shield's chart account
 
     await budget_service.seed_budget(session, acquisition_id)
     doc = await budget_service.get_budget(session, acquisition_id)
-    row = next(r for r in doc.rows if r.account_code == shield)
+    row = next(r for r in doc.rows if r.account_code == "600410")
     assert row.source == "default"
     assert row.year1_annual == Decimal("12000")  # $1,000/mo × 12
 

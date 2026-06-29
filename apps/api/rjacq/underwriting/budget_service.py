@@ -18,11 +18,10 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.config import settings
 from ..mapping import repository as mapping_repo
-from ..models.acquisitions import Acquisition
 from ..models.budget import Budget, BudgetLine
 from ..models.enums import BudgetSource, BudgetStatus
+from ..models.operating import OperationalInputs, UnitGroup
 from ..models.reference import GLAccount
 from ..schemas.budget import (
     BudgetDoc,
@@ -32,10 +31,11 @@ from ..schemas.budget import (
     BudgetTotals,
 )
 from .budget import GridLine, GridTotals, bucket_line_months, roll_up, variance
-from .budget_defaults import DefaultsContext, all_defaults
+from .defaults_rules import RULE_LIBRARY as _RULE_LIBRARY
+from .defaults_rules import DefaultComputation, DriverContext, compute_default
+from .operating import UnitGroupInput, billable_unit_total, units_need_input
 
 _ZERO = Decimal(0)
-_MONTHS_PER_YEAR = Decimal(12)
 
 
 class BudgetError(Exception):
@@ -202,22 +202,180 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     )
 
 
-async def _defaults_context(session: AsyncSession, acquisition_id: str) -> DefaultsContext:
-    acq = await session.get(Acquisition, acquisition_id)
-    return DefaultsContext(
-        site_count=acq.site_count if acq else None,
-        shield_monthly=settings.shield_monthly,
-        shield_account_code=settings.shield_account_code,
-        mktg_website_monthly=settings.mktg_website_monthly,
-        mktg_website_account_code=settings.mktg_website_account_code,
-        mktg_secondary_monthly=settings.mktg_secondary_monthly,
-        mktg_secondary_account_code=settings.mktg_secondary_account_code,
-        ppc_rate=settings.ppc_rate,
-        ppc_target_volume=settings.ppc_target_volume,
-        ppc_intercompany_pct=settings.ppc_intercompany_pct,
-        ppc_google_account_code=settings.ppc_google_account_code,
-        ppc_intercompany_account_code=settings.ppc_intercompany_account_code,
+def _effective_rules() -> tuple:
+    """The live default-rule specs. Code constants today (the seed/reset library); a global,
+    admin-editable store will overlay these so the rates/amounts are centrally configurable."""
+    return _RULE_LIBRARY
+
+
+def _subtree_codes(target: str, accounts: dict[str, GLAccount]) -> set[str]:
+    """``target`` plus all GL accounts beneath it (so a coarse default to a parent can tell whether
+    the seller already mapped detail into the bucket)."""
+    children: dict[str, list[str]] = {}
+    for code, acct in accounts.items():
+        if acct.parent_code:
+            children.setdefault(acct.parent_code, []).append(code)
+    out = {target}
+    stack = [target]
+    while stack:
+        for child in children.get(stack.pop(), []):
+            if child not in out:
+                out.add(child)
+                stack.append(child)
+    return out
+
+
+def _subtree_has_actuals(
+    target: str, by_account: dict[str, BudgetLine], accounts: dict[str, GLAccount]
+) -> bool:
+    """True if the seller already has a (non-default) line anywhere in ``target``'s subtree, so a
+    gap-fill default skips it rather than double-counting (605400 utilities vs its 605410 child)."""
+    for code in _subtree_codes(target, accounts):
+        bl = by_account.get(code)
+        if bl is not None and not bl.removed and bl.source != BudgetSource.DEFAULT.value:
+            return True
+    return False
+
+
+def _gross_revenue_base(
+    by_account: dict[str, BudgetLine],
+    accounts: dict[str, GLAccount],
+    prior: dict[str, Decimal],
+) -> Decimal | None:
+    """Projected operating revenue, computed ONCE for the percent-of-gross rules. Excludes
+    default-generated lines so adding a default never feeds back into the % base. None when zero
+    (the dependent rule then reports needs-input rather than computing against $0)."""
+    total = _ZERO
+    seen: set[str] = set()
+    for code, bl in by_account.items():
+        acct = accounts.get(code)
+        if acct is None or acct.section != "Income" or bl.removed:
+            continue
+        if bl.source == BudgetSource.DEFAULT.value:
+            continue
+        if bl.year1_amount is not None:
+            val = bl.year1_amount
+        elif bl.prior_amount is not None:
+            val = bl.prior_amount
+        else:
+            val = prior.get(code, _ZERO)
+        total += val
+        seen.add(code)
+    for code, val in prior.items():
+        acct = accounts.get(code)
+        if code not in seen and acct is not None and acct.section == "Income":
+            total += val
+    return total if total > _ZERO else None
+
+
+async def _driver_context(
+    session: AsyncSession,
+    acquisition_id: str,
+    by_account: dict[str, BudgetLine],
+    accounts: dict[str, GLAccount],
+    prior: dict[str, Decimal],
+) -> DriverContext:
+    """Assemble the defaults drivers: the gross-revenue base + the operational inputs (electric,
+    billable units, headcount) + the prior-year map (for the property-tax uplift)."""
+    op = await session.get(OperationalInputs, acquisition_id)
+    groups = (
+        (await session.execute(select(UnitGroup).where(UnitGroup.acquisition_id == acquisition_id)))
+        .scalars()
+        .all()
     )
+    inputs = [
+        UnitGroupInput(category=g.category, count=g.count, billable=g.billable) for g in groups
+    ]
+    return DriverContext(
+        gross_revenue=_gross_revenue_base(by_account, accounts, prior),
+        electric_annual=op.electric_annual if op else None,
+        billable_units=billable_unit_total(inputs),
+        units_complete=not units_need_input(inputs),
+        headcount=op.employee_headcount if op else None,
+        prior_year=prior,
+    )
+
+
+async def _apply_defaults_lines(
+    session: AsyncSession,
+    acquisition_id: str,
+    by_account: dict[str, BudgetLine],
+    accounts: dict[str, GLAccount],
+) -> None:
+    """Compute each rule and post it onto its budget line (no commit). Never clobbers a manual
+    override (manual sticks); gap-fill rules skip a bucket the seller already filled; a NeedsInput
+    rule posts nothing (the panel surfaces the prompt); the bill-back lands as a negative contra."""
+    prior = await _prior_actuals(session, acquisition_id)
+    ctx = await _driver_context(session, acquisition_id, by_account, accounts, prior)
+    for spec in _effective_rules():
+        result = compute_default(spec, ctx)
+        if not isinstance(result, DefaultComputation):
+            continue  # disabled or needs-input → nothing to post
+        target = result.target_account_code
+        if target not in accounts:  # FK-safe: only post to chart accounts
+            continue
+        existing = by_account.get(target)
+        if existing is not None and existing.is_overridden:
+            continue  # a deliberate manual edit wins over the default
+        if not spec.overrides_actuals and _subtree_has_actuals(target, by_account, accounts):
+            continue  # gap-fill: the seller already has this bucket — don't double-count
+        if existing is not None:
+            existing.year1_amount = result.annual_amount
+            existing.removed = False
+            existing.source = BudgetSource.DEFAULT.value
+            existing.default_rule_key = result.rule_key
+        else:
+            acct = accounts.get(target)
+            line = BudgetLine(
+                budget_line_id=_new_id("bl"),
+                acquisition_id=acquisition_id,
+                account_code=target,
+                month_index=0,
+                year1_amount=result.annual_amount,
+                section=acct.section if acct else None,
+                source=BudgetSource.DEFAULT.value,
+                default_rule_key=result.rule_key,
+            )
+            session.add(line)
+            by_account[target] = line
+
+
+async def budget_exists(session: AsyncSession, acquisition_id: str) -> bool:
+    return await _header(session, acquisition_id) is not None
+
+
+async def apply_defaults(
+    session: AsyncSession, acquisition_id: str, *, actor: str | None = None
+) -> BudgetDoc:
+    """Re-apply the defaults engine to the budget (used on a driver change so dependent defaults
+    recompute). Manual lines are untouched; editing invalidates the lock."""
+    await _ensure_header(session, acquisition_id)
+    by_account = {
+        bl.account_code: bl for bl in await _lines(session, acquisition_id) if bl.account_code
+    }
+    accounts = await _accounts(session)
+    await _apply_defaults_lines(session, acquisition_id, by_account, accounts)
+    _invalidate_lock(await _header(session, acquisition_id))
+    await session.commit()
+    return await get_budget(session, acquisition_id)
+
+
+async def revert_to_default(
+    session: AsyncSession, acquisition_id: str, line_id: str, *, actor: str | None
+) -> BudgetDoc:
+    """Clear a line's manual override and re-link it to its default rule (the non-destructive
+    'revert' for the manual-sticks rule). Recomputes the line from the current drivers."""
+    line = await session.get(BudgetLine, line_id)
+    if line is None or line.acquisition_id != acquisition_id:
+        raise BudgetError("line_not_found", "No such budget line.")
+    if not line.default_rule_key:
+        raise BudgetError("no_default", "This line has no default rule to revert to.")
+    line.is_overridden = False
+    line.overridden_by = None
+    line.overridden_at = None
+    line.removed = False
+    await session.flush()
+    return await apply_defaults(session, acquisition_id, actor=actor)
 
 
 async def _ensure_header(session: AsyncSession, acquisition_id: str) -> Budget:
@@ -240,8 +398,9 @@ def _invalidate_lock(header: Budget | None) -> None:
 
 async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     """Prefill annual rows idempotently: (1) one row per mapped-actuals GL (year-one defaults to
-    the prior actual); (2) the defaults engine for GLs the actuals lack (annual = monthly × 12;
-    Shield supersedes history). Never clobbers a human override."""
+    the prior actual); (2) the defaults engine fills the rest — fixed/percent/per-unit/per-employee
+    rules gap-fill GLs the actuals lack (Shield + the property-tax uplift supersede history). Never
+    clobbers a human override."""
     await _ensure_header(session, acquisition_id)
     by_account = {
         bl.account_code: bl for bl in await _lines(session, acquisition_id) if bl.account_code
@@ -264,31 +423,7 @@ async def seed_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
         session.add(line)
         by_account[code] = line
 
-    ctx = await _defaults_context(session, acquisition_id)
-    for dl in all_defaults(ctx):
-        if dl.account_code not in accounts:  # only post to GLs that exist in the chart (FK-safe)
-            continue
-        annual = dl.monthly_amount * _MONTHS_PER_YEAR
-        acct = accounts.get(dl.account_code)
-        existing = by_account.get(dl.account_code)
-        if existing is not None:
-            if dl.overrides_actuals and not existing.is_overridden:
-                existing.year1_amount = annual
-                existing.source = BudgetSource.DEFAULT.value
-                existing.default_rule_key = dl.default_rule_key
-            continue
-        line = BudgetLine(
-            budget_line_id=_new_id("bl"),
-            acquisition_id=acquisition_id,
-            account_code=dl.account_code,
-            month_index=0,
-            year1_amount=annual,
-            section=acct.section if acct else None,
-            source=BudgetSource.DEFAULT.value,
-            default_rule_key=dl.default_rule_key,
-        )
-        session.add(line)
-        by_account[dl.account_code] = line
+    await _apply_defaults_lines(session, acquisition_id, by_account, accounts)
 
     await session.commit()
     return await get_budget(session, acquisition_id)

@@ -63,6 +63,18 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:16]}"
 
 
+async def _recompute_budget_defaults(
+    session: AsyncSession, acquisition_id: str, actor: str | None
+) -> None:
+    """A driver changed (unit count / headcount / electric) → re-apply the budget defaults so the
+    dependent lines recompute. Manual lines are untouched (manual sticks). No-op if no budget yet.
+    Deferred import avoids a module-load cycle with budget_service."""
+    from . import budget_service
+
+    if await budget_service.budget_exists(session, acquisition_id):
+        await budget_service.apply_defaults(session, acquisition_id, actor=actor)
+
+
 async def _header(session: AsyncSession, acquisition_id: str) -> OperationalInputs | None:
     return await session.get(OperationalInputs, acquisition_id)
 
@@ -204,6 +216,7 @@ async def seed_operating(
             header.electric_annual = prior
             header.electric_source = SOURCE_ACTUALS
     await session.commit()
+    await _recompute_budget_defaults(session, acquisition_id, actor)
     return await get_operating(session, acquisition_id)
 
 
@@ -221,6 +234,7 @@ async def patch_operating(
     if body.note is not None:
         header.note = body.note
     await session.commit()
+    await _recompute_budget_defaults(session, acquisition_id, actor)
     return await get_operating(session, acquisition_id)
 
 
@@ -247,6 +261,7 @@ async def add_unit_group(
         )
     )
     await session.commit()
+    await _recompute_budget_defaults(session, acquisition_id, actor)
     return await get_operating(session, acquisition_id)
 
 
@@ -274,6 +289,7 @@ async def patch_unit_group(
         group.billable = body.billable
     group.source = SOURCE_MANUAL
     await session.commit()
+    await _recompute_budget_defaults(session, acquisition_id, actor)
     return await get_operating(session, acquisition_id)
 
 
@@ -284,4 +300,5 @@ async def remove_unit_group(
     group = await _resolve_group(session, acquisition_id, unit_group_id)
     await session.delete(group)
     await session.commit()
+    await _recompute_budget_defaults(session, acquisition_id, actor)
     return await get_operating(session, acquisition_id)
