@@ -25,6 +25,9 @@ class BudgetRow(BaseModel):
     prior_overridden: bool = False  # prior edited (corrects an upload)
     removed: bool = False  # dropped from the year-one projection (prior kept as reference)
     flagged_for_promotion: bool = False  # custom line to add to the GL chart later
+    # True when this line was produced by a default rule and has since been manually edited — so the
+    # UI can offer "revert to default" (the manual-sticks escape hatch).
+    revertible: bool = False
     note: str | None = None
 
 

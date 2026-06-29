@@ -100,6 +100,7 @@ async def test_manual_edit_sticks_then_reverts(session: AsyncSession) -> None:
     doc = await budget_service.apply_defaults(session, aid, actor="k")
     assert _row(doc, "600410").year1_annual == Decimal("5000")
     assert _row(doc, "600410").is_overridden is True
+    assert _row(doc, "600410").revertible is True  # the UI can offer revert-to-default
     # Revert re-links it to the rule.
     doc = await budget_service.revert_to_default(session, aid, line_id, actor="k")
     assert _row(doc, "600410").year1_annual == Decimal("12000")

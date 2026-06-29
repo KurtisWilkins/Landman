@@ -687,3 +687,67 @@ export function useRemoveUnitGroup(acquisitionId: string) {
     onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
   });
 }
+
+// ── Budget defaults: revert a manual edit + re-apply the engine ─────────────
+export function useRevertBudgetLine(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (lineId: string) =>
+      apiFetch<unknown>(`/acquisitions/${acquisitionId}/budget/line/${lineId}/revert-default`, {
+        method: "POST",
+      }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+export function useApplyBudgetDefaults(acquisitionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<unknown>(`/acquisitions/${acquisitionId}/budget/apply-defaults`, { method: "POST" }),
+    onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+
+// ── Default-rules config (the global, admin-editable rule library) ──────────
+export type DefaultRuleRow = {
+  rule_key: string;
+  label: string;
+  rule_type: string;
+  value: string;
+  target_account_code: string;
+  basis: string;
+  is_income_offset: boolean;
+  overrides_actuals: boolean;
+  driver_account_code: string | null;
+  soft_min: string | null;
+  soft_max: string | null;
+  must_fix: boolean;
+  enabled: boolean;
+};
+export type DefaultRulesDoc = { rules: DefaultRuleRow[] };
+export type DefaultRulePatch = {
+  value?: number | string | null;
+  enabled?: boolean | null;
+  basis?: string | null;
+  soft_min?: number | string | null;
+  soft_max?: number | string | null;
+  overrides_actuals?: boolean | null;
+};
+
+export function useDefaultRules() {
+  return useQuery({
+    queryKey: ["default-rules"],
+    queryFn: () => apiFetch<DefaultRulesDoc>(`/default-rules`),
+  });
+}
+export function useUpdateDefaultRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { ruleKey: string; patch: DefaultRulePatch }) =>
+      apiFetch<DefaultRuleRow>(`/default-rules/${args.ruleKey}`, {
+        method: "PUT",
+        body: JSON.stringify(args.patch),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["default-rules"] }),
+  });
+}

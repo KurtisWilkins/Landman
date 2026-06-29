@@ -15,17 +15,20 @@ import {
   useLockBudget,
   usePatchBudgetLine,
   useRemoveBudgetLine,
+  useRevertBudgetLine,
   useSeedBudget,
   useUnlockBudget,
 } from "../../api/hooks";
 import type { Schemas } from "../../api/client";
 import { fmtUsd } from "../../lib/format";
 
-type BudgetRow = Schemas["BudgetRow"];
+// `revertible` is a new field not yet in the generated contract — augment locally.
+type BudgetRow = Schemas["BudgetRow"] & { revertible?: boolean };
 type GlAccount = Schemas["GlAccountOption"];
 type Patch = ReturnType<typeof usePatchBudgetLine>;
 type Add = ReturnType<typeof useAddBudgetLine>;
 type Remove = ReturnType<typeof useRemoveBudgetLine>;
+type Revert = ReturnType<typeof useRevertBudgetLine>;
 
 const VARIANCE_BAND = 0.15; // |% var| over this = an over/under to review
 
@@ -60,6 +63,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const patch = usePatchBudgetLine(acquisitionId);
   const add = useAddBudgetLine(acquisitionId);
   const remove = useRemoveBudgetLine(acquisitionId);
+  const revert = useRevertBudgetLine(acquisitionId);
   const lock = useLockBudget(acquisitionId);
   const unlock = useUnlockBudget(acquisitionId);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
@@ -158,6 +162,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
             patch={patch}
             add={add}
             remove={remove}
+            revert={revert}
           />
           <Section
             title="Expense"
@@ -168,6 +173,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
             patch={patch}
             add={add}
             remove={remove}
+            revert={revert}
           />
           {other.length > 0 && (
             <Section
@@ -207,6 +213,7 @@ function Section({
   patch,
   add,
   remove,
+  revert,
 }: {
   title: string;
   section: string | null;
@@ -216,6 +223,7 @@ function Section({
   patch: Patch;
   add: Add;
   remove: Remove;
+  revert: Revert;
 }) {
   const shown = onlyFlagged ? rows.filter(needsReview) : rows;
   const priorTotal = rows.reduce((s, r) => s + Number(r.prior_annual || 0), 0);
@@ -231,7 +239,13 @@ function Section({
       </div>
       <div className="space-y-1">
         {shown.map((r) => (
-          <Row key={r.line_id ?? r.account_code ?? r.name} row={r} patch={patch} remove={remove} />
+          <Row
+            key={r.line_id ?? r.account_code ?? r.name}
+            row={r}
+            patch={patch}
+            remove={remove}
+            revert={revert}
+          />
         ))}
       </div>
       {section && <AddLineForm section={section} accounts={accounts} add={add} />}
@@ -246,7 +260,17 @@ function Section({
   );
 }
 
-function Row({ row, patch, remove }: { row: BudgetRow; patch: Patch; remove: Remove }) {
+function Row({
+  row,
+  patch,
+  remove,
+  revert,
+}: {
+  row: BudgetRow;
+  patch: Patch;
+  remove: Remove;
+  revert: Revert;
+}) {
   const b = badge(row);
   const over = isOverUnder(row);
   const flagged = needsReview(row);
@@ -254,6 +278,10 @@ function Row({ row, patch, remove }: { row: BudgetRow; patch: Patch; remove: Rem
 
   const commit = (field: "prior_amount" | "year1_amount", n: number) =>
     patch.mutate({ ...lineRef(row), [field]: n });
+
+  const onRevert = () => {
+    if (row.line_id) revert.mutate(row.line_id);
+  };
 
   const onRemove = () => {
     if (!row.line_id) return; // un-seeded row: nothing stored to remove
@@ -275,6 +303,17 @@ function Row({ row, patch, remove }: { row: BudgetRow; patch: Patch; remove: Rem
           <span title="Custom line — promote to the GL chart later" className="text-accent-ink">
             ⚑
           </span>
+        )}
+        {row.revertible && (
+          <button
+            type="button"
+            onClick={onRevert}
+            disabled={revert.isPending}
+            title="Revert this manual edit back to the default value"
+            className="text-[10px] text-brand hover:underline disabled:opacity-50"
+          >
+            ↺ revert
+          </button>
         )}
       </span>
       <AmountCell
