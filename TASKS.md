@@ -61,7 +61,7 @@ D-15…D-18). OM seeding + headcount SSOT on the branch (`DECISIONS.md` D-19…D
 - [x] **Headcount SSOT** — Labor roster total (`total_headcount`); payroll default + Operating read
       it; labor edits recompute defaults; `OperationalInputs.employee_headcount` deprecated in place.
 - [x] **OM seeding map + provenance** — OM `staffing` extraction → `seed_roster` (om/default,
-      `LaborPosition.source`, migration `e1f2a3b4c5d6`); wage required (`needs_wage`); tags across
+      `LaborPosition.source`, migration `f4a5b6c7d8e9`); wage required (`needs_wage`); tags across
       Operating/Budget/Labor.
 - [x] **Web** — Labor roster SSOT UI (banner, provenance badges, `⌄` expander), read-only Operating
       headcount, OM-staffing seed on new-acquisition.

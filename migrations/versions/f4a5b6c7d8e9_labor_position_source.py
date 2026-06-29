@@ -1,6 +1,6 @@
 """labor positions: provenance source (OM seeding)
 
-Revision ID: e1f2a3b4c5d6
+Revision ID: f4a5b6c7d8e9
 Revises: d0e1f2a3b4c5
 Create Date: 2026-06-29
 
@@ -13,7 +13,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "e1f2a3b4c5d6"
+revision = "f4a5b6c7d8e9"
 down_revision = "d0e1f2a3b4c5"
 branch_labels = None
 depends_on = None
