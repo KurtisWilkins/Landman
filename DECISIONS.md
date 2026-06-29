@@ -8,6 +8,32 @@ Newest first.
 
 ---
 
+## 2026-06-29 — AI GL classifier (best-guess + confirm) and OM-seeded prior-year
+
+### D-22 — Claude best-guess GL mapping, gated on confidence (§14 C-20)
+
+The mapping engine already had the confidence-gated scaffold (learned-mapping → classify →
+auto-apply if confident, else flag for review), but the classifier was a stub, so every line fell to
+manual review. Shipped a Claude-backed classifier (`mapping/providers.py::ClaudeClassifier`, forced
+tool use, the GL chart sent as a cache-controlled system block):
+- **Claude-only v1 (no Voyage).** It classifies against the full mappable chart (active leaf +
+  subgroup accounts) rather than a pgvector shortlist, so it needs only the Anthropic key already
+  used for OM extraction — no embedding backfill. The Voyage embedder stays a deferred semantic-
+  shortlist optimization.
+- **Auto-apply threshold `GL_MAP_AUTO_CONFIDENCE` = 0.6** (config, not baked). At/above → auto-apply
+  the guess; below → leave unmapped and surface for review. Human-in-the-loop unchanged: every line
+  is still confirmable/overridable, and a hallucinated / off-chart code is rejected to review.
+- Default model stays `claude-sonnet-4-6` (classification is a Sonnet task).
+
+### D-23 — Prior-year seeds from the OM, not just an uploaded recap
+
+OM financials already persist (the OM PDF upload runs through `ClaudePdfExtractor → load_pnl`) but
+are annual-only, so the month-bucket-only `_prior_actuals` skipped them ($0 prior-year). Made
+`_prior_actuals` annual-aware: month columns → sum buckets (recap); otherwise → the line's annual
+`amount` (OM / generic P&L). With the classifier auto-mapping the OM lines, an OM-created acquisition
+shows a populated prior-year before any P&L; a later recap P&L supersedes it (append-never-overwrite
+unchanged).
+
 ## 2026-06-29 — OM seeding + Labor roster as the headcount SSOT
 
 Wires offering-memorandum seeding across the Operating, Budget, and Labor tabs with explicit

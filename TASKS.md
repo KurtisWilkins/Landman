@@ -89,9 +89,14 @@ Follow-ups:
 - [ ] **Activate the PPC default** — set `ppc_rate` / `ppc_target_volume` / `ppc_intercompany_pct`
       in config (the account codes are already wired, #56). Until then PPC is a no-op; Shield +
       marketing are active. _Needs the PPC params from the user._
-- [ ] **First-time AI mapping suggestions (§14 C-20)** — build the Voyage embedder + Claude
-      classifier so non-learned lines get auto-suggestions (a provider/key + cost decision). Until
-      then the worker does learned reuse only.
+- [x] **First-time AI mapping suggestions (§14 C-20)** — Claude best-guess classifier shipped:
+      `build_classifier()` runs against the full mappable chart (no Voyage needed), auto-applies a
+      guess at/above `GL_MAP_AUTO_CONFIDENCE` (0.6) and flags the rest for review; gated on the
+      Anthropic key. _Follow-up:_ the Voyage embedder + `GLAccount.embedding` backfill for a semantic
+      shortlist (accuracy/cost optimization), and batching the per-line classify calls.
+- [x] **Prior-year seeded from the OM** — `_prior_actuals` is now annual-aware (uses the line's
+      annual `amount` when there are no per-month columns), so OM-extracted financials populate
+      prior-year before any P&L upload; a later recap P&L supersedes them.
 
 ## Future enhancements (not yet scheduled)
 
