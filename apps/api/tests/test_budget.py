@@ -13,7 +13,7 @@ from rjacq.models.acquisitions import Acquisition
 from rjacq.models.enums import AccountLevel, AcquisitionStatus, NoiPlacement, Phase, PropertyType
 from rjacq.models.financials import FinancialLine, FinancialPeriod
 from rjacq.models.reference import GLAccount
-from rjacq.schemas.budget import BudgetLineCreate, BudgetLinePatch
+from rjacq.schemas.budget import BudgetLineCreate, BudgetLinePatch, BudgetLineRef
 from rjacq.underwriting import budget_service
 from rjacq.underwriting.budget import (
     GridLine,
@@ -270,6 +270,104 @@ async def test_remove_gl_line_keeps_prior_drops_year_one(session: AsyncSession) 
     assert row.removed is True
     assert row.prior_annual == Decimal("300")  # prior kept as reference
     assert doc.totals.year1_opex == Decimal("0")  # dropped from year-one
+
+
+# ── reorder (drag-to-reorder within a section) ────────────────────────────────
+
+
+async def test_reorder_persists_section_order(session: AsyncSession) -> None:
+    """Dragging line B above line A persists a sort_order so the grid returns them B-then-A."""
+    acquisition_id, period_id = await _acquisition(session)
+    a = f"a{uuid.uuid4().hex[:8]}"
+    b = f"b{uuid.uuid4().hex[:8]}"
+    await _account(session, a, "Income")
+    await _account(session, b, "Income")
+    await _mapped_line(
+        session, acquisition_id, period_id, a, {"JAN 25": "100", "_seller_line": "Retail"}
+    )
+    await _mapped_line(
+        session, acquisition_id, period_id, b, {"JAN 25": "200", "_seller_line": "Housekeeping"}
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+
+    income = [
+        r
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.section == "Income"
+    ]
+    # Move the second line above the first (drag housekeeping above retail).
+    new_order = [income[1], income[0]]
+    await budget_service.reorder_lines(
+        session,
+        acquisition_id,
+        [BudgetLineRef(line_id=r.line_id) for r in new_order],
+        actor="kurtis",
+    )
+
+    after = [
+        r
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.section == "Income"
+    ]
+    assert [r.account_code for r in after] == [r.account_code for r in new_order]
+
+
+async def test_reorder_materializes_unseeded_line(session: AsyncSession) -> None:
+    """A prior-actuals row not yet stored (line_id None) is materialized when it's dragged."""
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, "Income")
+    await _mapped_line(
+        session, acquisition_id, period_id, code, {"JAN 25": "100", "_seller_line": "Rent"}
+    )
+    # No seed: the row shows as an un-seeded reference (line_id None, account_code set).
+    row = next(
+        r
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.account_code == code
+    )
+    assert row.line_id is None
+
+    await budget_service.reorder_lines(
+        session, acquisition_id, [BudgetLineRef(account_code=code)], actor="kurtis"
+    )
+    row = next(
+        r
+        for r in (await budget_service.get_budget(session, acquisition_id)).rows
+        if r.account_code == code
+    )
+    assert row.line_id is not None  # now stored
+    assert row.prior_annual == Decimal("100")  # provenance/value untouched
+
+
+async def test_reorder_is_presentational_keeps_noi_and_lock(session: AsyncSession) -> None:
+    """Reordering never touches amounts (NOI unchanged) and is allowed on a locked budget."""
+    acquisition_id, period_id = await _acquisition(session)
+    rev = f"r{uuid.uuid4().hex[:8]}"
+    op = f"o{uuid.uuid4().hex[:8]}"
+    await _account(session, rev, "Income")
+    await _account(session, op, "Expense")
+    await _mapped_line(
+        session, acquisition_id, period_id, rev, {"JAN 25": "100", "_seller_line": "Rent"}
+    )
+    await _mapped_line(
+        session, acquisition_id, period_id, op, {"JAN 25": "40", "_seller_line": "Utils"}
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+    await budget_service.lock(session, acquisition_id, by="kurtis")
+    before = await budget_service.get_budget(session, acquisition_id)
+    income = [r for r in before.rows if r.section == "Income"]
+
+    await budget_service.reorder_lines(
+        session,
+        acquisition_id,
+        [BudgetLineRef(line_id=r.line_id) for r in reversed(income)],
+        actor="kurtis",
+    )
+    after = await budget_service.get_budget(session, acquisition_id)
+    assert after.status == "locked"  # presentational → lock not invalidated
+    assert after.totals.year1_noi == before.totals.year1_noi
+    assert after.totals.prior_noi == before.totals.prior_noi
 
 
 # ── lock + flow-through ───────────────────────────────────────────────────────

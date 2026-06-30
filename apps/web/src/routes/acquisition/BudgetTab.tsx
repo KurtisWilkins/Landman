@@ -7,7 +7,7 @@
  * totals + NOI recompute on every edit; NOI flows downstream to the pro forma / cash flow /
  * waterfall. Provenance (actuals / default / to review / custom / edited) stays visible.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useAddBudgetLine,
   useBudget,
@@ -15,6 +15,7 @@ import {
   useLockBudget,
   usePatchBudgetLine,
   useRemoveBudgetLine,
+  useReorderBudget,
   useRevertBudgetLine,
   useSeedBudget,
   useUnlockBudget,
@@ -29,6 +30,7 @@ type Patch = ReturnType<typeof usePatchBudgetLine>;
 type Add = ReturnType<typeof useAddBudgetLine>;
 type Remove = ReturnType<typeof useRemoveBudgetLine>;
 type Revert = ReturnType<typeof useRevertBudgetLine>;
+type Reorder = ReturnType<typeof useReorderBudget>;
 
 const VARIANCE_BAND = 0.15; // |% var| over this = an over/under to review
 
@@ -64,6 +66,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const add = useAddBudgetLine(acquisitionId);
   const remove = useRemoveBudgetLine(acquisitionId);
   const revert = useRevertBudgetLine(acquisitionId);
+  const reorder = useReorderBudget(acquisitionId);
   const lock = useLockBudget(acquisitionId);
   const unlock = useUnlockBudget(acquisitionId);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
@@ -163,6 +166,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
             add={add}
             remove={remove}
             revert={revert}
+            reorder={reorder}
           />
           <Section
             title="Expense"
@@ -174,6 +178,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
             add={add}
             remove={remove}
             revert={revert}
+            reorder={reorder}
           />
           {other.length > 0 && (
             <Section
@@ -186,6 +191,7 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
               add={add}
               remove={remove}
               revert={revert}
+              reorder={reorder}
             />
           )}
           {totals && (
@@ -205,6 +211,11 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   );
 }
 
+/** Identity key for a row (stable across reorders): stored id, else GL account, else name. */
+function rowKey(row: BudgetRow): string {
+  return row.line_id ?? row.account_code ?? row.name;
+}
+
 function Section({
   title,
   section,
@@ -215,6 +226,7 @@ function Section({
   add,
   remove,
   revert,
+  reorder,
 }: {
   title: string;
   section: string | null;
@@ -225,10 +237,34 @@ function Section({
   add: Add;
   remove: Remove;
   revert: Revert;
+  reorder: Reorder;
 }) {
-  const shown = onlyFlagged ? rows.filter(needsReview) : rows;
+  // Local copy so a drag reorders instantly; the server round-trip re-syncs it on success.
+  const [items, setItems] = useState<BudgetRow[]>(rows);
+  useEffect(() => setItems(rows), [rows]);
+  const fromIdx = useRef<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
+  // Drag-to-reorder only makes sense over the full, unfiltered section list. With "overs & unders"
+  // on, rows are hidden — reordering then would scramble the hidden lines — so disable it.
+  const canReorder = !onlyFlagged;
+  const shown = onlyFlagged ? items.filter(needsReview) : items;
+
   const priorTotal = rows.reduce((s, r) => s + Number(r.prior_annual || 0), 0);
   const yearTotal = rows.reduce((s, r) => s + (r.removed ? 0 : Number(r.year1_annual || 0)), 0);
+
+  const drop = (to: number) => {
+    const from = fromIdx.current;
+    fromIdx.current = null;
+    setOverIdx(null);
+    if (from === null || from === to) return;
+    const next = [...items];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    setItems(next); // optimistic; reconciled when the query refetches
+    reorder.mutate({ lines: next.map(lineRef) });
+  };
+
   return (
     <div>
       <div className="grid grid-cols-[1fr_repeat(3,minmax(96px,1fr))_2rem] gap-2 px-2 pb-1 text-xs uppercase tracking-wide opacity-60">
@@ -239,13 +275,24 @@ function Section({
         <span />
       </div>
       <div className="space-y-1">
-        {shown.map((r) => (
+        {shown.map((r, i) => (
           <Row
-            key={r.line_id ?? r.account_code ?? r.name}
+            key={rowKey(r)}
             row={r}
             patch={patch}
             remove={remove}
             revert={revert}
+            canReorder={canReorder}
+            isOver={canReorder && overIdx === i}
+            onDragStart={() => {
+              fromIdx.current = i;
+            }}
+            onDragOver={() => setOverIdx(i)}
+            onDrop={() => drop(i)}
+            onDragEnd={() => {
+              fromIdx.current = null;
+              setOverIdx(null);
+            }}
           />
         ))}
       </div>
@@ -266,16 +313,31 @@ function Row({
   patch,
   remove,
   revert,
+  canReorder,
+  isOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: {
   row: BudgetRow;
   patch: Patch;
   remove: Remove;
   revert: Revert;
+  canReorder: boolean;
+  isOver: boolean;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }) {
   const b = badge(row);
   const over = isOverUnder(row);
   const flagged = needsReview(row);
   const v_abs = Number(row.var_abs ?? 0);
+  // The row is only HTML5-draggable while the grip is held — so the amount inputs stay editable
+  // (selecting text in a child of a draggable element is unreliable across browsers).
+  const [armed, setArmed] = useState(false);
 
   const commit = (field: "prior_amount" | "year1_amount", n: number) =>
     patch.mutate({ ...lineRef(row), [field]: n });
@@ -293,11 +355,38 @@ function Row({
 
   return (
     <div
+      draggable={canReorder && armed}
+      onDragStart={onDragStart}
+      onDragOver={(e) => {
+        if (!canReorder) return;
+        e.preventDefault(); // allow drop
+        onDragOver();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop();
+      }}
+      onDragEnd={() => {
+        setArmed(false);
+        onDragEnd();
+      }}
       className={`group grid grid-cols-[1fr_repeat(3,minmax(96px,1fr))_2rem] items-center gap-2 rounded-md border px-2 py-1 text-sm ${
         flagged ? "border-accent/60" : "border-brand/10"
-      } ${row.removed ? "opacity-50" : ""}`}
+      } ${row.removed ? "opacity-50" : ""} ${isOver ? "border-brand border-dashed" : ""}`}
     >
       <span className="flex items-center gap-2">
+        {canReorder && (
+          <span
+            role="button"
+            aria-label={`Drag to reorder ${row.name}`}
+            title="Drag to reorder within this section"
+            onMouseDown={() => setArmed(true)}
+            onMouseUp={() => setArmed(false)}
+            className="cursor-grab select-none text-ink/30 hover:text-ink/60 active:cursor-grabbing"
+          >
+            ⠿
+          </span>
+        )}
         <span className={`rounded px-1.5 py-0.5 text-[10px] ${b.cls}`}>{b.label}</span>
         <span className={row.removed ? "line-through" : ""}>{row.name}</span>
         {row.flagged_for_promotion && (

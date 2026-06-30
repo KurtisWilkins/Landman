@@ -67,3 +67,18 @@ class BudgetLineCreate(BaseModel):
     section: str | None = None  # required for a custom line: Income | Expense
     prior_amount: Decimal | None = None
     year1_amount: Decimal | None = None
+
+
+class BudgetLineRef(BaseModel):
+    """A reference to one budget row for reordering: its stored ``line_id``, or an un-seeded GL
+    ``account_code`` (materialized on reorder)."""
+
+    line_id: str | None = None
+    account_code: str | None = None
+
+
+class BudgetReorder(BaseModel):
+    """Set the display order of a section's rows (drag-to-reorder): the rows in their new
+    top-to-bottom order. Presentational only — the NOI roll-up is section-based."""
+
+    lines: list[BudgetLineRef] = Field(default_factory=list)

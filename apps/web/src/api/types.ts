@@ -247,6 +247,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/budget/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reorder Budget Lines
+         * @description Set the display order of budget rows within a section (drag-to-reorder). Presentational
+         *     only — allowed on a locked budget; the NOI roll-up is section-based and unaffected.
+         */
+        post: operations["reorder_budget_lines_acquisitions__acquisition_id__budget_reorder_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/budget/seed": {
         parameters: {
             query?: never;
@@ -1515,6 +1536,26 @@ export interface components {
             prior_amount?: number | string | null;
             /** Year1 Amount */
             year1_amount?: number | string | null;
+        };
+        /**
+         * BudgetLineRef
+         * @description A reference to one budget row for reordering: its stored ``line_id``, or an un-seeded GL
+         *     ``account_code`` (materialized on reorder).
+         */
+        BudgetLineRef: {
+            /** Account Code */
+            account_code?: string | null;
+            /** Line Id */
+            line_id?: string | null;
+        };
+        /**
+         * BudgetReorder
+         * @description Set the display order of a section's rows (drag-to-reorder): the rows in their new
+         *     top-to-bottom order. Presentational only — the NOI roll-up is section-based.
+         */
+        BudgetReorder: {
+            /** Lines */
+            lines?: components["schemas"]["BudgetLineRef"][];
         };
         /**
          * BudgetRow
@@ -4284,6 +4325,97 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reorder_budget_lines_acquisitions__acquisition_id__budget_reorder_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetReorder"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
