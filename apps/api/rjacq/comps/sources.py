@@ -139,6 +139,23 @@ class OpenStreetMapSource:
 # ── Google Places (richer; live when keyed) ──────────────────────────────────
 
 
+def fetch_google_place_reviews(place_id: str, api_key: str) -> list[str]:
+    """Up to ~5 review texts for a place via Google Place Details (used by the on-demand AI
+    summary). Returns [] on any error so enrichment degrades gracefully."""
+    try:
+        resp = httpx.get(
+            "https://maps.googleapis.com/maps/api/place/details/json",
+            params={"place_id": place_id, "fields": "review", "key": api_key},
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        reviews = (resp.json().get("result") or {}).get("reviews") or []
+    except Exception as exc:
+        log.warning("comps.place_details_failed", error=type(exc).__name__)
+        return []
+    return [r["text"] for r in reviews if isinstance(r.get("text"), str) and r["text"].strip()]
+
+
 def parse_google_places(data: dict[str, Any]) -> list[RawComp]:
     """Map one Google Places Nearby/Text Search page to comps."""
     out: list[RawComp] = []

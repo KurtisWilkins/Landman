@@ -62,6 +62,11 @@ async def list_comps(session: AsyncSession, acquisition_id: str) -> Sequence[Com
     return (await session.execute(stmt)).scalars().all()
 
 
+async def get_comp(session: AsyncSession, acquisition_id: str, comp_id: str) -> Comp | None:
+    comp = await session.get(Comp, comp_id)
+    return comp if comp and comp.acquisition_id == acquisition_id else None
+
+
 async def delete_discovered(session: AsyncSession, acquisition_id: str) -> int:
     """Drop the auto-discovered comps for an acquisition (manual adds are kept) so a re-run of
     discovery is idempotent — replace-on-refresh rather than accumulate duplicates."""

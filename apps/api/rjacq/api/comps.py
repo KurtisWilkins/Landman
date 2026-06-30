@@ -6,15 +6,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..comps import service
-from ..comps.enrichment import build_enricher
+from ..comps.enrichment import build_enricher, build_review_enricher
 from ..comps.geocode import build_geocoder
 from ..comps.service import CompError
 from ..comps.sources import build_sources
 from ..core.auth import Principal, get_current_principal
+from ..core.config import settings
 from ..core.db import get_session
 from ..core.rbac import Capability, require
 from ..models.acquisitions import Acquisition
-from ..schemas.comps import CompDiscoverResult, CompManualAdd, CompOut, CompSet
+from ..schemas.comps import (
+    CompDiscoverResult,
+    CompManualAdd,
+    CompOut,
+    CompRateUpdate,
+    CompSet,
+)
 
 router = APIRouter(tags=["comps"])
 
@@ -101,5 +108,54 @@ async def add_comp(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": {"code": exc.code, "message": exc.message}},
         ) from exc
+    await session.commit()
+    return comp
+
+
+def _comp_error(exc: CompError) -> HTTPException:
+    code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_400_BAD_REQUEST
+    return HTTPException(
+        status_code=code, detail={"error": {"code": exc.code, "message": exc.message}}
+    )
+
+
+@router.patch("/acquisitions/{acquisition_id}/comps/{comp_id}", response_model=CompOut)
+async def update_comp_rate(
+    acquisition_id: str,
+    comp_id: str,
+    body: CompRateUpdate,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> CompOut:
+    """Set a hand-researched average nightly rate on a competitor (no free source has rates)."""
+    try:
+        comp = await service.set_rate(session, acquisition_id, comp_id, body.avg_rate)
+    except CompError as exc:
+        await session.rollback()
+        raise _comp_error(exc) from exc
+    await session.commit()
+    return comp
+
+
+@router.post("/acquisitions/{acquisition_id}/comps/{comp_id}/enrich", response_model=CompOut)
+async def enrich_comp(
+    acquisition_id: str,
+    comp_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> CompOut:
+    """Summarize a competitor's Google reviews with Claude (sentiment + summary + best/worst quote).
+    Gated on the Google + Anthropic keys; returns a clear error rather than a fabricated score."""
+    try:
+        comp = await service.enrich_comp(
+            session,
+            acquisition_id,
+            comp_id,
+            review_enricher=build_review_enricher(),
+            google_api_key=settings.google_places_api_key,
+        )
+    except CompError as exc:
+        await session.rollback()
+        raise _comp_error(exc) from exc
     await session.commit()
     return comp

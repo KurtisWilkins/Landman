@@ -24,9 +24,9 @@ from ..schemas.comps import (
 )
 from . import repository as repo
 from .distance import COMP_RADIUS_MILES, haversine_miles, within_radius
-from .enrichment import Enricher
+from .enrichment import ClaudeReviewEnricher, Enricher
 from .geocode import Geocoder, address_query
-from .sources import CompSource, RawComp
+from .sources import CompSource, RawComp, fetch_google_place_reviews
 
 log = get_logger("comps")
 
@@ -200,6 +200,59 @@ async def _persist(
         enrichment=enrichment,
         raw=raw.raw,
     )
+
+
+async def set_rate(
+    session: AsyncSession, acquisition_id: str, comp_id: str, avg_rate: Decimal | None
+) -> CompOut:
+    """Set a hand-researched average nightly rate on a comp (the one dimension no free source
+    provides) so the rate × sentiment view can be populated."""
+    comp = await repo.get_comp(session, acquisition_id, comp_id)
+    if comp is None:
+        raise CompError("not_found", "No such competitor.")
+    comp.avg_rate = avg_rate
+    await session.flush()
+    return CompOut.model_validate(comp)
+
+
+async def enrich_comp(
+    session: AsyncSession,
+    acquisition_id: str,
+    comp_id: str,
+    *,
+    review_enricher: ClaudeReviewEnricher | None,
+    google_api_key: str | None,
+) -> CompOut:
+    """On-demand AI enrichment: summarize a comp's Google reviews with Claude into a sentiment +
+    summary + best/worst snippet. Gated — raises ``CompError`` (not a fake score) when the keys or a
+    Google place aren't available."""
+    comp = await repo.get_comp(session, acquisition_id, comp_id)
+    if comp is None:
+        raise CompError("not_found", "No such competitor.")
+    if review_enricher is None or not google_api_key:
+        raise CompError(
+            "not_configured", "AI review summaries need the Google Places + Anthropic keys."
+        )
+    place_id = (comp.raw_payload or {}).get("place_id")
+    if not place_id:
+        raise CompError("no_reviews", "This competitor has no Google listing to summarize.")
+    reviews = await asyncio.to_thread(fetch_google_place_reviews, place_id, google_api_key)
+    if not reviews:
+        raise CompError("no_reviews", "No reviews were available for this competitor.")
+    enrichment = await asyncio.to_thread(review_enricher.summarize, comp.name, reviews)
+    if enrichment.ai_summary:
+        comp.ai_summary = enrichment.ai_summary
+    if enrichment.sentiment_score is not None:
+        comp.sentiment_score = enrichment.sentiment_score
+    if enrichment.best_snippet:
+        comp.best_snippet = enrichment.best_snippet
+    if enrichment.worst_snippet:
+        comp.worst_snippet = enrichment.worst_snippet
+    if enrichment.amenity_score is not None:
+        comp.amenity_score = enrichment.amenity_score
+    await repo.assign_amenity_ranks(session, acquisition_id)
+    await session.flush()
+    return CompOut.model_validate(comp)
 
 
 async def build_comp_set(session: AsyncSession, acquisition_id: str) -> CompSet:

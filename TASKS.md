@@ -109,7 +109,17 @@ Follow-ups:
 - [ ] Provision a Google Maps Platform key (Places + Geocoding) if richer ratings/coverage wanted —
       `GOOGLE_PLACES_API_KEY`. OSM works now without it.
 - [ ] Per-site ToS/legal review to flip `scrapers_enabled` and implement the RV-directory scrapers.
-- [ ] Enrich comps (rates/sentiment/amenities) — the scatter needs avg_rate which OSM/Google lack.
+
+## Done — comp enrichment: amenity/sentiment scoring + manual rates + AI summaries (`DECISIONS.md` D-11)
+
+- [x] **Deterministic enricher** (`AmenityEnricher`, inline, free) — amenity score from OSM tags +
+      sentiment from Google ratings; pure + unit-tested; drives the amenity rank.
+- [x] **Manual nightly rate** — `PATCH …/comps/{id}` + editable per-comp field (no free rate source).
+- [x] **AI review summary** (`ClaudeReviewEnricher` + `POST …/comps/{id}/enrich`) — Google reviews →
+      Claude; **dormant until the Google + Anthropic keys are set** (returns `not_configured`, never a
+      fake score).
+- [x] **Comps tab** — scatter toggles amenity×sentiment / rate×sentiment; amenity + sentiment columns;
+      editable rate; ✨ AI-enrich action.
 
 ## Done — canonical GL chart + collapsible Budget tab (`DECISIONS.md` D-8)
 
