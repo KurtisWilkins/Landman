@@ -87,7 +87,7 @@ managed Redis is costly for a queue that holds no durable data. Removed it:
 
 Follow-ups:
 - [ ] Delete the `rjacq-redis` + `rjacq-worker` Container Apps in prod (no longer used).
-- [ ] Remove the now-unused `arq` dependency from `apps/api/pyproject.toml` + relock.
+- [x] Remove the now-unused `arq` + `redis` dependencies from `apps/api/pyproject.toml` (no lockfile to relock).
 - [ ] Wire SHIELD sync to an in-process/admin trigger if/when it's configured (was only ever
       registered on the worker, never enqueued).
 
