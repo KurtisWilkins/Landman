@@ -25,9 +25,9 @@ class Settings(BaseSettings):
     web_base_url: str = "http://localhost:5173"
     secret_key: str = "change-me"
 
-    # ── Database / queue ───────────────────────────────────────────────
+    # ── Database ───────────────────────────────────────────────────────
     database_url: str = "postgresql+psycopg://rj:rj@localhost:5432/rjacq"
-    redis_url: str = "redis://localhost:6379/0"
+    # No Redis: background work (GL classification) runs in-process via FastAPI background tasks.
 
     # ── SHIELD (READ-ONLY SQL Server) ──────  TODO(decision: §14 C-14/C-15)
     shield_host: str | None = None

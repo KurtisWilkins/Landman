@@ -51,7 +51,7 @@ end: **upload P&L → GL map (confirm) → prior-year-vs-year-one budget → rev
 NOI**. See `DECISIONS.md` D-8…D-11.
 
 - **GL mapping** (`mapping/`, `GLDocsTab`): the existing learned → embed+classify → never-drop
-  engine runs in a **background Arq worker** after upload; the confirm workstation buckets lines
+  engine runs **in-process** (FastAPI background task) after upload — no Redis/worker (D-10); the confirm workstation buckets lines
   (needs review / auto-mapped / confirmed) with a GL-chart picker, NOI selector, learn toggle,
   **remap / split** (one line → many GLs via `financial_lines.split_parent_id`), and bulk confirm.
   Learned mappings are **per seller** so re-uploads resolve without the LLM. First-time AI
@@ -70,12 +70,15 @@ NOI**. See `DECISIONS.md` D-8…D-11.
 
 ### Comp discovery — geocode the OM address → competitors within 50 mi (2026-06-30)
 `POST /acquisitions/{id}/comps/discover` geocodes the property's address (Google when keyed, free
-Nominatim fallback — persisted on the acquisition) and enqueues a worker search for RV parks /
-campgrounds / resorts / glamping / marinas within 50 miles. **OpenStreetMap/Overpass is the always-
-on, keyless workhorse** (full-radius single query); **Google Places** layers in (tiled + deduped)
-when `GOOGLE_PLACES_API_KEY` is set; the **Campendium/RV LIFE scrapers stay behind `scrapers_enabled`**
-until D-22's per-site legal review. Re-running is refresh-replace (manual adds kept). The Comps tab
-has a "Find competitors within 50 mi" button that polls until results land. See `DECISIONS.md` D-9.
+Nominatim fallback — persisted on the acquisition) and **synchronously** searches for RV parks /
+campgrounds / resorts / glamping / marinas within 50 miles, returning the count. **No worker/Redis
+dependency** — the blocking source HTTP runs off the event loop (`asyncio.to_thread`); this was a
+deliberate move after the Arq worker proved unable to reach the internal Redis in prod — which is
+why Redis/the worker were removed entirely (D-10). **OpenStreetMap/Overpass is the always-on, keyless workhorse**
+(full-radius single query); **Google Places** layers in (tiled + deduped) when `GOOGLE_PLACES_API_KEY`
+is set; the **Campendium/RV LIFE scrapers stay behind `scrapers_enabled`** until D-22's per-site legal
+review. Re-running is refresh-replace (manual adds kept). The Comps tab has a "Find competitors within
+50 mi" button. See `DECISIONS.md` D-9.
 
 ### Canonical GL chart + collapsible Budget tab (2026-06-30)
 The chart of accounts is derived from RJourney's consolidated income statement and is the **single

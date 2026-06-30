@@ -567,3 +567,11 @@ async def test_split_creates_children_and_excludes_parent(session: AsyncSession)
     # NOI counts the children (600 + 400), not the parent.
     bridge = await noi.noi_bridge_for_acquisition(session, acquisition_id)
     assert bridge.gross_revenue == Decimal("1000")
+
+
+async def test_classify_runs_in_process_without_a_queue(migrated_db: str) -> None:
+    """The classifier is now an in-process background task: callable directly (no Arq ``ctx``), and
+    it never raises into the caller — an unknown acquisition just yields 0 lines."""
+    from rjacq.mapping.jobs import classify_acquisition_mappings
+
+    assert await classify_acquisition_mappings("dl_does_not_exist") == 0

@@ -71,6 +71,26 @@ Follow-ups:
 - [ ] Retire the now-superseded `budget_defaults.py` (+ `test_budget_defaults.py`).
 - [ ] Confirm the call-center GL home (600220, under Advertising & Promotion).
 
+## Done — drop Redis/worker; background jobs run in-process (`DECISIONS.md` D-10)
+
+The Arq worker couldn't reach the in-env Redis in prod (internal TCP ingress times out), and
+managed Redis is costly for a queue that holds no durable data. Removed it:
+
+- [x] **In-process classifier** — the P&L upload schedules `classify_acquisition_mappings` via
+      FastAPI `BackgroundTasks` (runs in the API after the response); job opens its own session and
+      never raises into the caller.
+- [x] **Removed the queue** — deleted `core/queue.py` (Arq `WorkerSettings` + Redis pool) and the
+      `redis_url` config; provision script no longer creates `rjacq-redis`/`rjacq-worker`; `.env.example`
+      updated. Deploys roll **api + web** only.
+- [x] **Regression test** — `classify_acquisition_mappings` callable with no Arq ctx; graceful on a
+      missing acquisition.
+
+Follow-ups:
+- [ ] Delete the `rjacq-redis` + `rjacq-worker` Container Apps in prod (no longer used).
+- [ ] Remove the now-unused `arq` dependency from `apps/api/pyproject.toml` + relock.
+- [ ] Wire SHIELD sync to an in-process/admin trigger if/when it's configured (was only ever
+      registered on the worker, never enqueued).
+
 ## Done — comp discovery: geocode OM address → competitors within 50 mi (`DECISIONS.md` D-9)
 
 Wired the comp-intelligence search end to end (no migration — refresh-replace + raw_payload):
@@ -80,9 +100,9 @@ Wired the comp-intelligence search end to end (no migration — refresh-replace 
 - [x] **Real sources** — OpenStreetMap/Overpass (free, always on, full 50-mi `around:` query) +
       Google Places (tiled Nearby Search, deduped) + Campendium/RV LIFE scaffolds **behind
       `scrapers_enabled`** (D-22). Scope broadened to glamping + marinas.
-- [x] **Trigger** — `POST …/comps/discover` (geocodes sync, enqueues the worker job
-      `discover_acquisition_comps`); refresh-replace so re-scans don't duplicate; Comps tab button
-      + poll-until-results.
+- [x] **Trigger** — `POST …/comps/discover` runs the geocode + radius search **synchronously**
+      (no worker/Redis dependency; blocking HTTP off the event loop via `asyncio.to_thread`);
+      refresh-replace so re-scans don't duplicate; Comps tab "Find competitors" button.
 - [x] **Tests** — pure parse/geometry/tiling-coverage + the geocode→discover service flow (hermetic).
 
 Follow-ups:

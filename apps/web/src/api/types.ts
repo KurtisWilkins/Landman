@@ -343,9 +343,10 @@ export interface paths {
         put?: never;
         /**
          * Discover Comps
-         * @description Find competitors within 50 miles of the acquisition's (OM) address. Geocodes synchronously
-         *     so the map updates immediately and an unlocatable address fails fast; the radius search itself
-         *     runs in the worker (geocode + one or more source APIs is a burst of external HTTP).
+         * @description Find competitors within 50 miles of the acquisition's (OM) address: geocode the address,
+         *     then search every enabled source and persist the matches. Runs **synchronously** — the work is
+         *     bounded (OSM is a single radius query) and the source HTTP runs off the event loop — so it does
+         *     not depend on the Redis/worker queue. Returns the geocode + the number of competitors found.
          */
         post: operations["discover_comps_acquisitions__acquisition_id__comps_discover_post"];
         delete?: never;
@@ -1702,15 +1703,15 @@ export interface components {
         };
         /**
          * CompDiscoverResult
-         * @description POST /acquisitions/{id}/comps/discover — the acquisition is geocoded synchronously (so the
-         *     map updates immediately and address errors surface now), then discovery runs in the worker.
+         * @description POST /acquisitions/{id}/comps/discover — geocode the address, search every enabled source,
+         *     and persist the matches, all synchronously. Returns the geocode + how many comps were found.
          */
         CompDiscoverResult: {
             /**
-             * Enqueued
-             * @default false
+             * Count
+             * @default 0
              */
-            enqueued: boolean;
+            count: number;
             /** Lat */
             lat?: number | null;
             /** Lng */
@@ -4946,7 +4947,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

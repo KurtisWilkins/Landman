@@ -25,7 +25,6 @@ repo_root="$(cd "$here/.." && pwd)"
 : "${PGADMIN:=rjadmin}"
 : "${PGPASSWORD:?set PGPASSWORD in scripts/deploy.env (strong, not committed)}"
 : "${PGDB:=rjacq}"
-: "${REDISNAME:=rjacq-redis}"
 : "${STORAGEACCT:?set STORAGEACCT (3-24 lowercase alphanumerics, globally unique)}"
 : "${BLOBCONTAINER:=rjacq-files}"
 : "${S3PROXY_IDENTITY:?set S3PROXY_IDENTITY (the S3 access key the app will use)}"
@@ -92,22 +91,13 @@ az postgres flexible-server execute \
 pg_host="$(az postgres flexible-server show -n "$PGSERVER" -g "$RG" --query fullyQualifiedDomainName -o tsv)"
 DATABASE_URL="postgresql+psycopg://${PGADMIN}:${PGPASSWORD}@${pg_host}:5432/${PGDB}?sslmode=require"
 
-# ── 3. Redis (internal Container App; classic Azure Cache for Redis is retiring) ──────────────
-# The Arq job queue holds no durable business data (all deal data is in Postgres), so a small
-# always-on Redis container is sufficient and cheap. Swap REDIS_URL to a managed Redis later
-# with no app change. Ensure the Container Apps env exists first (the §5 step is then a no-op).
-say "Redis ($REDISNAME, internal Container App)"
+# ── 3. (Removed) Redis / job queue ────────────────────────────────────────────────────────────
+# There is no Redis and no worker: background work (GL classification) runs IN-PROCESS via FastAPI
+# background tasks (see DECISIONS.md D-10). The Container Apps environment is still required for the
+# apps below — ensure it exists here (the §5 step is then a no-op).
+say "Container Apps environment ($ENVNAME)"
 az containerapp env show -n "$ENVNAME" -g "$RG" -o none 2>/dev/null \
   || az containerapp env create -n "$ENVNAME" -g "$RG" -l "$LOC" -o none
-if ! az containerapp show -n "$REDISNAME" -g "$RG" -o none 2>/dev/null; then
-  az containerapp create -n "$REDISNAME" -g "$RG" --environment "$ENVNAME" \
-    --image redis:7-alpine --ingress internal --transport tcp \
-    --target-port 6379 --exposed-port 6379 \
-    --min-replicas 1 --max-replicas 1 --cpu 0.5 --memory 1.0Gi -o none
-fi
-redis_fqdn="$(az containerapp show -n "$REDISNAME" -g "$RG" \
-  --query properties.configuration.ingress.fqdn -o tsv)"
-REDIS_URL="redis://${redis_fqdn}:6379/0"
 
 # ── 4. Object storage: Azure Blob + s3proxy gateway (ADR-0010) ───────────────────────────────
 say "Storage account + blob container ($STORAGEACCT/$BLOBCONTAINER)"
@@ -167,10 +157,10 @@ S3_ENDPOINT="https://${s3_fqdn}"
 az containerapp update -n rjacq-s3proxy -g "$RG" \
   --set-env-vars S3PROXY_CORS_ALLOW_ALL=true -o none
 
-# ── 8. API (internal), worker (no ingress), web (public) ─────────────────────────────────────
-say "API / worker / web container apps"
-common_secrets=(database-url="$DATABASE_URL" redis-url="$REDIS_URL" secret-key="$SECRET_KEY" s3-secret="$S3PROXY_CREDENTIAL")
-common_env=(DATABASE_URL=secretref:database-url REDIS_URL=secretref:redis-url APP_ENV=production)
+# ── 8. API (internal), web (public) — no worker (jobs run in-process; DECISIONS.md D-10) ──────
+say "API / web container apps"
+common_secrets=(database-url="$DATABASE_URL" secret-key="$SECRET_KEY" s3-secret="$S3PROXY_CREDENTIAL")
+common_env=(DATABASE_URL=secretref:database-url APP_ENV=production)
 s3_env=("S3_ENDPOINT=$S3_ENDPOINT" "S3_BUCKET=$BLOBCONTAINER" "S3_ACCESS_KEY_ID=$S3PROXY_IDENTITY" S3_SECRET_ACCESS_KEY=secretref:s3-secret)
 
 if ! az containerapp show -n rjacq-api -g "$RG" -o none 2>/dev/null; then
@@ -181,17 +171,6 @@ if ! az containerapp show -n rjacq-api -g "$RG" -o none 2>/dev/null; then
     -o none
 else
   echo "  (rjacq-api exists — update its image via the deploy pipeline)"
-fi
-
-if ! az containerapp show -n rjacq-worker -g "$RG" -o none 2>/dev/null; then
-  az containerapp create -n rjacq-worker -g "$RG" --environment "$ENVNAME" "${registry_args[@]}" \
-    --image "$api_img" --min-replicas 1 --max-replicas 3 \
-    --command arq rjacq.core.queue.WorkerSettings \
-    --secrets "${common_secrets[@]}" \
-    --env-vars "${common_env[@]}" "${s3_env[@]}" \
-    -o none
-else
-  echo "  (rjacq-worker exists — update via the pipeline)"
 fi
 
 api_fqdn="$(az containerapp show -n rjacq-api -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"

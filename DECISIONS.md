@@ -8,6 +8,37 @@ Newest first.
 
 ---
 
+## 2026-06-30 — Drop Redis + the Arq worker; run background jobs in-process
+
+### D-10 — In-process background tasks instead of a Redis/Arq worker
+
+**Context.** In prod the Arq **worker could not reach the in-environment Redis**: a TCP connect to
+`rjacq-redis`'s internal Container Apps ingress times out (DNS resolves to the env VIP `100.100.x.x`,
+but the connection hangs), so the worker crash-looped on startup and **no background job ever ran**.
+The environment's internal **HTTP** ingress is healthy (web→api works); its internal **TCP** ingress
+is not, even after disable/enable. The classic Azure Cache for Redis replacement is **retiring**
+(`az redis create` is blocked), and the successor **Azure Managed Redis** is ~$250–300/mo and
+clustered — heavy for a job queue that holds **no durable data** (all deal data is in Postgres) and
+runs exactly one real job (the GL auto-classifier; SHIELD sync is a no-op until configured).
+
+**Decision.** **Remove Redis and the worker entirely** and run background work **in-process** via
+FastAPI background tasks. The P&L upload now schedules `classify_acquisition_mappings` with
+`BackgroundTasks.add_task(...)` — it runs in the API container after the response returns. The job
+opens its own DB session, is fully async (LLM calls are non-blocking `httpx`), and never raises into
+the caller (a failure logs and leaves lines unmapped for manual review — the existing fallback).
+
+**Consequences.**
+- Deleted `core/queue.py` (Arq `WorkerSettings`, the Redis pool) and the `redis_url` config; the
+  `rjacq-redis` and `rjacq-worker` Container Apps can be deleted, and provisioning no longer creates
+  them. Deploys roll **api + web** only.
+- Comp discovery already runs synchronously (D-9), so it was never affected.
+- Trade-off: a background task runs in the API replica, so a scale-in could drop an in-flight
+  classification (rare; min 2 replicas, short task) — acceptable for a best-effort, re-runnable
+  auto-map whose miss just means manual confirm. If a job ever needs durability/horizontal scale,
+  reintroduce a managed queue behind the same `add_task` seam.
+
+---
+
 ## 2026-06-30 — Comp discovery: geocode the OM address → find competitors within 50 miles
 
 **Context.** The comp domain had the orchestration (`discover_comps`: radius filter, persist,
@@ -39,11 +70,13 @@ overnight stay (OSM `tourism=caravan_site|camp_site` + `leisure=marina`; Google 
 "glamping"/"marina"). The 50-mile circle is enforced by the existing haversine post-filter, so a
 source may over-fetch.
 
-**Trigger + idempotency.** `POST /acquisitions/{id}/comps/discover` geocodes **synchronously** (so
-the map updates and an unlocatable address fails fast) then enqueues the radius search in the
-**worker** (`discover_acquisition_comps`) — a burst of external HTTP doesn't belong on the request
-path. Re-running is **refresh-replace**: prior auto-discovered comps are cleared first (manual adds
-kept), so re-scans don't accumulate duplicates. The Comps tab polls until results land.
+**Trigger + idempotency.** `POST /acquisitions/{id}/comps/discover` geocodes the address and runs
+the radius search **synchronously**, returning the comp count. The work is bounded (OSM is a single
+radius query) and the blocking source HTTP runs **off the event loop** (`asyncio.to_thread`), so
+discovery has **no Redis/worker dependency** — a deliberate choice after the Arq worker proved
+unreliable in prod (it couldn't reach the internal Redis). The GL auto-classifier still uses the
+worker; comps no longer do. Re-running is **refresh-replace**: prior auto-discovered comps are
+cleared first (manual adds kept), so re-scans don't accumulate duplicates.
 
 ---
 

@@ -6,7 +6,16 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -414,6 +423,7 @@ async def advance_phase(
 @router.post("/acquisitions/{acquisition_id}/documents", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     acquisition_id: str,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
     _principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
@@ -446,11 +456,12 @@ async def upload_document(
         ) from exc
     await session.commit()
     # Auto-map the freshly-loaded lines off the request path (§5.3) — best-effort, never fails the
-    # upload. Learned phrases resolve immediately; new lines await the AI providers (C-20).
+    # upload. Runs in-process as a FastAPI background task after the response (no external queue);
+    # learned phrases resolve immediately, new lines await the AI providers (C-20).
     if result.financial_lines_loaded > 0:
-        from ..core import queue
+        from ..mapping.jobs import classify_acquisition_mappings
 
-        await queue.enqueue("classify_acquisition_mappings", acquisition_id)
+        background_tasks.add_task(classify_acquisition_mappings, acquisition_id)
     return {
         "status": "loaded",
         "sheet_type": result.sheet_type,
