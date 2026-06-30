@@ -78,18 +78,25 @@ Follow-ups:
       budget > P&L bridge, D-11). The Pro forma card now shows draft year-1 for reference but the
       calc still uses the bridge until lock. Decide whether a draft budget should drive the calc.
 
-- [ ] **Deploy to Azure** — prod is live at SHA `b3e4ae4` (grid + archive applied). The next deploy
-      applies the labor migration `b8c9d0e1f2a3` (additive), then rolls api/worker/web + re-runs the
-      seed. Recipe in `docs/DEPLOYMENT.md` (build via `az acr build`; web from `apps/web`).
+- [x] **Deploy to Azure** — prod is live at SHA `3395d20` (api `--0000042`, worker `--0000029`);
+      migration `f4a5b6c7d8e9` (`labor_positions.source`) applied. The first attempt's migration had
+      a duplicate revision id (`e1f2a3b4c5d6`) → cycle → migrate failed; #72 renamed it and the
+      re-deploy applied it. Deploy command now hard-gates on the migrate job's `Succeeded` status
+      before rolling apps. Recipe in `docs/DEPLOYMENT.md` (build via `az acr build`; web from `apps/web`).
 - [ ] **Set the labor loads** — `labor_benefits_monthly_per_employee` (→600130) +
       `labor_payroll_tax_pct` (→600155) in config. Until then benefits + payroll tax are $0; wages +
       the work-camper revenue/credit compute fully. _Needs the figures from the user._
 - [ ] **Activate the PPC default** — set `ppc_rate` / `ppc_target_volume` / `ppc_intercompany_pct`
       in config (the account codes are already wired, #56). Until then PPC is a no-op; Shield +
       marketing are active. _Needs the PPC params from the user._
-- [ ] **First-time AI mapping suggestions (§14 C-20)** — build the Voyage embedder + Claude
-      classifier so non-learned lines get auto-suggestions (a provider/key + cost decision). Until
-      then the worker does learned reuse only.
+- [x] **First-time AI mapping suggestions (§14 C-20)** — Claude best-guess classifier shipped:
+      `build_classifier()` runs against the full mappable chart (no Voyage needed), auto-applies a
+      guess at/above `GL_MAP_AUTO_CONFIDENCE` (0.6) and flags the rest for review; gated on the
+      Anthropic key. _Follow-up:_ the Voyage embedder + `GLAccount.embedding` backfill for a semantic
+      shortlist (accuracy/cost optimization), and batching the per-line classify calls.
+- [x] **Prior-year seeded from the OM** — `_prior_actuals` is now annual-aware (uses the line's
+      annual `amount` when there are no per-month columns), so OM-extracted financials populate
+      prior-year before any P&L upload; a later recap P&L supersedes them.
 
 ## Future enhancements (not yet scheduled)
 

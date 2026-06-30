@@ -52,13 +52,19 @@ def _new_id(prefix: str) -> str:
 
 
 async def _prior_actuals(session: AsyncSession, acquisition_id: str) -> dict[str, Decimal]:
-    """Annual prior-year actual per GL account, computed from the mapped lines' raw_payload."""
+    """Annual prior-year actual per GL account from the mapped lines.
+
+    A recap P&L carries per-month columns in ``raw_payload`` → sum the calendar-month buckets. An
+    annual-only source (the offering memorandum, or a generic non-recap P&L) has no month columns →
+    use the line's annual ``amount``. This is what lets OM-seeded financials populate prior-year,
+    not just an uploaded recap."""
     lines = await mapping_repo.list_lines(session, acquisition_id)
     out: dict[str, Decimal] = {}
     for line in lines:
-        if line.account_code is None or not line.raw_payload:
+        if line.account_code is None:
             continue
-        total = sum(bucket_line_months(line.raw_payload).values(), _ZERO)
+        months = bucket_line_months(line.raw_payload) if line.raw_payload else {}
+        total = sum(months.values(), _ZERO) if months else (line.amount or _ZERO)
         out[line.account_code] = out.get(line.account_code, _ZERO) + total
     return out
 

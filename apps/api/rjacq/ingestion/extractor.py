@@ -222,8 +222,14 @@ class ClaudePdfExtractor:
 
     def extract_pnl(self, data: bytes) -> list[ParsedLine]:
         proposal = extract_offering_memorandum(data, api_key=self._api_key, model=self._model)
+        # OM/PDF figures are annual (no per-month columns); keep the seller text in raw_payload for
+        # provenance. Prior-year then reads the annual ``amount`` (budget_service._prior_actuals).
         return [
-            ParsedLine(seller_source_line=line.description, amount=line.amount)
+            ParsedLine(
+                seller_source_line=line.description,
+                amount=line.amount,
+                raw={"_seller_line": line.description},
+            )
             for line in proposal.financial_lines
         ]
 

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..models.enums import AccountLevel
 from ..models.financials import FinancialLine, FinancialPeriod
 from ..models.reference import GLAccount, GLMappingLearned
 
@@ -41,6 +42,21 @@ async def shortlist_accounts(
     )
     rows = (await session.execute(stmt)).all()
     return [(acc, 1.0 - float(dist)) for acc, dist in rows]  # similarity = 1 − cosine distance
+
+
+async def classifier_candidate_accounts(session: AsyncSession) -> Sequence[GLAccount]:
+    """The mappable chart for the classifier when there's no pgvector shortlist (no embeddings):
+    active leaf + subgroup accounts, in canonical order. Section/major-group rows aren't mapping
+    targets, so they're excluded."""
+    stmt = (
+        select(GLAccount)
+        .where(
+            GLAccount.active.is_(True),
+            GLAccount.level.in_([AccountLevel.LEAF, AccountLevel.SUBGROUP]),
+        )
+        .order_by(GLAccount.sort, GLAccount.account_code)
+    )
+    return (await session.execute(stmt)).scalars().all()
 
 
 async def get_account(session: AsyncSession, account_code: str) -> GLAccount | None:

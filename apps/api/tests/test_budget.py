@@ -160,6 +160,36 @@ async def test_seed_prefills_year_one_from_actuals(session: AsyncSession) -> Non
     assert doc.totals.year1_revenue == Decimal("250")
 
 
+async def test_prior_year_seeds_from_annual_om_line(session: AsyncSession) -> None:
+    """An OM/annual mapped line (no per-month columns) populates prior-year from its annual amount —
+    not just an uploaded recap with JAN/FEB columns."""
+    acquisition_id, period_id = await _acquisition(session)
+    code = f"a{uuid.uuid4().hex[:8]}"
+    await _account(session, code, "Income")
+    # Annual figure with only a provenance key in raw_payload (the shape OM extraction produces).
+    session.add(
+        FinancialLine(
+            line_id=f"fl_{uuid.uuid4().hex[:12]}",
+            acquisition_id=acquisition_id,
+            period_id=period_id,
+            account_code=code,
+            account_level=AccountLevel.LEAF,
+            amount=Decimal("250000"),
+            seller_source_line="Gross Rental Income",
+            noi_placement=NoiPlacement.ABOVE,
+            raw_payload={"_seller_line": "Gross Rental Income"},
+        )
+    )
+    await session.flush()
+
+    await budget_service.seed_budget(session, acquisition_id)
+    doc = await budget_service.get_budget(session, acquisition_id)
+    row = next(r for r in doc.rows if r.account_code == code)
+    assert row.prior_annual == Decimal("250000")  # from the annual amount, no month buckets
+    assert row.year1_annual == Decimal("250000")
+    assert doc.totals.year1_revenue == Decimal("250000")
+
+
 async def test_patch_line_edits_both_columns(session: AsyncSession) -> None:
     acquisition_id, period_id = await _acquisition(session)
     code = f"a{uuid.uuid4().hex[:8]}"

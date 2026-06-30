@@ -78,3 +78,40 @@ def client() -> Iterator[TestClient]:
 
     with TestClient(create_app()) as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db(request: pytest.FixtureRequest) -> Iterator[None]:
+    """Truncate all data after each DB-backed test.
+
+    ``migrated_db`` is session-scoped (one Postgres for the whole run), so committed rows — e.g. a
+    test that seeds a GL account like 600410, or runs ``seed_budget`` (which commits) — would leak
+    into later tests and cause duplicate-key collisions or stray default lines. Clean up after any
+    test that touched the DB; pure (non-DB) tests are skipped, so no Postgres is forced on them.
+
+    Sync fixture + sync engine on purpose: an autouse *async* fixture misbehaves on the suite's
+    pure (sync) tests. ``postgresql+psycopg://`` drives both sync and async SQLAlchemy."""
+    yield
+    if not ({"session", "migrated_db"} & set(request.fixturenames)):
+        return
+    url = os.environ.get("DATABASE_URL")  # set to the test DB URL by the migrated_db fixture
+    if not url:
+        return
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(url, future=True)
+    try:
+        with engine.begin() as conn:
+            tables = list(
+                conn.execute(
+                    text(
+                        "SELECT tablename FROM pg_tables "
+                        "WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
+                    )
+                ).scalars()
+            )
+            if tables:
+                joined = ", ".join(f'"{t}"' for t in tables)
+                conn.execute(text(f"TRUNCATE {joined} RESTART IDENTITY CASCADE"))
+    finally:
+        engine.dispose()

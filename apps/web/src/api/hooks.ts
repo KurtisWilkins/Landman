@@ -680,10 +680,9 @@ export function useRemoveUnitGroup(acquisitionId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (unitGroupId: string) =>
-      apiFetch<OperatingDoc>(
-        `/acquisitions/${acquisitionId}/operating/unit-group/${unitGroupId}`,
-        { method: "DELETE" },
-      ),
+      apiFetch<OperatingDoc>(`/acquisitions/${acquisitionId}/operating/unit-group/${unitGroupId}`, {
+        method: "DELETE",
+      }),
     onSuccess: () => _invalidateOperatingAndBudget(qc, acquisitionId),
   });
 }

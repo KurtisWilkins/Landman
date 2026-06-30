@@ -64,3 +64,15 @@ def units_need_input(groups: Sequence[UnitGroupInput]) -> bool:
 def default_billable(category: str) -> bool:
     """Whether a category counts toward the billable drivers by default (user-overridable)."""
     return category in DEFAULT_BILLABLE_CATEGORIES
+
+
+# Known categories from the §8.2 vocabulary: rv_pad / cabin / glamping (billable) + tent (not).
+KNOWN_CATEGORIES: frozenset[str] = DEFAULT_BILLABLE_CATEGORIES | frozenset({"tent"})
+
+
+def default_billable_for_added(category: str) -> bool:
+    """Billable default when a user *adds* a group: a known category follows ``default_billable``
+    (tents stay excluded); a custom sub-type (e.g. 'rv_pad_premium') bills by default — it's a
+    paying unit unless the user toggles it off."""
+    cat = category.strip()
+    return default_billable(cat) if cat in KNOWN_CATEGORIES else True
