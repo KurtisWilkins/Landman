@@ -32,8 +32,10 @@ repo_root="$(cd "$here/.." && pwd)"
 : "${SECRET_KEY:?set SECRET_KEY (app session signing, strong random)}"
 : "${WEB_ORIGIN:=}"                   # public web URL once known (CORS / OIDC). Optional first pass.
 # RBAC role lists (comma-separated emails, case-insensitive). Read live by rbac.role_for_email;
-# override in scripts/deploy.env. ADMIN is the most-privileged role — keep this list tight.
-: "${ADMIN_EMAILS:=james@rjourney.com}"
+# override in scripts/deploy.env. ADMIN is the most-privileged role — keep this list tight, and
+# note this is the FULL list (the env var is replaced wholesale, not appended), so dropping a name
+# here revokes that admin on the next provision/update.
+: "${ADMIN_EMAILS:=kwilkins@rossmgt.com,david@rossmgt.com,james@rjourney.com}"
 : "${IMAGE_TAG:=bootstrap}"
 : "${SKIP_IMAGE_BUILD:=0}"
 : "${PLACEHOLDER_IMAGE:=mcr.microsoft.com/k8se/quickstart:latest}"
