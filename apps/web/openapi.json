@@ -1578,6 +1578,47 @@
         "title": "CommentOut",
         "type": "object"
       },
+      "CompDiscoverResult": {
+        "description": "POST /acquisitions/{id}/comps/discover \u2014 the acquisition is geocoded synchronously (so the\nmap updates immediately and address errors surface now), then discovery runs in the worker.",
+        "properties": {
+          "enqueued": {
+            "default": false,
+            "title": "Enqueued",
+            "type": "boolean"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "CompDiscoverResult",
+        "type": "object"
+      },
       "CompManualAdd": {
         "description": "POST /acquisitions/{id}/comps \u2014 manual add by URL or direct fields.",
         "properties": {
@@ -9422,6 +9463,125 @@
           }
         },
         "summary": "Add Comp",
+        "tags": [
+          "comps"
+        ]
+      }
+    },
+    "/acquisitions/{acquisition_id}/comps/discover": {
+      "post": {
+        "description": "Find competitors within 50 miles of the acquisition's (OM) address. Geocodes synchronously\nso the map updates immediately and an unlocatable address fails fast; the radius search itself\nruns in the worker (geocode + one or more source APIs is a burst of external HTTP).",
+        "operationId": "discover_comps_acquisitions__acquisition_id__comps_discover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "acquisition_id",
+            "required": true,
+            "schema": {
+              "title": "Acquisition Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompDiscoverResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Discover Comps",
         "tags": [
           "comps"
         ]

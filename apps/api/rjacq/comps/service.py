@@ -13,6 +13,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.logging import get_logger
+from ..models.acquisitions import Acquisition
 from ..models.comps import Comp
 from ..schemas.comps import (
     CompOut,
@@ -23,6 +24,7 @@ from ..schemas.comps import (
 from . import repository as repo
 from .distance import COMP_RADIUS_MILES, haversine_miles, within_radius
 from .enrichment import Enricher
+from .geocode import Geocoder, address_query
 from .sources import CompSource, RawComp
 
 log = get_logger("comps")
@@ -45,7 +47,11 @@ async def discover_comps(
     enricher: Enricher | None,
     radius_miles: float = COMP_RADIUS_MILES,
 ) -> int:
-    """Discover comps within the radius across all sources; enrich + persist. Returns count."""
+    """Discover comps within the radius across all sources; enrich + persist. Returns count.
+
+    Refresh-replace: the acquisition's prior auto-discovered comps are cleared first (manual adds
+    are kept), so re-running discovery is idempotent rather than accumulating duplicates."""
+    await repo.delete_discovered(session, acquisition_id)
     inserted = 0
     for source in sources:
         try:
@@ -74,6 +80,54 @@ async def discover_comps(
         log.info("comps.source_done", source=source.name, found=len(found), kept=len(kept))
     await repo.assign_amenity_ranks(session, acquisition_id)
     return inserted
+
+
+async def ensure_location(
+    session: AsyncSession, acquisition_id: str, *, geocoder: Geocoder | None
+) -> tuple[float, float]:
+    """Return the acquisition's (lat, lng), geocoding the OM address on first use and persisting it
+    (so the map + population rings can reuse it). Raises ``CompError`` if there is no address we can
+    locate — never guesses a location."""
+    acquisition = await session.get(Acquisition, acquisition_id)
+    if acquisition is None:
+        raise CompError("not_found", "No such acquisition.")
+    if acquisition.lat is not None and acquisition.lng is not None:
+        return float(acquisition.lat), float(acquisition.lng)
+    query = address_query(
+        acquisition.address_line1, acquisition.city, acquisition.state, acquisition.zip
+    )
+    if not query:
+        raise CompError("no_address", "This acquisition has no address to locate.")
+    result = geocoder.geocode(query) if geocoder is not None else None
+    if result is None:
+        raise CompError("geocode_failed", f"Couldn't locate the address: {query}.")
+    acquisition.lat = result.lat
+    acquisition.lng = result.lng
+    await session.flush()
+    log.info("comps.geocoded", acquisition_id=acquisition_id, provider=result.provider)
+    return result.lat, result.lng
+
+
+async def discover_for_acquisition(
+    session: AsyncSession,
+    acquisition_id: str,
+    *,
+    sources: Sequence[CompSource],
+    enricher: Enricher | None,
+    geocoder: Geocoder | None,
+    radius_miles: float = COMP_RADIUS_MILES,
+) -> int:
+    """End-to-end discovery from the acquisition's OM address: geocode → discover within radius."""
+    lat, lng = await ensure_location(session, acquisition_id, geocoder=geocoder)
+    return await discover_comps(
+        session,
+        acquisition_id=acquisition_id,
+        acquisition_lat=lat,
+        acquisition_lng=lng,
+        sources=sources,
+        enricher=enricher,
+        radius_miles=radius_miles,
+    )
 
 
 async def add_manual(

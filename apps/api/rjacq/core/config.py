@@ -75,12 +75,16 @@ class Settings(BaseSettings):
     gl_map_auto_confidence: Decimal = Decimal("0.6")
 
     # ── Comp intelligence ──────────────────  TODO(decision: §14 D-22)
-    google_places_api_key: str | None = None
+    google_places_api_key: str | None = None  # also used for the Google Geocoding API
     yelp_api_key: str | None = None
     tripadvisor_api_key: str | None = None
     scraper_proxy_url: str | None = None
     # Scrapers stay OFF until a per-source ToS/legal review resolves D-22.
     scrapers_enabled: bool = False  # TODO(decision: §14 D-22)
+    # OpenStreetMap (Nominatim geocoding + Overpass discovery) is free and needs no key, but its
+    # usage policy requires a UA that identifies the app + a contact. Override per environment.
+    osm_user_agent: str = "rjacq-comps/1.0 (+https://landman.rjourney.com)"
+    overpass_url: str = "https://overpass-api.de/api/interpreter"
 
     # ── Population / demographics ──────────  TODO(decision: ADR-0009 / §14 D-35)
     # Auto-pull estimated ring populations (25/50/100/150 mi) on property entry. Provider +
