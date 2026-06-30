@@ -16,6 +16,10 @@ class BudgetRow(BaseModel):
     custom_label: str | None = None
     name: str
     section: str | None = None  # Income | Expense | (other)
+    # Canonical-chart hierarchy so the Budget tab can nest the row under its group/sub-group.
+    parent_code: str | None = None  # the GL group this leaf rolls into (None for custom lines)
+    is_contra: bool = False  # sign-preserving negative offset (render in parentheses)
+    tier: str | None = None  # core | rare (drives the optional "hide rare" toggle)
     source: str  # actuals | default | placeholder | custom | edited (year-one provenance)
     prior_annual: Decimal
     year1_annual: Decimal
@@ -40,9 +44,27 @@ class BudgetTotals(BaseModel):
     year1_noi: Decimal
 
 
+class BudgetGroup(BaseModel):
+    """A roll-up subtotal for a chart group / sub-group / section header, mirroring the source's
+    "Total - {code} - {name}" rows. Computed server-side by the pure ``roll_up_tree`` so the Budget
+    tab renders the numbers without re-deriving any math. Present for every group that has at least
+    one budget row beneath it."""
+
+    code: str
+    name: str
+    level: str  # section | major_group | subgroup
+    section: str | None = None  # Income | Expense | (other)
+    parent_code: str | None = None
+    prior_annual: Decimal
+    year1_annual: Decimal
+    var_abs: Decimal
+
+
 class BudgetDoc(BaseModel):
     status: str  # draft | locked
     rows: list[BudgetRow] = Field(default_factory=list)
+    # Group/sub-group subtotals (the "Total - …" rows) for the collapsible hierarchy.
+    groups: list[BudgetGroup] = Field(default_factory=list)
     totals: BudgetTotals
     placeholder_count: int = 0  # unresolved "to review" lines (block the lock)
     unmapped_count: int = 0  # seller lines still unmapped (block the lock)

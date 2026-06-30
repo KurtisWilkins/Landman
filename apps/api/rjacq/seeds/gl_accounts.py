@@ -6,8 +6,13 @@ default_noi_placement). ``default_noi_placement`` travels with the account so 70
 treated below the line and 800000/900000/950000 as non-operating during normalization.
 
 Two source codes are reused for different accounts (600400, 600410); the second of each is stored
-with a ``-2`` suffix here and should be recoded at source. Re-generate from the workbook rather than
-hand-editing.
+with a ``-2`` suffix here (so ``account_code`` stays a unique key) and should be recoded at source.
+
+The consolidated views are NOT a complete superset — some accounts appear only on per-park sheets
+(e.g. 600145 Payroll Processing Fees, 605840 Wells One Credit Card). Those are unioned in (see the
+"Park-only accounts" block) so no deal can carry a line that doesn't map. ``CONTRA_CODES`` /
+``CORE_CODES`` below are applied at seed time to set ``gl_accounts.is_contra`` / ``tier``.
+Re-generate from the workbook rather than hand-editing. See DECISIONS.md (canonical GL chart).
 """
 
 from __future__ import annotations
@@ -1740,4 +1745,188 @@ GL_ACCOUNTS: list[GLRow] = [
         "sort": 1690,
         "default_noi_placement": "non_operating",
     },
+    # ── Park-only accounts (present in per-park sheets but absent from the consolidated
+    # views). Unioned in so no deal can carry a line that doesn't map. ──────────────────
+    {
+        "account_code": "605840",
+        "parent_code": "605800",
+        "level": "leaf",
+        "name": "Wells One Credit Card",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 1442,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "600425",
+        "parent_code": "600400",
+        "level": "leaf",
+        "name": "Employee Uniforms",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 722,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "500100",
+        "parent_code": "500000",
+        "level": "leaf",
+        "name": "COGS - Propane Refill",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 512,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "601210",
+        "parent_code": "601200",
+        "level": "leaf",
+        "name": "Bank Error",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 972,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "600105",
+        "parent_code": "600100",
+        "level": "leaf",
+        "name": "Administrative",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 552,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "607110",
+        "parent_code": "607100",
+        "level": "leaf",
+        "name": "Tenant Insurance Claims Expense",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 1482,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "600135",
+        "parent_code": "600100",
+        "level": "leaf",
+        "name": "Health Insurance",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 552,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "403130",
+        "parent_code": "403000",
+        "level": "leaf",
+        "name": "Wifi Revenue",
+        "section": "Income",
+        "normal_balance": "credit",
+        "sort": 382,
+        "default_noi_placement": "above",
+    },
+    {
+        "account_code": "600115",
+        "parent_code": "600100",
+        "level": "leaf",
+        "name": "Training Mgmt",
+        "section": "Expense",
+        "normal_balance": "debit",
+        "sort": 552,
+        "default_noi_placement": "above",
+    },
 ]
+
+
+# ── Canonical-chart metadata, applied to gl_accounts at seed time (keyed on the BASE code, i.e.
+# the part before any ``-2`` disambiguation suffix). Derived from the 31-sheet income statement;
+# see DECISIONS.md (canonical GL chart).
+CONTRA_CODES = frozenset(  # sign-preserving negative offsets (recoveries / discounts / credits)
+    {
+        "401070",
+        "404070",
+        "421000",
+        "421300",
+        "421400",
+        "605415",
+        "605465",
+    }
+)
+
+
+CORE_CODES = (
+    frozenset(  # leaves present in >=60% (16/27) of the portfolio's parks; the rest are 'rare'
+        {
+            "400105",
+            "400110",
+            "400115",
+            "400130",
+            "400310",
+            "401070",
+            "401200",
+            "403005",
+            "403010",
+            "403020",
+            "403030",
+            "403060",
+            "403080",
+            "403090",
+            "403110",
+            "403140",
+            "404010",
+            "404020",
+            "404070",
+            "421000",
+            "421300",
+            "421400",
+            "500200",
+            "600130",
+            "600140",
+            "600145",
+            "600155",
+            "600210",
+            "600215",
+            "600225",
+            "600235",
+            "600245",
+            "600250",
+            "600255",
+            "600405",
+            "600415",
+            "600430",
+            "600700",
+            "600905",
+            "600915",
+            "600920",
+            "601215",
+            "601235",
+            "601300",
+            "605105",
+            "605110",
+            "605115",
+            "605120",
+            "605125",
+            "605205",
+            "605210",
+            "605215",
+            "605310",
+            "605315",
+            "605405",
+            "605410",
+            "605415",
+            "605425",
+            "605430",
+            "605440",
+            "605445",
+            "605455",
+            "605465",
+            "605510",
+            "605520",
+            "605535",
+            "607000",
+            "607105",
+        }
+    )
+)

@@ -27,13 +27,22 @@ from ..models.operating import SOURCE_MANUAL, OperationalInputs, UnitGroup
 from ..models.reference import GLAccount
 from ..schemas.budget import (
     BudgetDoc,
+    BudgetGroup,
     BudgetLineCreate,
     BudgetLinePatch,
     BudgetLineRef,
     BudgetRow,
     BudgetTotals,
 )
-from .budget import GridLine, GridTotals, bucket_line_months, roll_up, variance
+from .budget import (
+    GridLine,
+    GridTotals,
+    TreeNode,
+    bucket_line_months,
+    roll_up,
+    roll_up_tree,
+    variance,
+)
 from .defaults_config import effective_rules
 from .defaults_rules import DefaultComputation, DriverContext, compute_default
 from .labor import total_headcount
@@ -121,6 +130,8 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     rows: list[BudgetRow] = []
     grid: list[GridLine] = []
     seen: set[str] = set()
+    # Leaf amounts (code → prior, year1) for the hierarchical roll-up that produces group subtotals.
+    amounts: dict[str, tuple[Decimal, Decimal]] = {}
 
     for bl in sorted(lines, key=sort_key):
         acct = accounts.get(bl.account_code) if bl.account_code else None
@@ -140,7 +151,8 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
             source = "edited"
         else:
             source = bl.source
-        v_abs, v_pct = variance(prior_val, _ZERO if bl.removed else year1_val)
+        year1_eff = _ZERO if bl.removed else year1_val
+        v_abs, v_pct = variance(prior_val, year1_eff)
         rows.append(
             BudgetRow(
                 line_id=bl.budget_line_id,
@@ -148,6 +160,9 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
                 custom_label=bl.custom_label,
                 name=name,
                 section=section,
+                parent_code=acct.parent_code if acct else None,
+                is_contra=acct.is_contra if acct else False,
+                tier=acct.tier if acct else None,
                 source=source,
                 prior_annual=prior_val,
                 year1_annual=year1_val,
@@ -161,12 +176,14 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
                 note=bl.note,
             )
         )
+        if bl.account_code is not None:
+            amounts[bl.account_code] = (prior_val, year1_eff)
         grid.append(
             GridLine(
                 placement=placement,
                 is_expense=section == "Expense",
                 prior=prior_val,
-                year1=_ZERO if bl.removed else year1_val,
+                year1=year1_eff,
             )
         )
 
@@ -185,6 +202,9 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
                 custom_label=None,
                 name=acct.name if acct else code,
                 section=section,
+                parent_code=acct.parent_code if acct else None,
+                is_contra=acct.is_contra if acct else False,
+                tier=acct.tier if acct else None,
                 source=BudgetSource.ACTUALS.value,
                 prior_annual=prior_val,
                 year1_annual=prior_val,
@@ -197,6 +217,7 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
                 note=None,
             )
         )
+        amounts[code] = (prior_val, prior_val)
         grid.append(
             GridLine(
                 placement=(acct.default_noi_placement if acct else None) or "above",
@@ -206,14 +227,61 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
             )
         )
 
+    groups = _build_groups(accounts, amounts)
     placeholders, unmapped = await readiness(session, acquisition_id)
     return BudgetDoc(
         status=header.status if header else BudgetStatus.DRAFT.value,
         rows=rows,
+        groups=groups,
         totals=_totals(roll_up(grid)),
         placeholder_count=placeholders,
         unmapped_count=unmapped,
     )
+
+
+def _build_groups(
+    accounts: dict[str, GLAccount], amounts: dict[str, tuple[Decimal, Decimal]]
+) -> list[BudgetGroup]:
+    """Subtotal every chart group/sub-group that has at least one budget row beneath it, via the
+    pure ``roll_up_tree``. Mirrors the source's "Total - …" rows; the UI renders these numbers
+    directly (no client-side math)."""
+    nodes = [
+        TreeNode(
+            code=a.account_code,
+            parent_code=a.parent_code,
+            section=a.section,
+            placement=a.default_noi_placement or "above",
+        )
+        for a in accounts.values()
+    ]
+    rollup = roll_up_tree(nodes, amounts)
+    # Only emit headers for ancestor groups of the present leaves (skip empty branches + the leaves
+    # themselves), in chart order.
+    present_groups: set[str] = set()
+    for code in amounts:
+        cur = accounts.get(code)
+        cur = accounts.get(cur.parent_code) if cur and cur.parent_code else None
+        while cur is not None:
+            present_groups.add(cur.account_code)
+            cur = accounts.get(cur.parent_code) if cur.parent_code else None
+    out: list[BudgetGroup] = []
+    for a in sorted(accounts.values(), key=lambda x: x.sort if x.sort is not None else 1_000_000):
+        if a.account_code not in present_groups:
+            continue
+        prior_val, year1_val = rollup.subtotals.get(a.account_code, (_ZERO, _ZERO))
+        out.append(
+            BudgetGroup(
+                code=a.account_code,
+                name=a.name,
+                level=a.level.value if hasattr(a.level, "value") else str(a.level),
+                section=a.section,
+                parent_code=a.parent_code,
+                prior_annual=prior_val,
+                year1_annual=year1_val,
+                var_abs=year1_val - prior_val,
+            )
+        )
+    return out
 
 
 def _subtree_codes(target: str, accounts: dict[str, GLAccount]) -> set[str]:

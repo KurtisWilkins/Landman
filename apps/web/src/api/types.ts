@@ -1488,6 +1488,8 @@ export interface components {
         };
         /** BudgetDoc */
         BudgetDoc: {
+            /** Groups */
+            groups?: components["schemas"]["BudgetGroup"][];
             /**
              * Placeholder Count
              * @default 0
@@ -1503,6 +1505,31 @@ export interface components {
              * @default 0
              */
             unmapped_count: number;
+        };
+        /**
+         * BudgetGroup
+         * @description A roll-up subtotal for a chart group / sub-group / section header, mirroring the source's
+         *     "Total - {code} - {name}" rows. Computed server-side by the pure ``roll_up_tree`` so the Budget
+         *     tab renders the numbers without re-deriving any math. Present for every group that has at least
+         *     one budget row beneath it.
+         */
+        BudgetGroup: {
+            /** Code */
+            code: string;
+            /** Level */
+            level: string;
+            /** Name */
+            name: string;
+            /** Parent Code */
+            parent_code?: string | null;
+            /** Prior Annual */
+            prior_annual: string;
+            /** Section */
+            section?: string | null;
+            /** Var Abs */
+            var_abs: string;
+            /** Year1 Annual */
+            year1_annual: string;
         };
         /**
          * BudgetLineCreate
@@ -1573,6 +1600,11 @@ export interface components {
              */
             flagged_for_promotion: boolean;
             /**
+             * Is Contra
+             * @default false
+             */
+            is_contra: boolean;
+            /**
              * Is Overridden
              * @default false
              */
@@ -1583,6 +1615,8 @@ export interface components {
             name: string;
             /** Note */
             note?: string | null;
+            /** Parent Code */
+            parent_code?: string | null;
             /** Prior Annual */
             prior_annual: string;
             /**
@@ -1604,6 +1638,8 @@ export interface components {
             section?: string | null;
             /** Source */
             source: string;
+            /** Tier */
+            tier?: string | null;
             /** Var Abs */
             var_abs: string;
             /** Var Pct */
@@ -2094,17 +2130,30 @@ export interface components {
         };
         /**
          * GlAccountOption
-         * @description A canonical GL account for the mapping picker (GET /gl-accounts).
+         * @description A canonical GL account for the mapping picker and the Budget tab hierarchy
+         *     (GET /gl-accounts). ``parent_code`` + ``sort`` let the client rebuild the section → group →
+         *     sub-group → detail tree; ``is_contra`` / ``tier`` drive sign display and the rare toggle.
          */
         GlAccountOption: {
             /** Account Code */
             account_code: string;
+            /**
+             * Is Contra
+             * @default false
+             */
+            is_contra: boolean;
             level?: components["schemas"]["AccountLevel"] | null;
             /** Name */
             name: string;
             noi_placement?: components["schemas"]["NoiPlacement"] | null;
+            /** Parent Code */
+            parent_code?: string | null;
             /** Section */
             section?: string | null;
+            /** Sort */
+            sort?: number | null;
+            /** Tier */
+            tier?: string | null;
         };
         /**
          * HookupLevel

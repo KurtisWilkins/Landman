@@ -1034,6 +1034,13 @@
       },
       "BudgetDoc": {
         "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
           "placeholder_count": {
             "default": 0,
             "title": "Placeholder Count",
@@ -1064,6 +1071,70 @@
           "totals"
         ],
         "title": "BudgetDoc",
+        "type": "object"
+      },
+      "BudgetGroup": {
+        "description": "A roll-up subtotal for a chart group / sub-group / section header, mirroring the source's\n\"Total - {code} - {name}\" rows. Computed server-side by the pure ``roll_up_tree`` so the Budget\ntab renders the numbers without re-deriving any math. Present for every group that has at least\none budget row beneath it.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code"
+          },
+          "prior_annual": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Prior Annual",
+            "type": "string"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "var_abs": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Var Abs",
+            "type": "string"
+          },
+          "year1_annual": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Year1 Annual",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "level",
+          "prior_annual",
+          "year1_annual",
+          "var_abs"
+        ],
+        "title": "BudgetGroup",
         "type": "object"
       },
       "BudgetLineCreate": {
@@ -1279,6 +1350,11 @@
             "title": "Flagged For Promotion",
             "type": "boolean"
           },
+          "is_contra": {
+            "default": false,
+            "title": "Is Contra",
+            "type": "boolean"
+          },
           "is_overridden": {
             "default": false,
             "title": "Is Overridden",
@@ -1309,6 +1385,17 @@
               }
             ],
             "title": "Note"
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code"
           },
           "prior_annual": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1344,6 +1431,17 @@
           "source": {
             "title": "Source",
             "type": "string"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
           },
           "var_abs": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -3042,11 +3140,16 @@
         "type": "object"
       },
       "GlAccountOption": {
-        "description": "A canonical GL account for the mapping picker (GET /gl-accounts).",
+        "description": "A canonical GL account for the mapping picker and the Budget tab hierarchy\n(GET /gl-accounts). ``parent_code`` + ``sort`` let the client rebuild the section \u2192 group \u2192\nsub-group \u2192 detail tree; ``is_contra`` / ``tier`` drive sign display and the rare toggle.",
         "properties": {
           "account_code": {
             "title": "Account Code",
             "type": "string"
+          },
+          "is_contra": {
+            "default": false,
+            "title": "Is Contra",
+            "type": "boolean"
           },
           "level": {
             "anyOf": [
@@ -3072,6 +3175,17 @@
               }
             ]
           },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code"
+          },
           "section": {
             "anyOf": [
               {
@@ -3082,6 +3196,28 @@
               }
             ],
             "title": "Section"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
           }
         },
         "required": [

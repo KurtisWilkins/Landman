@@ -3,7 +3,7 @@
 Working task list for the RJourney Acquisitions Platform. See `PROJECT_STATE.md` for the current
 snapshot and `DECISIONS.md` for the rationale behind the choices below.
 
-_Last updated: 2026-06-24._
+_Last updated: 2026-06-30._
 
 ## Done — underwriting single source of truth (PRs #41–#46)
 
@@ -70,6 +70,29 @@ Follow-ups:
 - [ ] Drop the deprecated `OperationalInputs.employee_headcount` columns (destructive — backup first).
 - [ ] Retire the now-superseded `budget_defaults.py` (+ `test_budget_defaults.py`).
 - [ ] Confirm the call-center GL home (600220, under Advertising & Promotion).
+
+## Done — canonical GL chart + collapsible Budget tab (`DECISIONS.md` D-8)
+
+Chart of accounts derived from the 31-sheet consolidated income statement; Budget tab mirrors the
+source hierarchy with collapse/fold. Migration `f5a6b7c8d9e0`:
+
+- [x] **Canonical chart = full superset** — unioned the ~10 per-park-only accounts the consolidated
+      views miss (`600145` Payroll Processing Fees, `605840` Wells One Credit Card, …) into the seed
+      so no deal can carry a line that doesn't map (180 rows).
+- [x] **Chart metadata** — `gl_accounts.is_contra` (7 structural contras, sign preserved → net in
+      parent) + `tier` (core/rare, keyed on park-presence); backfilled idempotently at seed time.
+      Duplicate codes (`600400`/`600410`) keep `account_code` PK via the `-2` suffix.
+- [x] **Pure hierarchical roll-up** — `underwriting/budget.py::roll_up_tree` (section→group→leaf +
+      NOI), unit-tested against the workbook's own totals incl. the Utilities contra recoveries.
+- [x] **Budget API** — `GET /budget` returns group subtotals + per-row hierarchy; `/gl-accounts`
+      returns `parent_code`/`sort`/`is_contra`/`tier`.
+- [x] **Budget tab UI** — collapsible section → group → sub-group → detail; Total closes every group
+      (visible when collapsed); collapse-all/expand-all; hide-rare toggle; parentheses for negatives;
+      whole-dollar display; NOI at the bottom.
+
+Follow-ups:
+- [ ] Recode the duplicate `600400-2` / `600410-2` at source (drop the `-2` convention).
+- [ ] Optionally render the full chart (zero rows) when expanded, not just accounts with data.
 
 ## Next
 

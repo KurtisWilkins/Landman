@@ -272,6 +272,78 @@ async def test_remove_gl_line_keeps_prior_drops_year_one(session: AsyncSession) 
     assert doc.totals.year1_opex == Decimal("0")  # dropped from year-one
 
 
+# ── hierarchy + group subtotals (canonical GL tree) ───────────────────────────
+
+
+async def _group(session: AsyncSession, code: str, name: str, section: str) -> None:
+    session.add(
+        GLAccount(
+            account_code=code,
+            level=AccountLevel.SUBGROUP,
+            name=name,
+            section=section,
+            default_noi_placement="above",
+            active=True,
+        )
+    )
+    await session.flush()
+
+
+async def _leaf(
+    session: AsyncSession,
+    code: str,
+    name: str,
+    section: str,
+    parent: str,
+    *,
+    is_contra: bool = False,
+    tier: str = "core",
+) -> None:
+    session.add(
+        GLAccount(
+            account_code=code,
+            parent_code=parent,
+            level=AccountLevel.LEAF,
+            name=name,
+            section=section,
+            default_noi_placement="above",
+            active=True,
+            is_contra=is_contra,
+            tier=tier,
+        )
+    )
+    await session.flush()
+
+
+async def test_get_budget_emits_group_subtotals_netting_contra(session: AsyncSession) -> None:
+    """A sub-group's subtotal nets its contra child (e.g. Utilities − Recovery), rows carry the
+    chart hierarchy (parent_code/tier/is_contra), and only ancestor groups of present rows show."""
+    acquisition_id, period_id = await _acquisition(session)
+    await _group(session, "605400", "Utilities", "Expense")
+    await _leaf(session, "605410", "Electric", "Expense", "605400")
+    await _leaf(session, "605415", "Utility Recovery", "Expense", "605400", is_contra=True)
+    await _mapped_line(
+        session, acquisition_id, period_id, "605410", {"JAN 25": "1000", "_seller_line": "Electric"}
+    )
+    await _mapped_line(
+        session,
+        acquisition_id,
+        period_id,
+        "605415",
+        {"JAN 25": "-620", "_seller_line": "Utility Recovery"},
+    )
+    await budget_service.seed_budget(session, acquisition_id)
+    doc = await budget_service.get_budget(session, acquisition_id)
+
+    group = next(g for g in doc.groups if g.code == "605400")
+    assert group.prior_annual == Decimal("380")  # 1000 + (−620) net
+    assert group.level == "subgroup"
+    contra_row = next(r for r in doc.rows if r.account_code == "605415")
+    assert contra_row.is_contra is True and contra_row.parent_code == "605400"
+    electric_row = next(r for r in doc.rows if r.account_code == "605410")
+    assert electric_row.tier == "core" and electric_row.parent_code == "605400"
+
+
 # ── reorder (drag-to-reorder within a section) ────────────────────────────────
 
 
