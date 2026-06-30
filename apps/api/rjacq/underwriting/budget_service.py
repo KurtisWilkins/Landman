@@ -18,11 +18,12 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.config import settings
 from ..mapping import repository as mapping_repo
 from ..models.budget import Budget, BudgetLine
 from ..models.enums import BudgetSource, BudgetStatus
 from ..models.labor import LaborPosition
-from ..models.operating import OperationalInputs, UnitGroup
+from ..models.operating import SOURCE_MANUAL, OperationalInputs, UnitGroup
 from ..models.reference import GLAccount
 from ..schemas.budget import (
     BudgetDoc,
@@ -288,6 +289,20 @@ async def roster_headcount(session: AsyncSession, acquisition_id: str) -> int | 
     return total_headcount(counts) if counts else None
 
 
+def _effective_electric(op: OperationalInputs | None, prior: dict[str, Decimal]) -> Decimal | None:
+    """The Electric driver: a manual override wins; otherwise the Electric line that comes through
+    the budget (the mapped prior-year actual on the configured Electric account, 605410); otherwise
+    any seeded value (e.g. from the OM) so an unmapped electric line doesn't drop a captured number.
+    """
+    if op is not None and op.electric_source == SOURCE_MANUAL:
+        return op.electric_annual
+    code = settings.electric_account_code
+    budget = prior.get(code) if code else None
+    if budget is not None:
+        return budget
+    return op.electric_annual if op is not None else None
+
+
 async def _driver_context(
     session: AsyncSession,
     acquisition_id: str,
@@ -306,9 +321,12 @@ async def _driver_context(
     inputs = [
         UnitGroupInput(category=g.category, count=g.count, billable=g.billable) for g in groups
     ]
+    # Electric drives the utility bill-back default. A manual override wins; otherwise default to
+    # the Electric line that comes through the budget (the mapped prior-year actual, 605410), so the
+    # bill-back computes without the operator re-keying a number the budget already has.
     return DriverContext(
         gross_revenue=_gross_revenue_base(by_account, accounts, prior),
-        electric_annual=op.electric_annual if op else None,
+        electric_annual=_effective_electric(op, prior),
         billable_units=billable_unit_total(inputs),
         units_complete=not units_need_input(inputs),
         headcount=await roster_headcount(session, acquisition_id),  # Labor roster = SSOT

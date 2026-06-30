@@ -86,24 +86,33 @@ async def _groups(session: AsyncSession, acquisition_id: str) -> list[UnitGroup]
 
 
 async def _electric_prior_actual(session: AsyncSession, acquisition_id: str) -> Decimal | None:
-    """Annual prior-year Electric actual from the mapped P&L (None if no electric line mapped)."""
+    """The Electric line that comes through the budget — the mapped prior-year actual on the
+    configured Electric account (605410). Annual-aware: a recap P&L's per-month columns are summed;
+    an annual-only source (OM / non-recap P&L) uses the line amount. None if no electric is mapped.
+    """
     code = settings.electric_account_code
     if code is None:
         return None
     total = _ZERO
     found = False
     for line in await mapping_repo.list_lines(session, acquisition_id):
-        if line.account_code == code and line.raw_payload:
-            total += sum(bucket_line_months(line.raw_payload).values(), _ZERO)
-            found = True
+        if line.account_code != code:
+            continue
+        months = bucket_line_months(line.raw_payload) if line.raw_payload else {}
+        total += sum(months.values(), _ZERO) if months else (line.amount or _ZERO)
+        found = True
     return total if found else None
 
 
 def _to_doc(
-    header: OperationalInputs | None, groups: list[UnitGroup], roster_headcount: int | None
+    header: OperationalInputs | None,
+    groups: list[UnitGroup],
+    roster_headcount: int | None,
+    budget_electric: Decimal | None,
 ) -> OperatingDoc:
     """Assemble the panel from stored state + the pure driver math (no DB). Headcount is NOT stored
-    here — it's the Labor roster total (single source of truth), passed in read-only."""
+    here — it's the Labor roster total (single source of truth), passed in read-only. Electric
+    defaults live from the budget's Electric line (``budget_electric``) unless overridden."""
     ordered = sorted(groups, key=lambda g: (g.sort if g.sort is not None else 9999, g.category))
     rows = [
         UnitGroupRow(
@@ -120,8 +129,16 @@ def _to_doc(
     inputs = [
         UnitGroupInput(category=g.category, count=g.count, billable=g.billable) for g in groups
     ]
-    electric = header.electric_annual if header else None
-    electric_source = header.electric_source if header else SOURCE_NEEDS_INPUT
+    # Electric: a manual override wins; otherwise default live to the budget's Electric line; else
+    # any seeded value (e.g. OM) so an unmapped electric line doesn't drop a captured number.
+    if header is not None and header.electric_source == SOURCE_MANUAL:
+        electric, electric_source = header.electric_annual, SOURCE_MANUAL
+    elif budget_electric is not None:
+        electric, electric_source = budget_electric, SOURCE_ACTUALS
+    elif header is not None and header.electric_annual is not None:
+        electric, electric_source = header.electric_annual, header.electric_source
+    else:
+        electric, electric_source = None, SOURCE_NEEDS_INPUT
     return OperatingDoc(
         unit_groups=rows,
         billable_unit_total=billable_unit_total(inputs),
@@ -150,6 +167,7 @@ async def get_operating(session: AsyncSession, acquisition_id: str) -> Operating
         await _header(session, acquisition_id),
         await _groups(session, acquisition_id),
         await _roster_headcount(session, acquisition_id),
+        await _electric_prior_actual(session, acquisition_id),
     )
 
 

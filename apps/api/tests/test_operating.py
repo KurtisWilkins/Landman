@@ -211,3 +211,58 @@ async def test_electric_seeds_from_prior_actual(session: AsyncSession, monkeypat
     assert doc.electric_annual == Decimal("48000")
     assert doc.electric_source == "actuals"
     assert doc.electric_needs_input is False
+
+
+async def test_electric_defaults_live_from_budget_line(session: AsyncSession) -> None:
+    """The Operating electric driver defaults to the Electric line that comes through the budget
+    (the mapped prior-year actual on 605410) on read — no Seed click — and is annual-aware (an
+    OM/annual electric line with no per-month columns still yields its amount). Manual edit wins."""
+    from rjacq.models.enums import AccountLevel, NoiPlacement
+    from rjacq.models.financials import FinancialLine, FinancialPeriod
+    from rjacq.models.reference import GLAccount
+    from rjacq.schemas.operating import OperatingPatch
+
+    aid = await _acquisition(session)
+    session.add(
+        GLAccount(
+            account_code="605410",
+            level=AccountLevel.LEAF,
+            name="Electric",
+            section="Expense",
+            default_noi_placement="above",
+            active=True,
+        )
+    )
+    pid = f"fp_{uuid.uuid4().hex[:12]}"
+    session.add(
+        FinancialPeriod(
+            period_id=pid, acquisition_id=aid, label="T12", granularity="t12", is_current=True
+        )
+    )
+    await session.flush()
+    session.add(
+        FinancialLine(
+            line_id=f"fl_{uuid.uuid4().hex[:12]}",
+            acquisition_id=aid,
+            period_id=pid,
+            account_code="605410",
+            account_level=AccountLevel.LEAF,
+            amount=Decimal("48000"),  # annual, no per-month columns (OM shape)
+            seller_source_line="Electric",
+            noi_placement=NoiPlacement.ABOVE,
+            raw_payload={"_seller_line": "Electric"},
+        )
+    )
+    await session.flush()
+
+    doc = await operating_service.get_operating(session, aid)
+    assert doc.electric_annual == Decimal("48000")  # defaulted from the budget's electric line
+    assert doc.electric_source == "actuals"
+    assert doc.electric_needs_input is False
+
+    # A manual override wins over the budget default and sticks.
+    doc = await operating_service.patch_operating(
+        session, aid, OperatingPatch(electric_annual=Decimal("51000")), actor="kurtis"
+    )
+    assert doc.electric_annual == Decimal("51000")
+    assert doc.electric_source == "manual"
