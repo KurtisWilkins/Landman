@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.auth import Principal, get_current_principal
 from ..core.db import get_session
 from ..core.rbac import Capability, require
-from ..schemas.budget import BudgetDoc, BudgetLineCreate, BudgetLinePatch
+from ..schemas.budget import BudgetDoc, BudgetLineCreate, BudgetLinePatch, BudgetReorder
 from ..underwriting import budget_service
 from ..underwriting import service as underwriting
 
@@ -104,6 +104,23 @@ async def revert_budget_line_to_default(
     try:
         return await budget_service.revert_to_default(
             session, acquisition_id, line_id, actor=principal.user_id
+        )
+    except budget_service.BudgetError as exc:
+        raise _bad_request(exc) from exc
+
+
+@router.post("/acquisitions/{acquisition_id}/budget/reorder", response_model=BudgetDoc)
+async def reorder_budget_lines(
+    acquisition_id: str,
+    body: BudgetReorder,
+    session: AsyncSession = Depends(get_session),
+    principal: Principal = Depends(require(Capability.ACQUISITION_WRITE)),
+) -> BudgetDoc:
+    """Set the display order of budget rows within a section (drag-to-reorder). Presentational
+    only — allowed on a locked budget; the NOI roll-up is section-based and unaffected."""
+    try:
+        return await budget_service.reorder_lines(
+            session, acquisition_id, body.lines, actor=principal.user_id
         )
     except budget_service.BudgetError as exc:
         raise _bad_request(exc) from exc

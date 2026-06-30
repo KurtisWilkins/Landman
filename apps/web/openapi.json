@@ -1206,6 +1206,49 @@
         "title": "BudgetLinePatch",
         "type": "object"
       },
+      "BudgetLineRef": {
+        "description": "A reference to one budget row for reordering: its stored ``line_id``, or an un-seeded GL\n``account_code`` (materialized on reorder).",
+        "properties": {
+          "account_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Code"
+          },
+          "line_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Id"
+          }
+        },
+        "title": "BudgetLineRef",
+        "type": "object"
+      },
+      "BudgetReorder": {
+        "description": "Set the display order of a section's rows (drag-to-reorder): the rows in their new\ntop-to-bottom order. Presentational only \u2014 the NOI roll-up is section-based.",
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetLineRef"
+            },
+            "title": "Lines",
+            "type": "array"
+          }
+        },
+        "title": "BudgetReorder",
+        "type": "object"
+      },
       "BudgetRow": {
         "description": "One grid line: a canonical GL or a custom line, with an editable prior-year and year-one\namount + provenance for each column.",
         "properties": {
@@ -8630,6 +8673,135 @@
           }
         },
         "summary": "Lock Budget",
+        "tags": [
+          "budget"
+        ]
+      }
+    },
+    "/acquisitions/{acquisition_id}/budget/reorder": {
+      "post": {
+        "description": "Set the display order of budget rows within a section (drag-to-reorder). Presentational\nonly \u2014 allowed on a locked budget; the NOI roll-up is section-based and unaffected.",
+        "operationId": "reorder_budget_lines_acquisitions__acquisition_id__budget_reorder_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "acquisition_id",
+            "required": true,
+            "schema": {
+              "title": "Acquisition Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetReorder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetDoc"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Reorder Budget Lines",
         "tags": [
           "budget"
         ]

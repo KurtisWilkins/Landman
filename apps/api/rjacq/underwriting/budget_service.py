@@ -29,6 +29,7 @@ from ..schemas.budget import (
     BudgetDoc,
     BudgetLineCreate,
     BudgetLinePatch,
+    BudgetLineRef,
     BudgetRow,
     BudgetTotals,
 )
@@ -106,9 +107,12 @@ async def get_budget(session: AsyncSession, acquisition_id: str) -> BudgetDoc:
     prior = await _prior_actuals(session, acquisition_id)
     accounts = await _accounts(session)
 
-    def sort_key(bl: BudgetLine) -> tuple[int, int, str]:
+    def sort_key(bl: BudgetLine) -> tuple[int, int, int, str]:
         acct = accounts.get(bl.account_code) if bl.account_code else None
+        # A manual drag-order (sort_order) wins; rows never moved fall back to the GL chart order.
+        # Within the frontend's section grouping this gives each section its own custom order.
         return (
+            bl.sort_order if bl.sort_order is not None else 1_000_000,
             0 if acct else 1,
             acct.sort if acct and acct.sort is not None else 9999,
             bl.account_code or bl.custom_label or "",
@@ -553,6 +557,37 @@ async def patch_line(
     if body.note is not None:
         line.note = body.note
     _invalidate_lock(await _header(session, acquisition_id))
+    await session.commit()
+    return await get_budget(session, acquisition_id)
+
+
+async def reorder_lines(
+    session: AsyncSession, acquisition_id: str, refs: list[BudgetLineRef], *, actor: str | None
+) -> BudgetDoc:
+    """Set the display order of budget lines (drag-to-reorder). Each ref is a stored ``line_id`` or
+    an un-seeded GL ``account_code`` (materialized here, like a first edit). Assigns a dense
+    ``sort_order`` in the given top-to-bottom order. Presentational only: it does not touch any
+    amount or the NOI roll-up (which is section-based), so it's allowed even on a locked budget and
+    doesn't invalidate the lock. Callers send one section's rows in their new order."""
+    accounts = await _accounts(session)
+    for i, ref in enumerate(refs):
+        line = await _resolve_line(
+            session, acquisition_id, line_id=ref.line_id, account_code=ref.account_code
+        )
+        if line is None:
+            if ref.account_code is None or ref.account_code not in accounts:
+                raise BudgetError("line_not_found", "Cannot reorder an unknown budget line.")
+            acct = accounts[ref.account_code]
+            line = BudgetLine(
+                budget_line_id=_new_id("bl"),
+                acquisition_id=acquisition_id,
+                account_code=ref.account_code,
+                month_index=0,
+                section=acct.section,
+                source=BudgetSource.ACTUALS.value,
+            )
+            session.add(line)
+        line.sort_order = i
     await session.commit()
     return await get_budget(session, acquisition_id)
 

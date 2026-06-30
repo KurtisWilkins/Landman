@@ -59,6 +59,9 @@ class BudgetLine(Base):
     section: Mapped[str | None] = mapped_column(String)  # Income | Expense (esp. for custom lines)
     flagged_for_promotion: Mapped[bool] = mapped_column(default=False, nullable=False)
     month_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # 0 = annual line
+    # Per-acquisition display order within a section (drag-to-reorder). NULL = never moved → falls
+    # back to the GL chart order. Presentational only; the NOI roll-up is section-based.
+    sort_order: Mapped[int | None] = mapped_column(Integer)
     prior_amount: Mapped[Decimal | None] = mapped_column(Numeric)  # override of the mapped actual
     year1_amount: Mapped[Decimal | None] = mapped_column(Numeric)
     removed: Mapped[bool] = mapped_column(default=False, nullable=False)  # out of year-one

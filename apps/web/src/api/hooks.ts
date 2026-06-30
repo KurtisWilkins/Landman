@@ -305,6 +305,7 @@ export function useSaveWaterfallTiers(acquisitionId: string) {
 type BudgetDoc = Schemas["BudgetDoc"];
 type BudgetLinePatch = Schemas["BudgetLinePatch"];
 type BudgetLineCreate = Schemas["BudgetLineCreate"];
+type BudgetReorder = Schemas["BudgetReorder"];
 
 export function useBudget(acquisitionId: string) {
   // Prior-year-vs-year-one budget: prior actuals (computed) beside the editable year-one cells.
@@ -347,6 +348,19 @@ export function useAddBudgetLine(acquisitionId: string) {
         body: JSON.stringify(body),
       }),
     onSuccess: () => _invalidateBudgetAndDerived(qc, acquisitionId),
+  });
+}
+
+export function useReorderBudget(acquisitionId: string) {
+  // Drag-to-reorder line items within a section (presentational; NOI roll-up is unaffected).
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BudgetReorder) =>
+      apiFetch<BudgetDoc>(`/acquisitions/${acquisitionId}/budget/reorder`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "budget"] }),
   });
 }
 
