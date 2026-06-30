@@ -193,6 +193,10 @@ async def list_gl_accounts(session: AsyncSession) -> list[GlAccountOption]:
             name=a.name,
             level=a.level,
             section=a.section,
+            parent_code=a.parent_code,
+            sort=a.sort,
+            is_contra=a.is_contra,
+            tier=a.tier,
             noi_placement=NoiPlacement(a.default_noi_placement)
             if a.default_noi_placement
             else None,

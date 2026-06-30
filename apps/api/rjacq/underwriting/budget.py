@@ -116,3 +116,73 @@ def roll_up(lines: Sequence[GridLine]) -> GridTotals:
         prior_noi=pr - pe,
         year1_noi=yr - ye,
     )
+
+
+# ── Hierarchical roll-up (canonical GL tree: section → group → sub-group → detail) ───────────
+# Mirrors the source income statement's nested "Total - …" structure: every group/sub-group total
+# is the sum of its descendant leaves, for both the prior and year-one columns. Contra lines (e.g.
+# Utility Recovery, Discounts) carry their NATIVE NEGATIVE sign, so summing nets them against their
+# siblings automatically — no special-casing. NOI = Total Income − Total Expense uses the same
+# above-the-line rule as ``roll_up`` (COGS folds into Expense; below-the-line / non-operating are
+# excluded). Pure + Decimal so it's unit-tested against the workbook's own group/section totals.
+
+
+@dataclass(frozen=True)
+class TreeNode:
+    """One chart node for the roll-up: its code, parent (None at the section root), the section it
+    belongs to (Income | Expense | other), and its NOI placement."""
+
+    code: str
+    parent_code: str | None
+    section: str | None
+    placement: str  # "above" | "below" | "non_operating"
+
+
+@dataclass(frozen=True)
+class TreeRollup:
+    # Per-node (prior, year1) subtotal for EVERY node — leaves pass through, groups sum descendants.
+    subtotals: dict[str, tuple[Decimal, Decimal]]
+    prior_revenue: Decimal
+    year1_revenue: Decimal
+    prior_expense: Decimal
+    year1_expense: Decimal
+    prior_noi: Decimal
+    year1_noi: Decimal
+
+
+def roll_up_tree(
+    nodes: Sequence[TreeNode], amounts: dict[str, tuple[Decimal, Decimal]]
+) -> TreeRollup:
+    """Roll leaf ``amounts`` (code → (prior, year1)) up the parent chain to every ancestor, and
+    derive section totals + NOI. ``amounts`` are keyed on leaf codes; each value is added to the
+    leaf and each of its ancestors (sign preserved, so contra lines net within their parent)."""
+    parent = {n.code: n.parent_code for n in nodes}
+    section = {n.code: n.section for n in nodes}
+    placement = {n.code: n.placement for n in nodes}
+    sub: dict[str, list[Decimal]] = {n.code: [_ZERO, _ZERO] for n in nodes}
+    pr = yr = pe = ye = _ZERO
+    for code, (p, y) in amounts.items():
+        cur: str | None = code
+        seen: set[str] = set()
+        while cur is not None and cur in sub and cur not in seen:
+            seen.add(cur)
+            sub[cur][0] += p
+            sub[cur][1] += y
+            cur = parent.get(cur)
+        if placement.get(code, "above") == "above":
+            sec = section.get(code)
+            if sec == "Income":
+                pr += p
+                yr += y
+            elif sec == "Expense":
+                pe += p
+                ye += y
+    return TreeRollup(
+        subtotals={c: (v[0], v[1]) for c, v in sub.items()},
+        prior_revenue=pr,
+        year1_revenue=yr,
+        prior_expense=pe,
+        year1_expense=ye,
+        prior_noi=pr - pe,
+        year1_noi=yr - ye,
+    )

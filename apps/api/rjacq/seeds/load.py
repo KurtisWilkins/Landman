@@ -18,17 +18,32 @@ from ..core.logging import configure_logging, get_logger
 from ..models import GateQuestion, GLAccount
 from ..underwriting.defaults_config import seed_rules
 from .gate_questions import GATE_QUESTIONS
-from .gl_accounts import GL_ACCOUNTS
+from .gl_accounts import CONTRA_CODES, CORE_CODES, GL_ACCOUNTS
 
 log = get_logger("seed")
 
 
 async def seed_gl_accounts(session: AsyncSession) -> int:
-    existing = set((await session.execute(select(GLAccount.account_code))).scalars().all())
+    existing = {
+        a.account_code: a for a in (await session.execute(select(GLAccount))).scalars().all()
+    }
     added = 0
+
+    def meta(code: str, level: str) -> tuple[bool, str | None]:
+        # Contra/tier are keyed on the BASE code (before any ``-2`` disambiguation suffix).
+        base = code.split("-")[0]
+        is_contra = base in CONTRA_CODES
+        tier = ("core" if base in CORE_CODES else "rare") if level == "leaf" else None
+        return is_contra, tier
+
     # Insert parents before children so the self-FK is satisfied (rows are pre-sorted).
     for row in sorted(GL_ACCOUNTS, key=lambda r: r["sort"]):
-        if row["account_code"] in existing:
+        is_contra, tier = meta(row["account_code"], row["level"])
+        current = existing.get(row["account_code"])
+        if current is not None:
+            # Backfill the canonical-chart metadata onto an already-seeded chart (idempotent).
+            current.is_contra = is_contra
+            current.tier = tier
             continue
         session.add(
             GLAccount(
@@ -40,6 +55,8 @@ async def seed_gl_accounts(session: AsyncSession) -> int:
                 normal_balance=row["normal_balance"],
                 sort=row["sort"],
                 active=True,
+                is_contra=is_contra,
+                tier=tier,
                 default_noi_placement=row["default_noi_placement"],
             )
         )

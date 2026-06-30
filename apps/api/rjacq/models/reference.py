@@ -32,6 +32,13 @@ class GLAccount(Base):
     normal_balance: Mapped[str | None] = mapped_column(String)  # debit | credit
     sort: Mapped[int | None] = mapped_column(Integer)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # A contra line is a sign-preserving negative offset that nets against its siblings (e.g.
+    # 605415 Utility Recovery under 605400 Utilities, 421000 Discounts). It is NOT a separate
+    # positive expense/revenue; the roll-up sums it with its native sign.
+    is_contra: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # How common the line is across the portfolio (leaves only): "core" = in most parks,
+    # "rare" = a long-tail line. Drives the Budget tab's optional "hide rare" toggle.
+    tier: Mapped[str | None] = mapped_column(String)  # core | rare | None (groups)
     # Default NOI placement travels with the account (e.g. 700000/800000 → below).
     default_noi_placement: Mapped[str | None] = mapped_column(String)
     # pgvector embedding of the account description; populated once in Phase 1.

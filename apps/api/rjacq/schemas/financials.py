@@ -92,12 +92,18 @@ class MappingReview(BaseModel):
 
 
 class GlAccountOption(BaseModel):
-    """A canonical GL account for the mapping picker (GET /gl-accounts)."""
+    """A canonical GL account for the mapping picker and the Budget tab hierarchy
+    (GET /gl-accounts). ``parent_code`` + ``sort`` let the client rebuild the section → group →
+    sub-group → detail tree; ``is_contra`` / ``tier`` drive sign display and the rare toggle."""
 
     account_code: str
     name: str
     level: AccountLevel | None = None
     section: str | None = None
+    parent_code: str | None = None
+    sort: int | None = None
+    is_contra: bool = False
+    tier: str | None = None  # core | rare (leaves)
     noi_placement: NoiPlacement | None = None
 
 

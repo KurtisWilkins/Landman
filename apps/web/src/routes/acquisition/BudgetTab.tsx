@@ -1,11 +1,11 @@
 /**
- * Budget tab (design doc §5.5): the two-column underwriting grid. Each line item shows its
- * prior-year value (from the mapped P&L) beside the editable year-one projection — BOTH columns
- * are editable (correct an upload, move an expense). Lines are grouped into Revenue and Expense;
- * "+ Add line item" inserts a canonical GL or a custom (flagged) line; the × removes a row
- * (custom → deleted; a mapped line → dropped from year-one, prior kept as reference). Live section
- * totals + NOI recompute on every edit; NOI flows downstream to the pro forma / cash flow /
- * waterfall. Provenance (actuals / default / to review / custom / edited) stays visible.
+ * Budget tab (design doc §5.5): the two-column underwriting grid, rendered as the SAME collapsible
+ * hierarchy as the source income statement — section → group → sub-group → detail line, with a
+ * "Total" row closing every group and Net Operating Income at the bottom. Each group header has an
+ * expand/collapse toggle (its Total stays visible when collapsed); collapse-all / expand-all and an
+ * optional "hide rare lines" toggle manage density. Both amount columns are editable; contra lines
+ * (Utility Recovery, Discounts …) render in parentheses and net within their parent. Group/section
+ * subtotals + NOI come from the server's pure roll-up (no client-side math). Whole-dollar display.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -21,10 +21,10 @@ import {
   useUnlockBudget,
 } from "../../api/hooks";
 import type { Schemas } from "../../api/client";
-import { fmtUsd } from "../../lib/format";
 
 // `revertible` is a new field not yet in the generated contract — augment locally.
 type BudgetRow = Schemas["BudgetRow"] & { revertible?: boolean };
+type BudgetGroup = Schemas["BudgetGroup"];
 type GlAccount = Schemas["GlAccountOption"];
 type Patch = ReturnType<typeof usePatchBudgetLine>;
 type Add = ReturnType<typeof useAddBudgetLine>;
@@ -33,6 +33,15 @@ type Revert = ReturnType<typeof useRevertBudgetLine>;
 type Reorder = ReturnType<typeof useReorderBudget>;
 
 const VARIANCE_BAND = 0.15; // |% var| over this = an over/under to review
+const GRID = "grid grid-cols-[1fr_repeat(3,minmax(84px,1fr))_2rem] items-center gap-2";
+
+/** Whole dollars with parentheses for negatives (decision: Budget tab displays whole dollars; full
+ * precision is still stored server-side). Read-only cells only — editable inputs keep their value. */
+function money(value: number | string | null | undefined): string {
+  const n = Math.round(Number(value ?? 0));
+  const s = Math.abs(n).toLocaleString("en-US");
+  return n < 0 ? `(${s})` : s;
+}
 
 function isOverUnder(row: BudgetRow): boolean {
   return row.var_pct != null && Math.abs(Number(row.var_pct)) > VARIANCE_BAND;
@@ -57,6 +66,68 @@ function lineRef(row: BudgetRow): { line_id?: string; account_code?: string } {
   if (row.account_code) return { account_code: row.account_code };
   return {};
 }
+function rowKey(row: BudgetRow): string {
+  return row.line_id ?? row.account_code ?? row.name;
+}
+
+// ── Tree assembly ─────────────────────────────────────────────────────────────
+// Sections are pseudo-roots; groups + leaf rows hang off a "bucket" = parent_code (or the section
+// when there is no parent). The server already returns rows in display order and a subtotal for
+// every ancestor group, so the client only nests + folds — it never re-derives a total.
+
+const SECTION_ORDER = ["Income", "Expense"];
+function sectionKey(section: string | null | undefined): string {
+  return `__sec__:${section ?? "Other"}`;
+}
+function bucketOf(parent_code: string | null | undefined, section: string | null | undefined) {
+  return parent_code ?? sectionKey(section);
+}
+
+type Tree = {
+  childGroups: Map<string, BudgetGroup[]>;
+  childRows: Map<string, BudgetRow[]>;
+  sections: { key: string; label: string; section: string | null }[];
+  leafBearing: Set<string>; // group codes with at least one direct detail row (default-collapsed)
+};
+
+function buildTree(rows: BudgetRow[], groups: BudgetGroup[]): Tree {
+  const childGroups = new Map<string, BudgetGroup[]>();
+  const childRows = new Map<string, BudgetRow[]>();
+  const leafBearing = new Set<string>();
+  const push = <T,>(m: Map<string, T[]>, k: string, v: T) => m.set(k, [...(m.get(k) ?? []), v]);
+
+  for (const g of [...groups].sort((a, b) => a.code.localeCompare(b.code))) {
+    push(childGroups, bucketOf(g.parent_code, g.section), g);
+  }
+  for (const r of rows) {
+    const bucket = bucketOf(r.parent_code, r.section);
+    push(childRows, bucket, r);
+    if (r.parent_code) leafBearing.add(r.parent_code);
+  }
+  const present = new Set<string | null | undefined>([
+    ...rows.map((r) => r.section),
+    ...groups.map((g) => g.section),
+  ]);
+  const sections = [
+    ...SECTION_ORDER.filter((s) => present.has(s)).map((s) => ({
+      key: sectionKey(s),
+      label: s === "Income" ? "Revenue" : s,
+      section: s,
+    })),
+    ...(present.has(null) ||
+    present.has("Other") ||
+    [...present].some((s) => s && !SECTION_ORDER.includes(s))
+      ? [
+          {
+            key: sectionKey("Other"),
+            label: "Other (excluded from NOI)",
+            section: null as string | null,
+          },
+        ]
+      : []),
+  ];
+  return { childGroups, childRows, sections, leafBearing };
+}
 
 export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const { data, isLoading } = useBudget(acquisitionId);
@@ -70,8 +141,23 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const lock = useLockBudget(acquisitionId);
   const unlock = useUnlockBudget(acquisitionId);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
+  const [hideRare, setHideRare] = useState(false);
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  const groups = useMemo(() => data?.groups ?? [], [data]);
+  const tree = useMemo(() => buildTree(rows, groups), [rows, groups]);
+
+  // Collapse state: default collapsed to group level (leaf-bearing groups folded).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const signature = useMemo(() => groups.map((g) => g.code).join(","), [groups]);
+  const lastSig = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastSig.current !== signature) {
+      lastSig.current = signature;
+      setCollapsed(new Set(tree.leafBearing));
+    }
+  }, [signature, tree.leafBearing]);
+
   if (isLoading) return <p className="text-sm opacity-70">Loading…</p>;
   const totals = data?.totals;
   const locked = data?.status === "locked";
@@ -81,9 +167,16 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
   const flaggedCount = rows.filter(needsReview).length;
   const accountOptions = accounts ?? [];
 
-  const revenue = rows.filter((r) => r.section === "Income");
-  const expense = rows.filter((r) => r.section === "Expense");
-  const other = rows.filter((r) => r.section !== "Income" && r.section !== "Expense");
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const allGroupCodes = groups.map((g) => g.code);
+  const collapseAll = () => setCollapsed(new Set(allGroupCodes));
+  const expandAll = () => setCollapsed(new Set());
 
   return (
     <div className="space-y-4">
@@ -94,28 +187,48 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
         )}
         {totals && (
           <span className="text-xs opacity-70">
-            Year-1 NOI <span className="font-figure">{fmtUsd(totals.year1_noi)}</span> · prior{" "}
-            <span className="font-figure">{fmtUsd(totals.prior_noi)}</span>
+            Year-1 NOI <span className="font-figure">{money(totals.year1_noi)}</span> · prior{" "}
+            <span className="font-figure">{money(totals.prior_noi)}</span>
           </span>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          {!locked && rows.length > 0 && !ready && (
-            <span className="text-xs text-accent-ink">
-              {placeholders} to review · {unmapped} unmapped
-            </span>
-          )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {rows.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setOnlyFlagged((v) => !v)}
-              className={`rounded border px-3 py-1.5 text-sm ${
-                onlyFlagged ? "border-accent bg-accent/15 text-accent-ink" : "border-brand/30"
-              }`}
-            >
-              {onlyFlagged
-                ? "Show all"
-                : `Overs & unders${flaggedCount ? ` (${flaggedCount})` : ""}`}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={expandAll}
+                className="rounded border border-brand/30 px-2 py-1.5 text-xs"
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                onClick={collapseAll}
+                className="rounded border border-brand/30 px-2 py-1.5 text-xs"
+              >
+                Collapse all
+              </button>
+              <button
+                type="button"
+                onClick={() => setHideRare((v) => !v)}
+                className={`rounded border px-2 py-1.5 text-xs ${
+                  hideRare ? "border-brand bg-brand/10 text-brand" : "border-brand/30"
+                }`}
+              >
+                {hideRare ? "Show rare" : "Hide rare"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnlyFlagged((v) => !v)}
+                className={`rounded border px-2 py-1.5 text-xs ${
+                  onlyFlagged ? "border-accent bg-accent/15 text-accent-ink" : "border-brand/30"
+                }`}
+              >
+                {onlyFlagged
+                  ? "Show all"
+                  : `Overs & unders${flaggedCount ? ` (${flaggedCount})` : ""}`}
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -148,6 +261,12 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
         </div>
       </div>
 
+      {!locked && rows.length > 0 && !ready && (
+        <p className="text-xs text-accent-ink">
+          {placeholders} to review · {unmapped} unmapped — resolve to lock.
+        </p>
+      )}
+
       {rows.length === 0 ? (
         <p className="rounded border border-brand/20 p-3 text-sm opacity-80">
           No budget yet. Map the uploaded P&amp;L on the GL / Docs tab, then “Seed from actuals” to
@@ -155,161 +274,213 @@ export function BudgetTab({ acquisitionId }: { acquisitionId: string }) {
           the overs and unders here.
         </p>
       ) : (
-        <>
-          <Section
-            title="Revenue"
-            section="Income"
-            rows={revenue}
-            onlyFlagged={onlyFlagged}
-            accounts={accountOptions}
-            patch={patch}
-            add={add}
-            remove={remove}
-            revert={revert}
-            reorder={reorder}
-          />
-          <Section
-            title="Expense"
-            section="Expense"
-            rows={expense}
-            onlyFlagged={onlyFlagged}
-            accounts={accountOptions}
-            patch={patch}
-            add={add}
-            remove={remove}
-            revert={revert}
-            reorder={reorder}
-          />
-          {other.length > 0 && (
-            <Section
-              title="Other (excluded from NOI)"
-              section={null}
-              rows={other}
+        <div>
+          <div className={`${GRID} px-2 pb-1 text-xs uppercase tracking-wide opacity-60`}>
+            <span>Account</span>
+            <span className="text-right">Prior year</span>
+            <span className="text-right">Year one</span>
+            <span className="text-right">$ var</span>
+            <span />
+          </div>
+          {tree.sections.map((sec) => (
+            <SectionBlock
+              key={sec.key}
+              sectionKey={sec.key}
+              label={sec.label}
+              section={sec.section}
+              tree={tree}
+              collapsed={collapsed}
+              toggle={toggle}
               onlyFlagged={onlyFlagged}
+              hideRare={hideRare}
+              totals={totals}
               accounts={accountOptions}
-              patch={patch}
-              add={add}
-              remove={remove}
-              revert={revert}
-              reorder={reorder}
+              mutations={{ patch, add, remove, revert, reorder }}
+              allRows={rows}
             />
-          )}
+          ))}
           {totals && (
-            <div className="grid grid-cols-[1fr_repeat(3,minmax(96px,1fr))_2rem] gap-2 border-t-2 border-brand/30 px-2 pt-2 text-sm font-semibold">
+            <div
+              className={`${GRID} mt-1 border-t-2 border-brand/40 px-2 pt-2 text-sm font-semibold`}
+            >
               <span>Net Operating Income</span>
-              <span className="text-right font-figure">{fmtUsd(totals.prior_noi)}</span>
-              <span className="text-right font-figure">{fmtUsd(totals.year1_noi)}</span>
+              <span className="text-right font-figure">{money(totals.prior_noi)}</span>
+              <span className="text-right font-figure">{money(totals.year1_noi)}</span>
               <span className="text-right font-figure opacity-70">
-                {fmtUsd(Number(totals.year1_noi) - Number(totals.prior_noi))}
+                {money(Number(totals.year1_noi) - Number(totals.prior_noi))}
               </span>
               <span />
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-/** Identity key for a row (stable across reorders): stored id, else GL account, else name. */
-function rowKey(row: BudgetRow): string {
-  return row.line_id ?? row.account_code ?? row.name;
-}
+type Mutations = { patch: Patch; add: Add; remove: Remove; revert: Revert; reorder: Reorder };
 
-function Section({
-  title,
-  section,
-  rows,
-  onlyFlagged,
-  accounts,
-  patch,
-  add,
-  remove,
-  revert,
-  reorder,
-}: {
-  title: string;
+function SectionBlock(props: {
+  sectionKey: string;
+  label: string;
   section: string | null;
-  rows: BudgetRow[];
+  tree: Tree;
+  collapsed: Set<string>;
+  toggle: (k: string) => void;
   onlyFlagged: boolean;
+  hideRare: boolean;
+  totals: Schemas["BudgetTotals"] | undefined;
   accounts: GlAccount[];
-  patch: Patch;
-  add: Add;
-  remove: Remove;
-  revert: Revert;
-  reorder: Reorder;
+  mutations: Mutations;
+  allRows: BudgetRow[];
 }) {
-  // Local copy so a drag reorders instantly; the server round-trip re-syncs it on success.
-  const [items, setItems] = useState<BudgetRow[]>(rows);
-  useEffect(() => setItems(rows), [rows]);
-  const fromIdx = useRef<number | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
-
-  // Drag-to-reorder only makes sense over the full, unfiltered section list. With "overs & unders"
-  // on, rows are hidden — reordering then would scramble the hidden lines — so disable it.
-  const canReorder = !onlyFlagged;
-  const shown = onlyFlagged ? items.filter(needsReview) : items;
-
-  const priorTotal = rows.reduce((s, r) => s + Number(r.prior_annual || 0), 0);
-  const yearTotal = rows.reduce((s, r) => s + (r.removed ? 0 : Number(r.year1_annual || 0)), 0);
-
-  const drop = (to: number) => {
-    const from = fromIdx.current;
-    fromIdx.current = null;
-    setOverIdx(null);
-    if (from === null || from === to) return;
-    const next = [...items];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    setItems(next); // optimistic; reconciled when the query refetches
-    reorder.mutate({ lines: next.map(lineRef) });
-  };
+  const { sectionKey, label, section, collapsed, totals } = props;
+  const open = !collapsed.has(sectionKey);
+  const secTotal =
+    section === "Income"
+      ? totals && { prior: totals.prior_revenue, year1: totals.year1_revenue }
+      : section === "Expense"
+        ? totals && { prior: totals.prior_opex, year1: totals.year1_opex }
+        : null;
 
   return (
-    <div>
-      <div className="grid grid-cols-[1fr_repeat(3,minmax(96px,1fr))_2rem] gap-2 px-2 pb-1 text-xs uppercase tracking-wide opacity-60">
-        <span>{title}</span>
-        <span className="text-right">Prior year</span>
-        <span className="text-right">Year one</span>
-        <span className="text-right">$ var</span>
+    <div className="mt-1">
+      <div className={`${GRID} rounded bg-brand/5 px-2 py-1 text-sm font-semibold`}>
+        <button
+          type="button"
+          onClick={() => props.toggle(sectionKey)}
+          className="flex items-center gap-1 text-left"
+        >
+          <Chevron open={open} />
+          {label.toUpperCase()}
+        </button>
+        <span className="text-right font-figure">{secTotal ? money(secTotal.prior) : ""}</span>
+        <span className="text-right font-figure">{secTotal ? money(secTotal.year1) : ""}</span>
+        <span className="text-right font-figure opacity-70">
+          {secTotal ? money(Number(secTotal.year1) - Number(secTotal.prior)) : ""}
+        </span>
         <span />
       </div>
-      <div className="space-y-1">
-        {shown.map((r, i) => (
-          <Row
-            key={rowKey(r)}
-            row={r}
-            patch={patch}
-            remove={remove}
-            revert={revert}
-            canReorder={canReorder}
-            isOver={canReorder && overIdx === i}
-            onDragStart={() => {
-              fromIdx.current = i;
-            }}
-            onDragOver={() => setOverIdx(i)}
-            onDrop={() => drop(i)}
-            onDragEnd={() => {
-              fromIdx.current = null;
-              setOverIdx(null);
-            }}
-          />
-        ))}
-      </div>
-      {section && <AddLineForm section={section} accounts={accounts} add={add} />}
-      <div className="grid grid-cols-[1fr_repeat(3,minmax(96px,1fr))_2rem] gap-2 border-t border-brand/20 px-2 pt-1 text-sm font-medium">
-        <span>Total {title.toLowerCase()}</span>
-        <span className="text-right font-figure">{fmtUsd(priorTotal)}</span>
-        <span className="text-right font-figure">{fmtUsd(yearTotal)}</span>
-        <span />
-        <span />
-      </div>
+      {open && <NodeChildren {...props} bucket={sectionKey} depth={1} />}
+      {section && (
+        <AddLineForm
+          section={section}
+          accounts={props.accounts}
+          add={props.mutations.add}
+          depth={1}
+        />
+      )}
     </div>
   );
 }
 
+/** Render the groups + detail rows hanging off one bucket (a section root or a group code). */
+function NodeChildren(props: {
+  bucket: string;
+  depth: number;
+  tree: Tree;
+  collapsed: Set<string>;
+  toggle: (k: string) => void;
+  onlyFlagged: boolean;
+  hideRare: boolean;
+  accounts: GlAccount[];
+  mutations: Mutations;
+  allRows: BudgetRow[];
+}) {
+  const { bucket, depth, tree, collapsed, onlyFlagged, hideRare, mutations, allRows } = props;
+  const groups = tree.childGroups.get(bucket) ?? [];
+  let rows = tree.childRows.get(bucket) ?? [];
+  if (onlyFlagged) rows = rows.filter(needsReview);
+  if (hideRare) rows = rows.filter((r) => r.tier !== "rare");
+
+  // Drag-to-reorder within this bucket: send the full display order with the row moved, so the
+  // server's dense sort_order stays globally consistent.
+  const fromIdx = useRef<number | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  const drop = (toKey: string) => {
+    const from = fromIdx.current;
+    fromIdx.current = null;
+    setOverKey(null);
+    if (from === null) return;
+    const ordered = [...rows];
+    const toIdx = ordered.findIndex((r) => rowKey(r) === toKey);
+    if (toIdx < 0 || from === toIdx) return;
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(toIdx, 0, moved);
+    // Rebuild the full row order: replace this bucket's slice with the reordered one.
+    const movedKeys = new Set(ordered.map(rowKey));
+    const full: BudgetRow[] = [];
+    let injected = false;
+    for (const r of allRows) {
+      if (movedKeys.has(rowKey(r))) {
+        if (!injected) {
+          full.push(...ordered);
+          injected = true;
+        }
+      } else {
+        full.push(r);
+      }
+    }
+    mutations.reorder.mutate({ lines: full.map(lineRef) });
+  };
+
+  return (
+    <>
+      {groups.map((g) => {
+        const gOpen = !collapsed.has(g.code);
+        return (
+          <div key={g.code}>
+            <div
+              className={`${GRID} px-2 py-1 text-sm font-medium`}
+              style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
+            >
+              <button
+                type="button"
+                onClick={() => props.toggle(g.code)}
+                className="flex items-center gap-1 text-left"
+              >
+                <Chevron open={gOpen} />
+                <span className="opacity-50">{g.code}</span> {g.name}
+              </button>
+              <span className="text-right font-figure">{money(g.prior_annual)}</span>
+              <span className="text-right font-figure">{money(g.year1_annual)}</span>
+              <span className="text-right font-figure opacity-70">{money(g.var_abs)}</span>
+              <span />
+            </div>
+            {gOpen && <NodeChildren {...props} bucket={g.code} depth={depth + 1} />}
+          </div>
+        );
+      })}
+      {rows.map((r, i) => (
+        <Row
+          key={rowKey(r)}
+          row={r}
+          depth={depth}
+          patch={mutations.patch}
+          remove={mutations.remove}
+          revert={mutations.revert}
+          canReorder={!onlyFlagged && !hideRare && rows.length > 1}
+          isOver={overKey === rowKey(r)}
+          onDragStart={() => (fromIdx.current = i)}
+          onDragOver={() => setOverKey(rowKey(r))}
+          onDrop={() => drop(rowKey(r))}
+          onDragEnd={() => {
+            fromIdx.current = null;
+            setOverKey(null);
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return <span className={`inline-block w-3 text-ink/50 ${open ? "" : "-rotate-90"}`}>▾</span>;
+}
+
 function Row({
   row,
+  depth,
   patch,
   remove,
   revert,
@@ -321,6 +492,7 @@ function Row({
   onDragEnd,
 }: {
   row: BudgetRow;
+  depth: number;
   patch: Patch;
   remove: Remove;
   revert: Revert;
@@ -335,17 +507,13 @@ function Row({
   const over = isOverUnder(row);
   const flagged = needsReview(row);
   const v_abs = Number(row.var_abs ?? 0);
-  // The row is only HTML5-draggable while the grip is held — so the amount inputs stay editable
-  // (selecting text in a child of a draggable element is unreliable across browsers).
   const [armed, setArmed] = useState(false);
 
   const commit = (field: "prior_amount" | "year1_amount", n: number) =>
     patch.mutate({ ...lineRef(row), [field]: n });
-
   const onRevert = () => {
     if (row.line_id) revert.mutate(row.line_id);
   };
-
   const onRemove = () => {
     if (!row.line_id) return; // un-seeded row: nothing stored to remove
     const hasData = Number(row.year1_annual || 0) !== 0 || Number(row.prior_annual || 0) !== 0;
@@ -359,7 +527,7 @@ function Row({
       onDragStart={onDragStart}
       onDragOver={(e) => {
         if (!canReorder) return;
-        e.preventDefault(); // allow drop
+        e.preventDefault();
         onDragOver();
       }}
       onDrop={(e) => {
@@ -370,16 +538,17 @@ function Row({
         setArmed(false);
         onDragEnd();
       }}
-      className={`group grid grid-cols-[1fr_repeat(3,minmax(96px,1fr))_2rem] items-center gap-2 rounded-md border px-2 py-1 text-sm ${
-        flagged ? "border-accent/60" : "border-brand/10"
+      className={`group ${GRID} rounded-md border px-2 py-1 text-sm ${
+        flagged ? "border-accent/60" : "border-transparent"
       } ${row.removed ? "opacity-50" : ""} ${isOver ? "border-brand border-dashed" : ""}`}
+      style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
     >
       <span className="flex items-center gap-2">
         {canReorder && (
           <span
             role="button"
             aria-label={`Drag to reorder ${row.name}`}
-            title="Drag to reorder within this section"
+            title="Drag to reorder within this group"
             onMouseDown={() => setArmed(true)}
             onMouseUp={() => setArmed(false)}
             className="cursor-grab select-none text-ink/30 hover:text-ink/60 active:cursor-grabbing"
@@ -388,7 +557,13 @@ function Row({
           </span>
         )}
         <span className={`rounded px-1.5 py-0.5 text-[10px] ${b.cls}`}>{b.label}</span>
+        {row.account_code && <span className="text-[10px] opacity-40">{row.account_code}</span>}
         <span className={row.removed ? "line-through" : ""}>{row.name}</span>
+        {row.is_contra && (
+          <span title="Contra line — nets against its group" className="text-[10px] text-ink/50">
+            ∓
+          </span>
+        )}
         {row.flagged_for_promotion && (
           <span title="Custom line — promote to the GL chart later" className="text-accent-ink">
             ⚑
@@ -421,7 +596,7 @@ function Row({
         />
       )}
       <span className={`text-right font-figure ${over ? "text-accent-ink" : "opacity-70"}`}>
-        {row.removed ? "—" : fmtUsd(v_abs)}
+        {row.removed ? "—" : money(v_abs)}
       </span>
       <button
         type="button"
@@ -470,10 +645,12 @@ function AddLineForm({
   section,
   accounts,
   add,
+  depth,
 }: {
   section: string;
   accounts: GlAccount[];
   add: Add;
+  depth: number;
 }) {
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
@@ -501,14 +678,18 @@ function AddLineForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="px-2 py-1 text-left text-xs text-brand hover:underline"
+        className="py-1 text-left text-xs text-brand hover:underline"
+        style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
       >
         + Add line item
       </button>
     );
   }
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded border border-brand/20 bg-surface p-2">
+    <div
+      className="my-1 flex flex-wrap items-center gap-2 rounded border border-brand/20 bg-surface p-2"
+      style={{ marginLeft: `${0.5 + depth * 1}rem` }}
+    >
       <select
         aria-label="GL account"
         value={code}

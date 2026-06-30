@@ -8,6 +8,58 @@ Newest first.
 
 ---
 
+## 2026-06-30 — Canonical GL chart from the consolidated income statement; collapsible Budget tab
+
+**Context.** We derived the canonical chart of accounts from RJourney's consolidated RV-portfolio
+income statement (31 sheets: 4 consolidated views + 27 per-park). The hierarchy is not stored as
+Excel row-grouping; it was derived from three co-occurring column-A signals — indentation
+(`alignment.indent` 1–4 = section / group / sub-group / detail), **bold** (every header and
+"Total - …" row), and the `Total - {code} - {name}` closers — cross-checked against the
+account-number ranges (4xxxxx income, 5xxxxx COGS, 6xxxxx opex, 605xxx O&M, 607000 tax, 607100
+insurance). Result: 4 sections → 30 group/sub-group headers → 140 detail lines.
+
+### D-8 — Canonical GL chart: structure, duplicate codes, contra lines, decimals
+
+**Single source of truth.** The chart lives in `gl_accounts` (seeded from
+`apps/api/rjacq/seeds/gl_accounts.py`); the Budget tab and OM-mapping both read it — there is no
+second GL model. Each node carries `parent_code`, `level` (section/major_group/subgroup/leaf),
+`section`, `normal_balance`, `sort`, `default_noi_placement`, and (new) `is_contra` + `tier`.
+
+**Full superset across ALL sheets (not just consolidated).** The consolidated views are *not* a
+complete superset — ~10 accounts appear only on per-park sheets, two in nearly every park
+(`600145` Payroll Processing Fees in all 27; `605840` Wells One Credit Card in 25). These are
+**unioned in** (the "Park-only accounts" block in the seed) so no deal can carry a line that
+doesn't map. Each leaf is tagged `tier` = **core** (in ≥60% / 16-of-27 parks) vs **rare**; the
+Budget tab can hide rare lines behind a toggle. _(68 core / 72 rare at seed time.)_
+
+**Duplicate codes — key on code + name, never code alone.** `600400` and `600410` are each reused
+for two different accounts (Office Expense / Sales & Marketing; Office Software / Travel & Auto).
+We keep `account_code` as the primary key and **disambiguate the second occurrence with a `-2`
+suffix** (`600400-2`, `600410-2`) — a tiny, additive choice that leaves every existing FK
+(`financial_lines`, `budget_lines`, learned mappings) untouched. They should be recoded at source.
+
+**Contra lines — preserve sign, net within the parent.** Seven structural contras are
+sign-preserving negative offsets, flagged `is_contra` and summed with their **native negative
+sign** (so the group total nets them automatically — no special-casing): `401070` OTA Contra,
+`404070` POS Discounts, `421000` Discounts, `421300` Work Camper Credit, `421400` Maint
+Opportunity Loss, `605415` Utility Recovery, `605465` Water & Sewer Recovery. Derived from the
+**sign in the data** (negative consolidated total), not a keyword scan (which mis-hit
+"Contra**ctor**" / "**Credit** Card"). _(Electric 605410 − Utility Recovery 605415 is the basis for
+the 62% electric bill-back default.)_ `401200` OTA Notional Clearing is a pass-through, not a
+contra.
+
+**Roll-up is pure + unit-tested.** `underwriting/budget.py::roll_up_tree` rolls leaf amounts up the
+parent chain to every group/section + NOI (= Total Income − Total Expense; COGS folds into Expense;
+below-the-line / non-operating excluded). A worked-example test pins the real Utilities group
+(`Total - 605400 = 1,713,517.19`, including the two negative recoveries) from `Consolidated-T-12`.
+
+**Decimals — whole dollars on display, full precision stored.** The source uses `$#,##0.00`. The
+Budget tab **displays whole dollars** (read-only subtotals/variance/NOI rounded, negatives in
+parentheses); amounts are still stored as full-precision `Decimal` server-side, so no cents are
+lost. Editable cells keep their entered value.
+
+---
+
 ## 2026-06-29 — AI GL classifier (best-guess + confirm) and OM-seeded prior-year
 
 ### D-22 — Claude best-guess GL mapping, gated on confidence (§14 C-20)

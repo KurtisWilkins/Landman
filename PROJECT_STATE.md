@@ -4,7 +4,7 @@ Snapshot of where the RJourney Acquisitions Platform stands. For the full contra
 `docs/rjourney-acquisitions-design-document-v0.2.md` (§8 data model, §9 API); for onboarding see
 `docs/PROJECT-CONTEXT.md`; for the decision log see `DECISIONS.md`; for the task list see `TASKS.md`.
 
-_Last updated: 2026-06-29._
+_Last updated: 2026-06-30._
 
 ## What it is
 
@@ -68,10 +68,22 @@ NOI**. See `DECISIONS.md` D-8…D-11.
 - **Lock + flow-through**: `effective_stabilized` precedence = manual override → **locked budget
   rollup** → NOI bridge; lock gated on zero placeholders + unmapped; lock/unlock recompute.
 
+### Canonical GL chart + collapsible Budget tab (2026-06-30)
+The chart of accounts is derived from RJourney's consolidated income statement and is the **single
+source of truth** in `gl_accounts` (180 rows; both the Budget tab and OM-mapping read it). It now
+unions the per-park-only accounts the consolidated views miss (e.g. `600145`, `605840`), tags each
+leaf `tier` core/rare, and flags the 7 structural `is_contra` lines (sign preserved → they net in
+their parent). The Budget tab mirrors the source hierarchy — section → group → sub-group → detail,
+with a Total closing every group, collapse/fold + collapse-all/expand-all + hide-rare, parentheses
+for negatives, whole-dollar display, NOI at the bottom. Group/section subtotals come from the pure,
+unit-tested `underwriting/budget.py::roll_up_tree` (pinned to the workbook's own totals). Duplicate
+source codes (`600400`/`600410`) keep `account_code` as PK via a `-2` suffix. See `DECISIONS.md` D-8.
+
 ### Budget endpoints
-`GET/PUT /gl-accounts` (chart picker) · `POST /acquisitions/{id}/mapping/confirm|split` ·
-`GET /acquisitions/{id}/budget` · `POST`/`PATCH …/budget/line` · `DELETE …/budget/line/{id}` ·
-`POST …/budget/seed|lock|unlock`. Archive: `POST …/archive|restore` · `GET /acquisitions?archived=true`.
+`GET/PUT /gl-accounts` (chart picker; now returns `parent_code`/`sort`/`is_contra`/`tier`) ·
+`POST /acquisitions/{id}/mapping/confirm|split` · `GET /acquisitions/{id}/budget` (now returns the
+group subtotals + per-row hierarchy) · `POST`/`PATCH …/budget/line` · `DELETE …/budget/line/{id}` ·
+`POST …/budget/seed|reorder|lock|unlock`. Archive: `POST …/archive|restore` · `GET /acquisitions?archived=true`.
 Labor: `GET …/labor` · `POST …/labor/seed` · `POST`/`PATCH …/labor/position` · `DELETE …/labor/position/{id}`.
 
 ## Shipped
