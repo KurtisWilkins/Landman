@@ -2,9 +2,9 @@
  * Comps tab (design doc §5.6): "Find competitors within 50 miles" of the OM address, then a
  * rate × sentiment scatter (Recharts) + a ranked amenity list. Discovery geocodes the address and
  * searches OpenStreetMap (free, always on) + Google Places (when keyed); the niche RV-directory
- * scrapers stay off until D-22 clears. The search runs in the worker, so results fill in by polling.
+ * scrapers stay off until D-22 clears. The search runs synchronously, so results are ready on
+ * return (no worker/queue dependency).
  */
-import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   ResponsiveContainer,
@@ -22,23 +22,12 @@ function n(v: unknown): number {
 }
 
 export function CompsTab({ acquisitionId }: { acquisitionId: string }) {
-  const [searching, setSearching] = useState(false);
-  const { data, isLoading, error } = useComps(acquisitionId, { poll: searching });
+  const { data, isLoading, error } = useComps(acquisitionId);
   const discover = useDiscoverComps(acquisitionId);
   const comps = data?.comps ?? [];
+  const searching = discover.isPending;
 
-  // Stop polling once results land, or after a safety window (the worker may find nothing).
-  useEffect(() => {
-    if (!searching) return;
-    if (comps.length > 0) {
-      setSearching(false);
-      return;
-    }
-    const t = setTimeout(() => setSearching(false), 45000);
-    return () => clearTimeout(t);
-  }, [searching, comps.length]);
-
-  const onDiscover = () => discover.mutate(undefined, { onSuccess: () => setSearching(true) });
+  const onDiscover = () => discover.mutate();
   const discoverError = discover.error instanceof Error ? discover.error.message : undefined;
 
   const Toolbar = (
@@ -46,17 +35,11 @@ export function CompsTab({ acquisitionId }: { acquisitionId: string }) {
       <span className="text-sm font-medium">Competitive set — within 50 miles</span>
       <button
         type="button"
-        disabled={discover.isPending || searching}
+        disabled={searching}
         onClick={onDiscover}
         className="ml-auto rounded bg-brand px-3 py-1.5 text-sm text-surface disabled:opacity-50"
       >
-        {discover.isPending
-          ? "Locating…"
-          : searching
-            ? "Searching…"
-            : comps.length > 0
-              ? "Re-scan"
-              : "Find competitors within 50 mi"}
+        {searching ? "Searching…" : comps.length > 0 ? "Re-scan" : "Find competitors within 50 mi"}
       </button>
     </div>
   );

@@ -7,6 +7,7 @@ enrichment is applied only when configured (C-20).
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from decimal import Decimal
 
@@ -55,7 +56,11 @@ async def discover_comps(
     inserted = 0
     for source in sources:
         try:
-            found = source.discover(acquisition_lat, acquisition_lng, radius_miles)
+            # Sources do blocking HTTP (httpx); run them off the event loop so the synchronous
+            # discovery path doesn't stall the API's loop (and it's harmless in the worker).
+            found = await asyncio.to_thread(
+                source.discover, acquisition_lat, acquisition_lng, radius_miles
+            )
         except Exception:  # one bad source never blocks the rest (§12 resilience)
             log.warning("comps.source_failed", source=source.name)
             continue

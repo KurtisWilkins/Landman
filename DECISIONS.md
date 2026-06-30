@@ -39,11 +39,13 @@ overnight stay (OSM `tourism=caravan_site|camp_site` + `leisure=marina`; Google 
 "glamping"/"marina"). The 50-mile circle is enforced by the existing haversine post-filter, so a
 source may over-fetch.
 
-**Trigger + idempotency.** `POST /acquisitions/{id}/comps/discover` geocodes **synchronously** (so
-the map updates and an unlocatable address fails fast) then enqueues the radius search in the
-**worker** (`discover_acquisition_comps`) — a burst of external HTTP doesn't belong on the request
-path. Re-running is **refresh-replace**: prior auto-discovered comps are cleared first (manual adds
-kept), so re-scans don't accumulate duplicates. The Comps tab polls until results land.
+**Trigger + idempotency.** `POST /acquisitions/{id}/comps/discover` geocodes the address and runs
+the radius search **synchronously**, returning the comp count. The work is bounded (OSM is a single
+radius query) and the blocking source HTTP runs **off the event loop** (`asyncio.to_thread`), so
+discovery has **no Redis/worker dependency** — a deliberate choice after the Arq worker proved
+unreliable in prod (it couldn't reach the internal Redis). The GL auto-classifier still uses the
+worker; comps no longer do. Re-running is **refresh-replace**: prior auto-discovered comps are
+cleared first (manual adds kept), so re-scans don't accumulate duplicates.
 
 ---
 

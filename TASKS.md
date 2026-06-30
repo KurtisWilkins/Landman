@@ -80,9 +80,9 @@ Wired the comp-intelligence search end to end (no migration — refresh-replace 
 - [x] **Real sources** — OpenStreetMap/Overpass (free, always on, full 50-mi `around:` query) +
       Google Places (tiled Nearby Search, deduped) + Campendium/RV LIFE scaffolds **behind
       `scrapers_enabled`** (D-22). Scope broadened to glamping + marinas.
-- [x] **Trigger** — `POST …/comps/discover` (geocodes sync, enqueues the worker job
-      `discover_acquisition_comps`); refresh-replace so re-scans don't duplicate; Comps tab button
-      + poll-until-results.
+- [x] **Trigger** — `POST …/comps/discover` runs the geocode + radius search **synchronously**
+      (no worker/Redis dependency; blocking HTTP off the event loop via `asyncio.to_thread`);
+      refresh-replace so re-scans don't duplicate; Comps tab "Find competitors" button.
 - [x] **Tests** — pure parse/geometry/tiling-coverage + the geocode→discover service flow (hermetic).
 
 Follow-ups:

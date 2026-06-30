@@ -1579,12 +1579,12 @@
         "type": "object"
       },
       "CompDiscoverResult": {
-        "description": "POST /acquisitions/{id}/comps/discover \u2014 the acquisition is geocoded synchronously (so the\nmap updates immediately and address errors surface now), then discovery runs in the worker.",
+        "description": "POST /acquisitions/{id}/comps/discover \u2014 geocode the address, search every enabled source,\nand persist the matches, all synchronously. Returns the geocode + how many comps were found.",
         "properties": {
-          "enqueued": {
-            "default": false,
-            "title": "Enqueued",
-            "type": "boolean"
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
           },
           "lat": {
             "anyOf": [
@@ -9470,7 +9470,7 @@
     },
     "/acquisitions/{acquisition_id}/comps/discover": {
       "post": {
-        "description": "Find competitors within 50 miles of the acquisition's (OM) address. Geocodes synchronously\nso the map updates immediately and an unlocatable address fails fast; the radius search itself\nruns in the worker (geocode + one or more source APIs is a burst of external HTTP).",
+        "description": "Find competitors within 50 miles of the acquisition's (OM) address: geocode the address,\nthen search every enabled source and persist the matches. Runs **synchronously** \u2014 the work is\nbounded (OSM is a single radius query) and the source HTTP runs off the event loop \u2014 so it does\nnot depend on the Redis/worker queue. Returns the geocode + the number of competitors found.",
         "operationId": "discover_comps_acquisitions__acquisition_id__comps_discover_post",
         "parameters": [
           {
@@ -9500,7 +9500,7 @@
           }
         ],
         "responses": {
-          "202": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
