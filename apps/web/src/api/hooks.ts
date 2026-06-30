@@ -486,6 +486,33 @@ export function useDiscoverComps(acquisitionId: string) {
   });
 }
 
+type CompOut = Schemas["CompOut"];
+
+export function useUpdateCompRate(acquisitionId: string) {
+  // Set a hand-researched average nightly rate on a competitor (no free source supplies rates).
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ compId, avgRate }: { compId: string; avgRate: number | null }) =>
+      apiFetch<CompOut>(`/acquisitions/${acquisitionId}/comps/${compId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ avg_rate: avgRate }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "comps"] }),
+  });
+}
+
+export function useEnrichComp(acquisitionId: string) {
+  // On-demand AI review summary (Google reviews → Claude). Dormant until both keys are set.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (compId: string) =>
+      apiFetch<CompOut>(`/acquisitions/${acquisitionId}/comps/${compId}/enrich`, {
+        method: "POST",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "comps"] }),
+  });
+}
+
 export function useMapping(acquisitionId: string) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "mapping"],

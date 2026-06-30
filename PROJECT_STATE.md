@@ -80,6 +80,12 @@ is set; the **Campendium/RV LIFE scrapers stay behind `scrapers_enabled`** until
 review. Re-running is refresh-replace (manual adds kept). The Comps tab has a "Find competitors within
 50 mi" button. See `DECISIONS.md` D-9.
 
+**Comp enrichment (D-11):** an amenity score (from OSM tags) + sentiment (from Google ratings)
+populate automatically during discovery and drive the amenity rank; nightly rates are entered by
+hand per comp (`PATCH …/comps/{id}` — no free source has rates); an on-demand `POST …/comps/{id}/enrich`
+summarizes Google reviews with Claude (dormant until the Google + Anthropic keys are set). The Comps
+scatter toggles between amenity×sentiment and rate×sentiment.
+
 ### Canonical GL chart + collapsible Budget tab (2026-06-30)
 The chart of accounts is derived from RJourney's consolidated income statement and is the **single
 source of truth** in `gl_accounts` (180 rows; both the Budget tab and OM-mapping read it). It now

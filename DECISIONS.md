@@ -8,6 +8,39 @@ Newest first.
 
 ---
 
+## 2026-06-30 — Comp enrichment: free amenity/sentiment scoring + manual rates + dormant AI summaries
+
+### D-11 — Two-tier comp enrichment, honest about what each source can give
+
+**Context.** Discovery (D-9) returns competitor names + locations, but the Comps tab's scatter and
+ranked list need *scores*. The data is unevenly available: OpenStreetMap (free, always on) carries
+**amenity tags** but no ratings/reviews/rates; Google carries **ratings + reviews + a price tier**
+but needs a (billed) key; **nightly rates** live only on booking/RV-directory sites (scraping-gated,
+D-22) or in an analyst's own research.
+
+**Decision — enrich in two tiers, never fabricating a score (a field stays `None` when its source
+is absent):**
+- **Deterministic, free, inline** (`AmenityEnricher`, runs during discovery): an **amenity score**
+  = count of recognized amenity tags (toilets/shower/power/water/wifi/pool/…) from OSM, and a
+  **sentiment score** from a Google star rating when one was fetched. Pure + unit-tested; the
+  amenity rank is derived from it. Works today for the always-on OSM source with no key.
+- **AI review summary, gated, on-demand** (`ClaudeReviewEnricher` + `POST …/comps/{id}/enrich`):
+  Google Place Details reviews → Claude → summary + best/worst snippet + refined sentiment, reusing
+  the classifier's tool-call pattern. `build_review_enricher()` returns `None` until **both** the
+  Google and Anthropic keys are set, and the endpoint returns a clear `not_configured` error rather
+  than a fake score. Runs off the event loop (`asyncio.to_thread`), so it never slows discovery.
+
+**Nightly rates — manual (per "keep it free").** No free source supplies rates, so `avg_rate` is an
+**editable field per comp** (`PATCH …/comps/{id}`) the analyst fills from their own research; the
+scatter's rate view populates from those entries. (Real automated rates would need the directory
+scrapers — still gated by D-22.)
+
+**Scatter — show both (per the chosen option).** The Comps chart toggles between **amenity ×
+sentiment** (meaningful from free data today) and **rate × sentiment** (once rates are entered),
+with the third dimension as bubble size.
+
+---
+
 ## 2026-06-30 — Drop Redis + the Arq worker; run background jobs in-process
 
 ### D-10 — In-process background tasks instead of a Redis/Arq worker

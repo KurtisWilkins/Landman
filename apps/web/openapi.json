@@ -1832,6 +1832,28 @@
         "title": "CompOut",
         "type": "object"
       },
+      "CompRateUpdate": {
+        "description": "PATCH /acquisitions/{id}/comps/{comp_id} \u2014 set a hand-researched average nightly rate (the\none comp dimension no free source provides).",
+        "properties": {
+          "avg_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Rate"
+          }
+        },
+        "title": "CompRateUpdate",
+        "type": "object"
+      },
       "CompScatterPoint": {
         "properties": {
           "amenity_score": {
@@ -9582,6 +9604,272 @@
           }
         },
         "summary": "Discover Comps",
+        "tags": [
+          "comps"
+        ]
+      }
+    },
+    "/acquisitions/{acquisition_id}/comps/{comp_id}": {
+      "patch": {
+        "description": "Set a hand-researched average nightly rate on a competitor (no free source has rates).",
+        "operationId": "update_comp_rate_acquisitions__acquisition_id__comps__comp_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "acquisition_id",
+            "required": true,
+            "schema": {
+              "title": "Acquisition Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comp_id",
+            "required": true,
+            "schema": {
+              "title": "Comp Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompRateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Update Comp Rate",
+        "tags": [
+          "comps"
+        ]
+      }
+    },
+    "/acquisitions/{acquisition_id}/comps/{comp_id}/enrich": {
+      "post": {
+        "description": "Summarize a competitor's Google reviews with Claude (sentiment + summary + best/worst quote).\nGated on the Google + Anthropic keys; returns a clear error rather than a fabricated score.",
+        "operationId": "enrich_comp_acquisitions__acquisition_id__comps__comp_id__enrich_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "acquisition_id",
+            "required": true,
+            "schema": {
+              "title": "Acquisition Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "comp_id",
+            "required": true,
+            "schema": {
+              "title": "Comp Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "Enrich Comp",
         "tags": [
           "comps"
         ]

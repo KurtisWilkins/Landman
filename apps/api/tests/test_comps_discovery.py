@@ -226,3 +226,46 @@ async def test_discover_keeps_manual_adds(session: AsyncSession) -> None:
     )
     names = {c.name for c in await comp_repo.list_comps(session, aid)}
     assert names == {"Hand-added Resort", "Auto RV"}  # manual survives the refresh
+
+
+async def test_set_rate_updates_comp(session: AsyncSession) -> None:
+    aid = await _acquisition(session, with_coords=True)
+    comp = await service.add_manual(
+        session,
+        acquisition_id=aid,
+        url=None,
+        name="Hand-added",
+        lat=30.27,
+        lng=-97.75,
+        avg_rate=None,
+        acquisition_lat=30.2672,
+        acquisition_lng=-97.7431,
+        enricher=None,
+    )
+    updated = await service.set_rate(session, aid, comp.comp_id, Decimal("62.50"))
+    assert updated.avg_rate == Decimal("62.50")
+    with pytest.raises(service.CompError) as exc:
+        await service.set_rate(session, aid, "cp_missing", Decimal("10"))
+    assert exc.value.code == "not_found"
+
+
+async def test_enrich_comp_gated_without_keys(session: AsyncSession) -> None:
+    aid = await _acquisition(session, with_coords=True)
+    comp = await service.add_manual(
+        session,
+        acquisition_id=aid,
+        url=None,
+        name="No Keys",
+        lat=30.27,
+        lng=-97.75,
+        avg_rate=None,
+        acquisition_lat=30.2672,
+        acquisition_lng=-97.7431,
+        enricher=None,
+    )
+    # No Google/Anthropic enricher → a clear error, never a fabricated score.
+    with pytest.raises(service.CompError) as exc:
+        await service.enrich_comp(
+            session, aid, comp.comp_id, review_enricher=None, google_api_key=None
+        )
+    assert exc.value.code == "not_configured"

@@ -42,6 +42,13 @@ class CompManualAdd(BaseModel):
         return self
 
 
+class CompRateUpdate(BaseModel):
+    """PATCH /acquisitions/{id}/comps/{comp_id} — set a hand-researched average nightly rate (the
+    one comp dimension no free source provides)."""
+
+    avg_rate: Decimal | None = None
+
+
 class CompDiscoverResult(BaseModel):
     """POST /acquisitions/{id}/comps/discover — geocode the address, search every enabled source,
     and persist the matches, all synchronously. Returns the geocode + how many comps were found."""
