@@ -42,6 +42,16 @@ class CompManualAdd(BaseModel):
         return self
 
 
+class CompDiscoverResult(BaseModel):
+    """POST /acquisitions/{id}/comps/discover — the acquisition is geocoded synchronously (so the
+    map updates immediately and address errors surface now), then discovery runs in the worker."""
+
+    status: str  # searching | unavailable
+    lat: float | None = None
+    lng: float | None = None
+    enqueued: bool = False
+
+
 class CompScatterPoint(BaseModel):
     comp_id: str
     name: str

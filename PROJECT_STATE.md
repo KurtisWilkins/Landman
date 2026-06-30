@@ -68,6 +68,15 @@ NOI**. See `DECISIONS.md` D-8…D-11.
 - **Lock + flow-through**: `effective_stabilized` precedence = manual override → **locked budget
   rollup** → NOI bridge; lock gated on zero placeholders + unmapped; lock/unlock recompute.
 
+### Comp discovery — geocode the OM address → competitors within 50 mi (2026-06-30)
+`POST /acquisitions/{id}/comps/discover` geocodes the property's address (Google when keyed, free
+Nominatim fallback — persisted on the acquisition) and enqueues a worker search for RV parks /
+campgrounds / resorts / glamping / marinas within 50 miles. **OpenStreetMap/Overpass is the always-
+on, keyless workhorse** (full-radius single query); **Google Places** layers in (tiled + deduped)
+when `GOOGLE_PLACES_API_KEY` is set; the **Campendium/RV LIFE scrapers stay behind `scrapers_enabled`**
+until D-22's per-site legal review. Re-running is refresh-replace (manual adds kept). The Comps tab
+has a "Find competitors within 50 mi" button that polls until results land. See `DECISIONS.md` D-9.
+
 ### Canonical GL chart + collapsible Budget tab (2026-06-30)
 The chart of accounts is derived from RJourney's consolidated income statement and is the **single
 source of truth** in `gl_accounts` (180 rows; both the Budget tab and OM-mapping read it). It now

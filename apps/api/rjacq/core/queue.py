@@ -11,6 +11,7 @@ from typing import Any
 from arq import create_pool
 from arq.connections import RedisSettings
 
+from ..comps.jobs import discover_acquisition_comps
 from ..mapping.jobs import classify_acquisition_mappings
 from ..shield.jobs import sync_shield_baselines
 from .config import settings
@@ -64,7 +65,12 @@ class WorkerSettings:
     no-ops until C-14/C-15 are configured (see shield.jobs).
     """
 
-    functions = [healthcheck, sync_shield_baselines, classify_acquisition_mappings]
+    functions = [
+        healthcheck,
+        sync_shield_baselines,
+        classify_acquisition_mappings,
+        discover_acquisition_comps,
+    ]
     on_startup = on_startup
     on_job_start = on_job_start
     redis_settings = redis_settings()

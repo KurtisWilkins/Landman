@@ -62,6 +62,20 @@ async def list_comps(session: AsyncSession, acquisition_id: str) -> Sequence[Com
     return (await session.execute(stmt)).scalars().all()
 
 
+async def delete_discovered(session: AsyncSession, acquisition_id: str) -> int:
+    """Drop the auto-discovered comps for an acquisition (manual adds are kept) so a re-run of
+    discovery is idempotent — replace-on-refresh rather than accumulate duplicates."""
+    stmt = select(Comp).where(
+        Comp.acquisition_id == acquisition_id,
+        Comp.is_manual.is_(False),
+    )
+    existing = (await session.execute(stmt)).scalars().all()
+    for comp in existing:
+        await session.delete(comp)
+    await session.flush()
+    return len(existing)
+
+
 async def assign_amenity_ranks(session: AsyncSession, acquisition_id: str) -> None:
     """Rank comps 1..N by amenity_score (desc); comps without a score are left unranked."""
     comps = [c for c in await list_comps(session, acquisition_id) if c.amenity_score is not None]

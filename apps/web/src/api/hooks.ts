@@ -461,10 +461,31 @@ export function useRemoveLaborPosition(acquisitionId: string) {
   });
 }
 
-export function useComps(acquisitionId: string) {
+export function useComps(acquisitionId: string, options?: { poll?: boolean }) {
   return useQuery({
     queryKey: ["acquisition", acquisitionId, "comps"],
     queryFn: () => apiFetch<CompSet>(`/acquisitions/${acquisitionId}/comps`),
+    // While a discovery job is running (worker), poll so freshly-found comps appear without a manual
+    // refresh; the caller turns polling off once results land or the window elapses.
+    refetchInterval: options?.poll ? 4000 : false,
+  });
+}
+
+type CompDiscoverResult = Schemas["CompDiscoverResult"];
+
+export function useDiscoverComps(acquisitionId: string) {
+  // Geocode the OM address (sync) + enqueue the 50-mile competitor search in the worker.
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<CompDiscoverResult>(`/acquisitions/${acquisitionId}/comps/discover`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      // The geocode persisted lat/lng on the acquisition; comps fill in as the worker finishes.
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId] });
+      qc.invalidateQueries({ queryKey: ["acquisition", acquisitionId, "comps"] });
+    },
   });
 }
 

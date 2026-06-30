@@ -71,6 +71,26 @@ Follow-ups:
 - [ ] Retire the now-superseded `budget_defaults.py` (+ `test_budget_defaults.py`).
 - [ ] Confirm the call-center GL home (600220, under Advertising & Promotion).
 
+## Done — comp discovery: geocode OM address → competitors within 50 mi (`DECISIONS.md` D-9)
+
+Wired the comp-intelligence search end to end (no migration — refresh-replace + raw_payload):
+
+- [x] **Geocoder seam** (`comps/geocode.py`) — Google Geocoding (when keyed) → free Nominatim
+      fallback; persists lat/lng on the acquisition; never guesses a location.
+- [x] **Real sources** — OpenStreetMap/Overpass (free, always on, full 50-mi `around:` query) +
+      Google Places (tiled Nearby Search, deduped) + Campendium/RV LIFE scaffolds **behind
+      `scrapers_enabled`** (D-22). Scope broadened to glamping + marinas.
+- [x] **Trigger** — `POST …/comps/discover` (geocodes sync, enqueues the worker job
+      `discover_acquisition_comps`); refresh-replace so re-scans don't duplicate; Comps tab button
+      + poll-until-results.
+- [x] **Tests** — pure parse/geometry/tiling-coverage + the geocode→discover service flow (hermetic).
+
+Follow-ups:
+- [ ] Provision a Google Maps Platform key (Places + Geocoding) if richer ratings/coverage wanted —
+      `GOOGLE_PLACES_API_KEY`. OSM works now without it.
+- [ ] Per-site ToS/legal review to flip `scrapers_enabled` and implement the RV-directory scrapers.
+- [ ] Enrich comps (rates/sentiment/amenities) — the scatter needs avg_rate which OSM/Google lack.
+
 ## Done — canonical GL chart + collapsible Budget tab (`DECISIONS.md` D-8)
 
 Chart of accounts derived from the 31-sheet consolidated income statement; Budget tab mirrors the

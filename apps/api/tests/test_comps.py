@@ -64,8 +64,13 @@ def test_haversine_and_radius() -> None:
 # ── source gating (D-22) ────────────────────────────────────────────────────
 
 
-def test_build_sources_empty_when_unconfigured() -> None:
-    assert build_sources() == []  # no API keys, scrapers off
+def test_build_sources_osm_always_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rjacq.comps import sources as src
+
+    monkeypatch.setattr(src.settings, "google_places_api_key", None)
+    monkeypatch.setattr(src.settings, "scrapers_enabled", False)
+    # OpenStreetMap is free + keyless, so the comp search always has at least one live source.
+    assert [s.name for s in build_sources()] == ["osm"]
 
 
 def test_build_sources_includes_api_when_keyed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -74,8 +79,16 @@ def test_build_sources_includes_api_when_keyed(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(src.settings, "google_places_api_key", "k")
     monkeypatch.setattr(src.settings, "scrapers_enabled", False)
     names = [s.name for s in build_sources()]
-    assert "google" in names
-    assert names == ["google"]  # scrapers stay off behind the flag
+    assert names == ["osm", "google"]  # scrapers stay off behind the flag
+
+
+def test_build_sources_adds_scrapers_behind_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rjacq.comps import sources as src
+
+    monkeypatch.setattr(src.settings, "google_places_api_key", None)
+    monkeypatch.setattr(src.settings, "scrapers_enabled", True)
+    names = [s.name for s in build_sources()]
+    assert names == ["osm", "campendium", "rvlife"]  # D-22 gate flipped on
 
 
 # ── discovery + radius filtering (real Postgres) ────────────────────────────

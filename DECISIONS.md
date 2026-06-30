@@ -8,6 +8,45 @@ Newest first.
 
 ---
 
+## 2026-06-30 — Comp discovery: geocode the OM address → find competitors within 50 miles
+
+**Context.** The comp domain had the orchestration (`discover_comps`: radius filter, persist,
+enrich, rank) and the 50-mile constant, but three gaps made "find competitors" a no-op: no
+geocoding (lat/lng were only stored if the address payload already had them — OMs give a street
+address), the source connectors were stubs (`return []`, pending D-22), and nothing triggered
+discovery. This wires it end to end.
+
+### D-9 — Multi-source comp discovery, OSM-first, scrapers still gated
+
+**Geocoder seam (`comps/geocode.py`).** OMs give an address, not coordinates, so discovery geocodes
+first via a provider chain — **Google Geocoding** when `google_places_api_key` is set, then the
+free, keyless **Nominatim/OpenStreetMap** fallback (always available). The result is persisted on
+the acquisition (so the map + population rings reuse it). A miss returns `None` and the caller
+surfaces "couldn't locate"; it never guesses a location.
+
+**Sources — "all of the above", OSM as the workhorse.** Behind the one `CompSource` interface:
+- **OpenStreetMap / Overpass** (`osm`): free, no key, **always on**. A single `around:` query covers
+  the full 50-mile radius. This makes discovery functional today with zero external key/billing.
+- **Google Places** (`google`): richer (ratings); live when keyed. Nearby Search caps at ~31 mi, so
+  we **tile** the disc (`tile_centers`, unit-tested for gap-free coverage) and dedupe by `place_id`.
+- **Niche RV directories (Campendium / RV LIFE)**: the richest rate/amenity data, but **scraped** —
+  wired into the framework yet kept **behind `scrapers_enabled` (off)** until a per-site ToS/legal
+  review clears **D-22**. We do not scrape third-party sites without that review. *(This resolves the
+  "official API" half of D-22 — Google + OSM are sanctioned; the scraper half stays open.)*
+
+**Scope.** A competitor = RV park, campground, RV resort, **plus glamping sites and marinas** with
+overnight stay (OSM `tourism=caravan_site|camp_site` + `leisure=marina`; Google keywords incl.
+"glamping"/"marina"). The 50-mile circle is enforced by the existing haversine post-filter, so a
+source may over-fetch.
+
+**Trigger + idempotency.** `POST /acquisitions/{id}/comps/discover` geocodes **synchronously** (so
+the map updates and an unlocatable address fails fast) then enqueues the radius search in the
+**worker** (`discover_acquisition_comps`) — a burst of external HTTP doesn't belong on the request
+path. Re-running is **refresh-replace**: prior auto-discovered comps are cleared first (manual adds
+kept), so re-scans don't accumulate duplicates. The Comps tab polls until results land.
+
+---
+
 ## 2026-06-30 — Canonical GL chart from the consolidated income statement; collapsible Budget tab
 
 **Context.** We derived the canonical chart of accounts from RJourney's consolidated RV-portfolio

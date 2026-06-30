@@ -332,6 +332,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/comps/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discover Comps
+         * @description Find competitors within 50 miles of the acquisition's (OM) address. Geocodes synchronously
+         *     so the map updates immediately and an unlocatable address fails fast; the radius search itself
+         *     runs in the worker (geocode + one or more source APIs is a burst of external HTTP).
+         */
+        post: operations["discover_comps_acquisitions__acquisition_id__comps_discover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/documents": {
         parameters: {
             query?: never;
@@ -1677,6 +1699,24 @@ export interface components {
             comment_id: string;
             /** Created At */
             created_at?: string | null;
+        };
+        /**
+         * CompDiscoverResult
+         * @description POST /acquisitions/{id}/comps/discover — the acquisition is geocoded synchronously (so the
+         *     map updates immediately and address errors surface now), then discovery runs in the worker.
+         */
+        CompDiscoverResult: {
+            /**
+             * Enqueued
+             * @default false
+             */
+            enqueued: boolean;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Status */
+            status: string;
         };
         /**
          * CompManualAdd
@@ -4825,6 +4865,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    discover_comps_acquisitions__acquisition_id__comps_discover_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompDiscoverResult"];
                 };
             };
             /** @description Bad Request */
