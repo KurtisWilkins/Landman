@@ -54,6 +54,8 @@ async def discover_comps(
     are kept), so re-running discovery is idempotent rather than accumulating duplicates."""
     await repo.delete_discovered(session, acquisition_id)
     inserted = 0
+    succeeded = 0
+    failed = 0
     for source in sources:
         try:
             # Sources do blocking HTTP (httpx); run them off the event loop so the synchronous
@@ -61,9 +63,11 @@ async def discover_comps(
             found = await asyncio.to_thread(
                 source.discover, acquisition_lat, acquisition_lng, radius_miles
             )
-        except Exception:  # one bad source never blocks the rest (§12 resilience)
-            log.warning("comps.source_failed", source=source.name)
+        except Exception as exc:  # one bad source never blocks the rest (§12 resilience)
+            failed += 1
+            log.warning("comps.source_failed", source=source.name, error=type(exc).__name__)
             continue
+        succeeded += 1
         kept = [
             c
             for c in found
@@ -83,6 +87,13 @@ async def discover_comps(
             )
             inserted += 1
         log.info("comps.source_done", source=source.name, found=len(found), kept=len(kept))
+    # Tell "found nothing nearby" apart from "every search service was down": only the latter
+    # warrants a retry, so surface it as an error instead of a silent empty result.
+    if succeeded == 0 and failed > 0:
+        raise CompError(
+            "sources_unavailable",
+            "The competitor search service was temporarily unavailable. Please try again.",
+        )
     await repo.assign_amenity_ranks(session, acquisition_id)
     return inserted
 

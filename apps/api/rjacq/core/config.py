@@ -84,7 +84,25 @@ class Settings(BaseSettings):
     # OpenStreetMap (Nominatim geocoding + Overpass discovery) is free and needs no key, but its
     # usage policy requires a UA that identifies the app + a contact. Override per environment.
     osm_user_agent: str = "rjacq-comps/1.0 (+https://landman.rjourney.com)"
+    # Overpass is a free, volunteer-run service and individual mirrors throttle/time out under
+    # load; discovery tries them in order until one answers. Primary + comma-separated fallbacks.
     overpass_url: str = "https://overpass-api.de/api/interpreter"
+    overpass_fallback_urls: str = (
+        "https://overpass.kumi.systems/api/interpreter,"
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter,"
+        "https://overpass.openstreetmap.ru/api/interpreter"
+    )
+
+    @property
+    def overpass_endpoints(self) -> list[str]:
+        """Overpass endpoints to try in order: the primary first, then any configured fallback
+        mirrors, de-duplicated and trimmed (empty entries dropped)."""
+        out: list[str] = []
+        for url in [self.overpass_url, *self.overpass_fallback_urls.split(",")]:
+            cleaned = url.strip()
+            if cleaned and cleaned not in out:
+                out.append(cleaned)
+        return out
 
     # ── Population / demographics ──────────  TODO(decision: ADR-0009 / §14 D-35)
     # Auto-pull estimated ring populations (25/50/100/150 mi) on property entry. Provider +

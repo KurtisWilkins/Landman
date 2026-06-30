@@ -19,6 +19,7 @@ Per-source failures are isolated by the service (one bad source never blocks the
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Protocol, runtime_checkable
@@ -30,6 +31,8 @@ from ..core.logging import get_logger
 
 log = get_logger("comps.sources")
 _HTTP_TIMEOUT = 30.0
+_OVERPASS_ATTEMPTS_PER_ENDPOINT = 2  # quick retry on a flaky mirror before moving to the next
+_OVERPASS_BACKOFF_SECONDS = 1.5
 _METERS_PER_MILE = 1609.344
 _MILES_PER_DEG_LAT = 69.0
 
@@ -131,9 +134,42 @@ class OpenStreetMapSource:
 
     def discover(self, lat: float, lng: float, radius_miles: float) -> list[RawComp]:
         query = build_overpass_query(lat, lng, radius_miles)
-        resp = httpx.post(settings.overpass_url, data={"data": query}, timeout=_HTTP_TIMEOUT)
-        resp.raise_for_status()
-        return parse_overpass(resp.json())
+        data = self._post_overpass(query)
+        return parse_overpass(data)
+
+    def _post_overpass(self, query: str) -> dict[str, Any]:
+        """POST the query to each Overpass endpoint in turn (a few quick retries each) until one
+        answers, so a single throttled/timed-out mirror doesn't sink discovery. Raises the last
+        error only when every endpoint is exhausted."""
+        endpoints = settings.overpass_endpoints
+        headers = {"User-Agent": settings.osm_user_agent}
+        last_exc: Exception | None = None
+        for endpoint in endpoints:
+            for attempt in range(_OVERPASS_ATTEMPTS_PER_ENDPOINT):
+                try:
+                    resp = httpx.post(
+                        endpoint,
+                        data={"data": query},
+                        headers=headers,
+                        timeout=_HTTP_TIMEOUT,
+                    )
+                    resp.raise_for_status()
+                    body: dict[str, Any] = resp.json()
+                    if endpoint != endpoints[0] or attempt > 0:
+                        log.info("comps.overpass_recovered", endpoint=endpoint, attempt=attempt)
+                    return body
+                except Exception as exc:  # noqa: BLE001 — try the next attempt/mirror
+                    last_exc = exc
+                    log.warning(
+                        "comps.overpass_attempt_failed",
+                        endpoint=endpoint,
+                        attempt=attempt,
+                        error=type(exc).__name__,
+                    )
+                    if attempt + 1 < _OVERPASS_ATTEMPTS_PER_ENDPOINT:
+                        time.sleep(_OVERPASS_BACKOFF_SECONDS)
+        assert last_exc is not None  # endpoints is non-empty, so we always tried at least once
+        raise last_exc
 
 
 # ── Google Places (richer; live when keyed) ──────────────────────────────────

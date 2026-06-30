@@ -79,6 +79,37 @@ def test_parse_google_places() -> None:
     assert comps[0].external_ref == "abc123" and comps[0].raw["rating"] == 4.4
 
 
+def test_overpass_falls_back_to_a_second_mirror(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A throttled/timed-out mirror doesn't sink discovery: the source moves to the next endpoint
+    and returns its result."""
+    import httpx
+    from rjacq.comps import sources as comp_sources
+    from rjacq.core.config import settings
+
+    good_url = settings.overpass_endpoints[1]
+    calls: list[str] = []
+
+    class _Resp:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {"elements": [{"type": "node", "id": 9, "lat": 30.1, "lon": -97.1,
+                                  "tags": {"name": "Mirror RV Park"}}]}
+
+    def fake_post(url: str, **kwargs: object) -> _Resp:
+        calls.append(url)
+        if url != good_url:
+            raise httpx.ConnectError("boom")
+        return _Resp()
+
+    monkeypatch.setattr(comp_sources.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(httpx, "post", fake_post)
+    comps = comp_sources.OpenStreetMapSource().discover(30.0, -97.0, 50.0)
+    assert [c.name for c in comps] == ["Mirror RV Park"]
+    assert good_url in calls and calls[0] == settings.overpass_endpoints[0]
+
+
 def test_tile_centers_cover_the_disc() -> None:
     """Every point of the 50-mi disc is within a tile's radius of some tile center (no gaps)."""
     lat, lng, tile_r = 39.0, -105.0, 30.0
@@ -115,6 +146,13 @@ class _StubSource:
 
     def discover(self, lat: float, lng: float, radius_miles: float) -> list[RawComp]:
         return self._comps
+
+
+class _FailingSource:
+    name = "boom"
+
+    def discover(self, lat: float, lng: float, radius_miles: float) -> list[RawComp]:
+        raise RuntimeError("overpass timed out")
 
 
 class _StubGeocoder:
@@ -226,6 +264,37 @@ async def test_discover_keeps_manual_adds(session: AsyncSession) -> None:
     )
     names = {c.name for c in await comp_repo.list_comps(session, aid)}
     assert names == {"Hand-added Resort", "Auto RV"}  # manual survives the refresh
+
+
+async def test_discover_raises_when_every_source_fails(session: AsyncSession) -> None:
+    """All sources erroring is a transient outage, not "no comps nearby" — surface it as an error
+    (so the UI can prompt a retry) rather than silently returning zero."""
+    aid = await _acquisition(session, with_coords=True)
+    with pytest.raises(service.CompError) as exc:
+        await service.discover_comps(
+            session,
+            acquisition_id=aid,
+            acquisition_lat=30.2672,
+            acquisition_lng=-97.7431,
+            sources=[_FailingSource()],
+            enricher=None,
+        )
+    assert exc.value.code == "sources_unavailable"
+
+
+async def test_discover_zero_results_is_not_an_error(session: AsyncSession) -> None:
+    """A source that answers with nothing nearby (even alongside a failing one) is a legitimate
+    empty result, not an outage — returns 0 without raising."""
+    aid = await _acquisition(session, with_coords=True)
+    inserted = await service.discover_comps(
+        session,
+        acquisition_id=aid,
+        acquisition_lat=30.2672,
+        acquisition_lng=-97.7431,
+        sources=[_FailingSource(), _StubSource([])],
+        enricher=None,
+    )
+    assert inserted == 0
 
 
 async def test_set_rate_updates_comp(session: AsyncSession) -> None:
