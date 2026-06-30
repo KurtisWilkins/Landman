@@ -344,13 +344,14 @@ EXEC=$(az containerapp job start -n rjacq-migrate -g $RG --query name -o tsv)
 while :; do S=$(az containerapp job execution show -n rjacq-migrate -g $RG --job-execution-name $EXEC --query properties.status -o tsv 2>/dev/null); echo "  migrate: $S"; case "$S" in Succeeded|Failed) break;; esac; sleep 5; done
 
 if [ "$S" = "Succeeded" ]; then
-  az containerapp update -n rjacq-api    -g $RG --image $ACR.azurecr.io/rjacq-api:$SHA
-  az containerapp update -n rjacq-worker -g $RG --image $ACR.azurecr.io/rjacq-api:$SHA
-  # az containerapp update -n rjacq-web  -g $RG --image $ACR.azurecr.io/rjacq-web:$SHA   # only if web rebuilt
+  az containerapp update -n rjacq-api -g $RG --image $ACR.azurecr.io/rjacq-api:$SHA
+  # az containerapp update -n rjacq-web -g $RG --image $ACR.azurecr.io/rjacq-web:$SHA   # only if web rebuilt
   echo "DEPLOYED $SHA"
 else
   echo "MIGRATE $S — apps NOT rolled. Logs: az containerapp job logs show -n rjacq-migrate -g $RG --container rjacq-migrate"
 fi
+# No worker: background jobs (GL classification) run in-process in rjacq-api (DECISIONS.md D-10).
+# The rjacq-redis + rjacq-worker Container Apps are retired and can be deleted.
 ```
 
 > **Unique Alembic revision ids.** Before adding a migration, confirm its `revision = "..."` id is
