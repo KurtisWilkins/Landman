@@ -31,6 +31,9 @@ repo_root="$(cd "$here/.." && pwd)"
 : "${S3PROXY_CREDENTIAL:?set S3PROXY_CREDENTIAL (the S3 secret key the app will use)}"
 : "${SECRET_KEY:?set SECRET_KEY (app session signing, strong random)}"
 : "${WEB_ORIGIN:=}"                   # public web URL once known (CORS / OIDC). Optional first pass.
+# RBAC role lists (comma-separated emails, case-insensitive). Read live by rbac.role_for_email;
+# override in scripts/deploy.env. ADMIN is the most-privileged role — keep this list tight.
+: "${ADMIN_EMAILS:=james@rjourney.com}"
 : "${IMAGE_TAG:=bootstrap}"
 : "${SKIP_IMAGE_BUILD:=0}"
 : "${PLACEHOLDER_IMAGE:=mcr.microsoft.com/k8se/quickstart:latest}"
@@ -160,7 +163,7 @@ az containerapp update -n rjacq-s3proxy -g "$RG" \
 # ── 8. API (internal), web (public) — no worker (jobs run in-process; DECISIONS.md D-10) ──────
 say "API / web container apps"
 common_secrets=(database-url="$DATABASE_URL" secret-key="$SECRET_KEY" s3-secret="$S3PROXY_CREDENTIAL")
-common_env=(DATABASE_URL=secretref:database-url APP_ENV=production)
+common_env=(DATABASE_URL=secretref:database-url APP_ENV=production "ADMIN_EMAILS=$ADMIN_EMAILS")
 s3_env=("S3_ENDPOINT=$S3_ENDPOINT" "S3_BUCKET=$BLOBCONTAINER" "S3_ACCESS_KEY_ID=$S3PROXY_IDENTITY" S3_SECRET_ACCESS_KEY=secretref:s3-secret)
 
 if ! az containerapp show -n rjacq-api -g "$RG" -o none 2>/dev/null; then
@@ -190,6 +193,14 @@ if [[ -n "$WEB_ORIGIN" ]]; then
   say "Setting APP_BASE_URL / WEB_BASE_URL on the API ($WEB_ORIGIN)"
   az containerapp update -n rjacq-api -g "$RG" \
     --set-env-vars "APP_BASE_URL=$WEB_ORIGIN" "WEB_BASE_URL=$WEB_ORIGIN" -o none
+fi
+
+# RBAC admin list — idempotent so it also applies to an already-provisioned API on a re-run.
+# Comma-separated emails, single token (no spaces), so --set-env-vars handles it.
+if [[ -n "$ADMIN_EMAILS" ]]; then
+  say "Setting ADMIN_EMAILS on the API ($ADMIN_EMAILS)"
+  az containerapp update -n rjacq-api -g "$RG" \
+    --set-env-vars "ADMIN_EMAILS=$ADMIN_EMAILS" -o none
 fi
 
 # ── 9. Migration job (the deploy pipeline updates its image + runs it each release) ──────────
