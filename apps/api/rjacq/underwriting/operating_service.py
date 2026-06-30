@@ -39,6 +39,7 @@ from .operating import (
     UnitGroupInput,
     billable_unit_total,
     default_billable,
+    default_billable_for_added,
     units_need_input,
 )
 
@@ -259,7 +260,9 @@ async def add_unit_group(
     await _ensure_header(session, acquisition_id)
     existing = await _groups(session, acquisition_id)
     next_sort = 1 + max((g.sort or 0 for g in existing), default=0)
-    billable = body.billable if body.billable is not None else default_billable(body.category)
+    billable = (
+        body.billable if body.billable is not None else default_billable_for_added(body.category)
+    )
     session.add(
         UnitGroup(
             unit_group_id=_new_id("ug"),

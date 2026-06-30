@@ -98,6 +98,11 @@ def test_seeds_load_gl_and_gates(migrated_db: str) -> None:
 
 def test_gl_hierarchy_parent_links(migrated_db: str) -> None:
     """Leaf 400105 rolls up to subgroup 400100 rolls up to major_group 400000."""
+    import asyncio
+
+    from rjacq.seeds.load import run
+
+    asyncio.run(run())  # seed the chart here — don't rely on a sibling test's data (idempotent)
     eng = _sync_engine(migrated_db)
     with eng.connect() as conn:
         parent_of_leaf = conn.execute(
