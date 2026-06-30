@@ -142,6 +142,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/acquisitions/{acquisition_id}/budget/apply-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Budget Defaults
+         * @description Re-run the defaults engine against the current drivers (manual lines untouched).
+         */
+        post: operations["apply_budget_defaults_acquisitions__acquisition_id__budget_apply_defaults_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/acquisitions/{acquisition_id}/budget/line": {
         parameters: {
             query?: never;
@@ -181,6 +201,26 @@ export interface paths {
          * @description Remove a row (custom → deleted; GL → dropped from year-one, prior kept).
          */
         delete: operations["remove_budget_line_acquisitions__acquisition_id__budget_line__line_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/budget/line/{line_id}/revert-default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revert Budget Line To Default
+         * @description Clear a manual edit and re-link the line to its default rule (recompute from drivers).
+         */
+        post: operations["revert_budget_line_to_default_acquisitions__acquisition_id__budget_line__line_id__revert_default_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -409,7 +449,7 @@ export interface paths {
         put?: never;
         /**
          * Seed Labor
-         * @description Seed the default staffing scenario (idempotent).
+         * @description Seed the roster — from OM staffing if provided, else the default scenario (idempotent).
          */
         post: operations["seed_labor_acquisitions__acquisition_id__labor_seed_post"];
         delete?: never;
@@ -474,6 +514,95 @@ export interface paths {
          */
         post: operations["split_mapping_acquisitions__acquisition_id__mapping_split_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/operating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Operating
+         * @description The Operating Inputs panel: unit groups + headcount + electric, with driver totals and the
+         *     'needs input' flags that gate the dependent defaults.
+         */
+        get: operations["get_operating_acquisitions__acquisition_id__operating_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Operating
+         * @description Edit the headcount and/or electric driver (flips the edited field to manual).
+         */
+        patch: operations["patch_operating_acquisitions__acquisition_id__operating_patch"];
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/operating/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seed Operating
+         * @description Seed the panel from the OM unit mix + the mapped prior-year Electric (idempotent).
+         */
+        post: operations["seed_operating_acquisitions__acquisition_id__operating_seed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/operating/unit-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Unit Group
+         * @description Add a unit group — a default category or a custom sub-type.
+         */
+        post: operations["add_unit_group_acquisitions__acquisition_id__operating_unit_group_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Unit Group
+         * @description Edit a unit group's count / billable / label (flips it to manual).
+         */
+        patch: operations["patch_unit_group_acquisitions__acquisition_id__operating_unit_group_patch"];
+        trace?: never;
+    };
+    "/acquisitions/{acquisition_id}/operating/unit-group/{unit_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Unit Group
+         * @description Remove a unit group (drivers recompute from the rest).
+         */
+        delete: operations["remove_unit_group_acquisitions__acquisition_id__operating_unit_group__unit_group_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -735,6 +864,47 @@ export interface paths {
          * @description Exchange an OIDC code for a session (Entra ID / external). TODO(decision: §14 C-16).
          */
         post: operations["auth_callback_auth_callback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/default-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Default Rules
+         * @description The global defaults rule library (seeded from RULE_LIBRARY on first read).
+         */
+        get: operations["list_default_rules_default_rules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/default-rules/{rule_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Default Rule
+         * @description Edit a rule's rate/amount, enabled flag, basis, recommended band, or override behavior —
+         *     globally. The change takes effect on the next budget recompute (manual lines untouched).
+         */
+        put: operations["update_default_rule_default_rules__rule_key__put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1384,6 +1554,11 @@ export interface components {
              * @default false
              */
             removed: boolean;
+            /**
+             * Revertible
+             * @default false
+             */
+            revertible: boolean;
             /** Section */
             section?: string | null;
             /** Source */
@@ -1507,6 +1682,61 @@ export interface components {
         CompVisualization: {
             /** Points */
             points?: components["schemas"]["CompScatterPoint"][];
+        };
+        /**
+         * DefaultRulePatch
+         * @description Edit a rule's tunables (the type + target GL are structural and not editable here).
+         */
+        DefaultRulePatch: {
+            /** Basis */
+            basis?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Overrides Actuals */
+            overrides_actuals?: boolean | null;
+            /** Soft Max */
+            soft_max?: number | string | null;
+            /** Soft Min */
+            soft_min?: number | string | null;
+            /** Value */
+            value?: number | string | null;
+        };
+        /**
+         * DefaultRuleRow
+         * @description One rule in the editable library.
+         */
+        DefaultRuleRow: {
+            /** Basis */
+            basis: string;
+            /** Driver Account Code */
+            driver_account_code?: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Is Income Offset */
+            is_income_offset: boolean;
+            /** Label */
+            label: string;
+            /** Must Fix */
+            must_fix: boolean;
+            /** Overrides Actuals */
+            overrides_actuals: boolean;
+            /** Rule Key */
+            rule_key: string;
+            /** Rule Type */
+            rule_type: string;
+            /** Soft Max */
+            soft_max?: string | null;
+            /** Soft Min */
+            soft_min?: string | null;
+            /** Target Account Code */
+            target_account_code: string;
+            /** Value */
+            value: string;
+        };
+        /** DefaultRulesDoc */
+        DefaultRulesDoc: {
+            /** Rules */
+            rules?: components["schemas"]["DefaultRuleRow"][];
         };
         /** DispatchOut */
         DispatchOut: {
@@ -1975,6 +2205,11 @@ export interface components {
             label?: string | null;
             /** Name */
             name: string;
+            /**
+             * Needs Wage
+             * @default false
+             */
+            needs_wage: boolean;
             /** Note */
             note?: string | null;
             /** Position Id */
@@ -1985,6 +2220,11 @@ export interface components {
             season: string;
             /** Site Weekly Rate */
             site_weekly_rate?: string | null;
+            /**
+             * Source
+             * @default manual
+             */
+            source: string;
             /** Start Date */
             start_date?: string | null;
             /** Wages */
@@ -1992,12 +2232,22 @@ export interface components {
             /** Weeks */
             weeks: string;
         };
+        /**
+         * LaborSeedRequest
+         * @description Optional OM staffing to seed the roster from; empty → the default scenario.
+         */
+        LaborSeedRequest: {
+            /** Staffing */
+            staffing?: components["schemas"]["StaffingRoleIn"][];
+        };
         /** LaborTotalsOut */
         LaborTotalsOut: {
             /** Benefits */
             benefits: string;
             /** Extended Stay Revenue */
             extended_stay_revenue: string;
+            /** Headcount */
+            headcount: number;
             /** Payroll Tax */
             payroll_tax: string;
             /** Prior Labor */
@@ -2140,6 +2390,74 @@ export interface components {
             seller_name?: string | null;
             /** Site Count */
             site_count?: number | null;
+            /** Staffing */
+            staffing?: components["schemas"]["OmStaffingRole"][];
+        };
+        /**
+         * OmStaffingRole
+         * @description A staffing line proposed from the OM (seeds the Labor roster, tagged 'from OM').
+         */
+        OmStaffingRole: {
+            /** Count */
+            count?: number | null;
+            /** Hourly Rate */
+            hourly_rate?: string | null;
+            /** Role */
+            role: string;
+        };
+        /**
+         * OperatingDoc
+         * @description The Operating Inputs panel: the unit groups + headcount + electric, with derived driver
+         *     totals and the needs-input flags that gate the dependent defaults.
+         */
+        OperatingDoc: {
+            /**
+             * Billable Unit Total
+             * @default 0
+             */
+            billable_unit_total: number;
+            /** Electric Annual */
+            electric_annual?: string | null;
+            /**
+             * Electric Needs Input
+             * @default true
+             */
+            electric_needs_input: boolean;
+            /**
+             * Electric Source
+             * @default needs_input
+             */
+            electric_source: string;
+            /** Employee Headcount */
+            employee_headcount?: number | null;
+            /**
+             * Headcount Needs Input
+             * @default true
+             */
+            headcount_needs_input: boolean;
+            /**
+             * Headcount Source
+             * @default needs_input
+             */
+            headcount_source: string;
+            /** Unit Groups */
+            unit_groups?: components["schemas"]["UnitGroupRow"][];
+            /**
+             * Units Need Input
+             * @default true
+             */
+            units_need_input: boolean;
+        };
+        /**
+         * OperatingPatch
+         * @description Edit the electric driver (flips its source to manual). Headcount is NOT editable here — it's
+         *     the Labor roster total (single source of truth).
+         */
+        OperatingPatch: {
+            /** Electric Annual */
+            electric_annual?: number | string | null;
+            /** Note */
+            note?: string | null;
         };
         /** OperationsDoc */
         OperationsDoc: {
@@ -2564,6 +2882,18 @@ export interface components {
             user_id: string;
         };
         /**
+         * StaffingRoleIn
+         * @description One OM-proposed staffing line passed to the roster seed.
+         */
+        StaffingRoleIn: {
+            /** Count */
+            count?: number | null;
+            /** Hourly Rate */
+            hourly_rate?: number | string | null;
+            /** Role */
+            role: string;
+        };
+        /**
          * SuggestionStatus
          * @enum {string}
          */
@@ -2660,6 +2990,59 @@ export interface components {
             proforma_results?: components["schemas"]["ProformaResults"] | null;
             /** Waterfall Tiers */
             waterfall_tiers?: components["schemas"]["WaterfallTier"][];
+        };
+        /**
+         * UnitGroupCreate
+         * @description Add a unit group — a default category or a custom sub-type.
+         */
+        UnitGroupCreate: {
+            /** Billable */
+            billable?: boolean | null;
+            /** Category */
+            category: string;
+            /** Count */
+            count?: number | null;
+            /** Label */
+            label?: string | null;
+        };
+        /**
+         * UnitGroupPatch
+         * @description Edit a unit group's count / billable flag / label (flips its source to manual).
+         */
+        UnitGroupPatch: {
+            /** Billable */
+            billable?: boolean | null;
+            /** Category */
+            category?: string | null;
+            /** Count */
+            count?: number | null;
+            /** Label */
+            label?: string | null;
+            /** Unit Group Id */
+            unit_group_id: string;
+        };
+        /**
+         * UnitGroupRow
+         * @description One unit grouping in the capture grid.
+         */
+        UnitGroupRow: {
+            /**
+             * Billable
+             * @default true
+             */
+            billable: boolean;
+            /** Category */
+            category: string;
+            /** Count */
+            count?: number | null;
+            /** Label */
+            label?: string | null;
+            /** Sort */
+            sort?: number | null;
+            /** Source */
+            source: string;
+            /** Unit Group Id */
+            unit_group_id: string;
         };
         /** UnitMixRow */
         UnitMixRow: {
@@ -3444,6 +3827,93 @@ export interface operations {
             };
         };
     };
+    apply_budget_defaults_acquisitions__acquisition_id__budget_apply_defaults_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     add_budget_line_acquisitions__acquisition_id__budget_line_post: {
         parameters: {
             query?: never;
@@ -3627,6 +4097,94 @@ export interface operations {
         };
     };
     remove_budget_line_acquisitions__acquisition_id__budget_line__line_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revert_budget_line_to_default_acquisitions__acquisition_id__budget_line__line_id__revert_default_post: {
         parameters: {
             query?: never;
             header?: {
@@ -4789,7 +5347,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LaborSeedRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5067,6 +5629,541 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MappingReview"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_operating_acquisitions__acquisition_id__operating_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_operating_acquisitions__acquisition_id__operating_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    seed_operating_acquisitions__acquisition_id__operating_seed_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    add_unit_group_acquisitions__acquisition_id__operating_unit_group_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnitGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_unit_group_acquisitions__acquisition_id__operating_unit_group_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnitGroupPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_unit_group_acquisitions__acquisition_id__operating_unit_group__unit_group_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                acquisition_id: string;
+                unit_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDoc"];
                 };
             };
             /** @description Bad Request */
@@ -6475,6 +7572,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Session"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_default_rules_default_rules_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultRulesDoc"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_default_rule_default_rules__rule_key__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                rule_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefaultRulePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultRuleRow"];
                 };
             };
             /** @description Bad Request */
